@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "76177894884",
+    "project_id": "feast-c9ec5",
+    "storage_bucket": "feast-c9ec5.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:76177894884:android:ed0d413d9ed2961dc8abf1",
+        "android_client_info": {
+          "package_name": "com.example.feast"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyARgSop8tg3UpAo7_Zq3zj18ApnOYcHVHI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
