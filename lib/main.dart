@@ -5,7 +5,7 @@ import 'firebase_options.dart';
 // Library Components
 import 'package:feast/core/core.dart';
 // import 'package:feast/providers/providers.dart';
-import 'package:feast/features/features.dart';
+// import 'package:feast/features/features.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,6 +26,9 @@ class _MyAppState extends State<MyApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      initialRoute: AppRoutes.splash,
+      routes: AppRouter.routes,
+      onGenerateRoute: AppRouter.onGenerateRoute,
       debugShowCheckedModeBanner: false,
     );
   }
