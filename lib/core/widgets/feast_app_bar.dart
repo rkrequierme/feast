@@ -23,11 +23,11 @@ class FeastAppBar extends StatelessWidget implements PreferredSizeWidget {
       centerTitle: true,
       leading: showBurgerMenu
       ? IconButton(
-        icon: const Icon(Icons.menu, color: feastBlack),
-        onPressed: () => Scaffold.of(context).openDrawer(),
-      ) : IconButton(
         icon: const Icon(Icons.arrow_back, color: feastBlack),
         onPressed: () => Navigator.of(context).pop(),
+      ) : IconButton(
+        icon: const Icon(Icons.menu, color: feastBlack),
+        onPressed: () => Scaffold.of(context).openDrawer(),
       ),
       title: Text(
         title,
