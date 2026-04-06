@@ -63,6 +63,7 @@ export 'widgets/charity_event_card.dart';
 export 'widgets/custom_date_picker.dart';
 export 'widgets/custom_dropdown.dart';
 export 'widgets/feast_app_bar.dart';
+export 'widgets/feast_background.dart';
 
 // Constants
 export 'constants/app_routes.dart';
