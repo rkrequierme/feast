@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:feast/core/constants/app_routes.dart';
+import 'package:feast/core/core.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -23,184 +23,45 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Colors matching the UI design as closely as possible
-    const primaryGreen = Color(0xFF2A7A38);
-    const lightYellow = Color(0xFFFFF7BE);
-    const lightBlueSky = Color(0xFFD4E9E6);
-
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              lightBlueSky,
-              Color(0xFFBDE1D8), // slight transition to green
-            ],
-          ),
-        ),
+      body: FeastBackground(
         child: SafeArea(
           bottom: false,
           child: Column(
             children: [
-              // Logo and Title Section
+              // Logo and Tagline
               Expanded(
                 flex: 4,
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     // Logo
-                    Image.asset(
-                      'assets/images/logo.png',
-                      height: 120,
-                      errorBuilder: (context, error, stackTrace) {
-                        return Container(
-                          height: 120,
-                          width: double.infinity,
-                          alignment: Alignment.center,
-                          child: const Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            children: [
-                              Icon(
-                                Icons.image_not_supported,
-                                size: 50,
-                                color: Colors.grey,
-                              ),
-                              Text(
-                                'Logo Image Here',
-                                style: TextStyle(color: Colors.grey),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                    const SizedBox(height: 20),
-                    // Title with Stroke effect
-                    Stack(
-                      children: [
-                        // Outline
-                        Text(
-                          'Welcome To The F.E.A.S.T.\nCharity Management System!',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            foreground: Paint()
-                              ..style = PaintingStyle.stroke
-                              ..strokeWidth = 3
-                              ..color = Colors.white,
-                          ),
-                        ),
-                        // Inner text
-                        const Text(
-                          'Welcome To The F.E.A.S.T.\nCharity Management System!',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w900,
-                            color: primaryGreen,
-                          ),
-                        ),
-                      ],
-                    ),
+                    FeastLogo(),
+                    // Tagline
+                    FeastTagline("Welcome To The F.E.A.S.T.\nCharity Management System!"),
                   ],
                 ),
               ),
-
-              // Bottom Card Form
+              // Bottom Login Form
               Expanded(
                 flex: 6,
-                child: Container(
-                  width: double.infinity,
-                  decoration: const BoxDecoration(
-                    color: lightYellow,
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(40),
-                      topRight: Radius.circular(40),
-                    ),
-                  ),
+                child: BottomFormBackground(
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: 24,
-                      vertical: 30,
+                      horizontal: 40,
+                      vertical: 40,
                     ),
                     child: Column(
                       children: [
                         // Toggle Login / Register
-                        Container(
-                          height: 50,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(10),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withAlpha(13),
-                                blurRadius: 4,
-                                offset: const Offset(0, 2),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    color: primaryGreen,
-                                    borderRadius: BorderRadius.circular(10),
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: const Text(
-                                    'Login',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () {
-                                    Navigator.pushReplacementNamed(
-                                      context,
-                                      AppRoutes.register,
-                                    );
-                                  },
-                                  child: Container(
-                                    color: Colors.transparent,
-                                    alignment: Alignment.center,
-                                    child: const Text(
-                                      'Register',
-                                      style: TextStyle(
-                                        color: Colors.grey,
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 16,
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 30),
-
+                        const ToggleLoginRegister(isLogin: true,),
+                        const SizedBox(height: 24),
                         // Email Field
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              ' Email',
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 5),
+                            FieldLabel(text: "Email"),
+                            const SizedBox(height: 8),
                             Container(
                               decoration: BoxDecoration(
                                 color: Colors.white,
@@ -220,6 +81,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   hintStyle: const TextStyle(
                                     color: Colors.grey,
                                     fontSize: 14,
+                                    fontFamily: "Outfit",
                                   ),
                                   prefixIcon: const Icon(
                                     Icons.mail_outline,
@@ -250,15 +112,8 @@ class _LoginScreenState extends State<LoginScreen> {
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              ' Password',
-                              style: TextStyle(
-                                color: Colors.grey,
-                                fontSize: 12,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 5),
+                            FieldLabel(text: "Password"),
+                            const SizedBox(height: 8),
                             Container(
                               decoration: BoxDecoration(
                                 color: Colors.white,
@@ -279,6 +134,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                   hintStyle: const TextStyle(
                                     color: Colors.grey,
                                     fontSize: 14,
+                                    fontFamily: "Outfit",
                                   ),
                                   prefixIcon: const Icon(
                                     Icons.lock_outline,
@@ -323,7 +179,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                     _rememberMe = value ?? false;
                                   });
                                 },
-                                activeColor: primaryGreen,
+                                activeColor: feastGreen,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(4),
                                 ),
@@ -334,6 +190,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               'Remember Me.',
                               style: TextStyle(
                                 color: Colors.black87,
+                                fontFamily: "Outfit",
                                 fontWeight: FontWeight.bold,
                                 fontSize: 13,
                               ),
@@ -350,7 +207,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               // Perform login
                             },
                             style: ElevatedButton.styleFrom(
-                              backgroundColor: primaryGreen,
+                              backgroundColor: feastGreen,
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(25),
@@ -361,6 +218,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               'Sign In',
                               style: TextStyle(
                                 fontSize: 16,
+                                fontFamily: "Outfit",
                                 fontWeight: FontWeight.bold,
                                 color: Colors.white,
                               ),
@@ -378,6 +236,7 @@ class _LoginScreenState extends State<LoginScreen> {
                             'Forgot Password?',
                             style: TextStyle(
                               color: Colors.blue,
+                              fontFamily: "Outfit",
                               fontWeight: FontWeight.bold,
                               fontSize: 14,
                               decoration: TextDecoration.underline,

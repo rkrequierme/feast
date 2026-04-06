@@ -64,6 +64,11 @@ export 'widgets/custom_date_picker.dart';
 export 'widgets/custom_dropdown.dart';
 export 'widgets/feast_app_bar.dart';
 export 'widgets/feast_background.dart';
+export 'widgets/feast_logo.dart';
+export 'widgets/feast_tagline.dart';
+export 'widgets/bottom_form_background.dart';
+export 'widgets/toggle_login_register.dart';
+export 'widgets/field_label.dart';
 
 // Constants
 export 'constants/app_routes.dart';

@@ -62,12 +62,13 @@ flutter:
   assets:
     - assets/images/GPC_Logo.png
     - assets/images/Background_Image.png
+    - assets/images/Charity_Pattern.jpg
   # - images/a_dot_ham.jpeg
 
   fonts:
     - family: Outfit
       fonts:
-        - asset: assets/fonts/Outfit.ttf
+        - asset: assets/fonts/OutfitRegular.ttf
     
     - family: TitanOne
       fonts:
