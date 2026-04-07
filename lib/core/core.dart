@@ -80,6 +80,14 @@ export 'widgets/item_donation_modal.dart';
 export 'widgets/question_modal.dart';
 export 'widgets/remove_members_modal.dart';
 export 'widgets/report_modal.dart';
+export 'widgets/aid_request_list_item.dart';
+export 'widgets/bookmark_list_item.dart';
+export 'widgets/charity_event_list_item.dart';
+export 'widgets/chat_list_item.dart';
+export 'widgets/feast_bottom_nav_bar.dart';
+export 'widgets/group_member_list_item.dart';
+export 'widgets/history_log_list_item.dart';
+export 'widgets/notification_list_item.dart';
 
 // Constants
 export 'constants/app_routes.dart';
