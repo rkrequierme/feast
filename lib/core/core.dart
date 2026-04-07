@@ -69,6 +69,17 @@ export 'widgets/field_label.dart';
 export 'widgets/feast_checkbox.dart';
 export 'widgets/feast_button.dart';
 export 'widgets/feast_link.dart';
+export 'widgets/announcement_modal.dart';
+export 'widgets/confirmation_modal.dart';
+export 'widgets/create_chat_modal.dart';
+export 'widgets/delete_remove_modal.dart';
+export 'widgets/donate_modal.dart';
+export 'widgets/edit_group_modal.dart';
+export 'widgets/invite_collaborators_modal.dart';
+export 'widgets/item_donation_modal.dart';
+export 'widgets/question_modal.dart';
+export 'widgets/remove_members_modal.dart';
+export 'widgets/report_modal.dart';
 
 // Constants
 export 'constants/app_routes.dart';
