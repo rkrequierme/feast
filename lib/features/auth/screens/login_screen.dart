@@ -24,6 +24,7 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      // Background
       body: FeastBackground(
         child: SafeArea(
           bottom: false,
@@ -50,64 +51,60 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: SingleChildScrollView(
                     padding: const EdgeInsets.all(40),
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Toggle Login / Register
                         const ToggleLoginRegister(isLogin: true),
-                        const SizedBox(height: 24),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Email Field
-                            LabeledTextField(
-                              config: LabeledTextFieldConfig(
-                                label: "Email",
-                                hintText: "name@email.com",
-                                prefixIcon: Icons.mail_outline,
-                                controller: _emailController,
-                                trailingAction: TrailingAction.clear,
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            // Password Field
-                            LabeledTextField(
-                              config: LabeledTextFieldConfig(
-                                label: "Password",
-                                hintText: "Enter your password",
-                                prefixIcon: Icons.lock_outline,
-                                controller: _passwordController,
-                                trailingAction: TrailingAction.togglePassword,
-                                obscureText: !_isPasswordVisible,
-                              ),
-                            ),
-                            const SizedBox(height: 20),
-                            // Remember Me
-                            FeastCheckbox(
-                              text: "Remember Me.",
-                              value: _rememberMe,
-                              onChanged: (val) =>
-                                  setState(() => _rememberMe = val ?? false),
-                            ),
-                            const SizedBox(height: 20),
-                            // Login Button
-                            FeastButton(
-                              text: "Sign In",
-                              onPressed: () {
-                                // Perform login
-                              },
-                            ),
-                            const SizedBox(height: 20),
-                            // Forgot Password
-                            FeastLink(
-                              text: 'Forgot Password?',
-                              alignment: Alignment.center,
-                              onPressed: () {
-                                Navigator.pushNamed(
-                                  context,
-                                  AppRoutes.forgotPassword,
-                                );
-                              },
-                            ),
-                          ],
+                        const SizedBox(height: 32),
+                        // Email Field
+                        LabeledTextField(
+                          config: LabeledTextFieldConfig(
+                            label: "Email",
+                            hintText: "name@email.com",
+                            prefixIcon: Icons.mail_outline,
+                            controller: _emailController,
+                            trailingAction: TrailingAction.clear,
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        // Password Field
+                        LabeledTextField(
+                          config: LabeledTextFieldConfig(
+                            label: "Password",
+                            hintText: "Enter your password",
+                            prefixIcon: Icons.lock_outline,
+                            controller: _passwordController,
+                            trailingAction: TrailingAction.togglePassword,
+                            obscureText: !_isPasswordVisible,
+                          ),
+                        ),
+                        const SizedBox(height: 32),
+                        // Remember Me
+                        FeastCheckbox(
+                          text: "Remember Me.",
+                          value: _rememberMe,
+                          onChanged: (val) =>
+                              setState(() => _rememberMe = val ?? false),
+                        ),
+                        const SizedBox(height: 32),
+                        // Login Button
+                        FeastButton(
+                          text: "Sign In",
+                          onPressed: () {
+                            // Perform login
+                          },
+                        ),
+                        const SizedBox(height: 32),
+                        // Forgot Password
+                        FeastLink(
+                          text: 'Forgot Password?',
+                          alignment: Alignment.center,
+                          onPressed: () {
+                            Navigator.pushNamed(
+                              context,
+                              AppRoutes.forgotPassword,
+                            );
+                          },
                         ),
                       ],
                     ),

@@ -12,12 +12,7 @@ class BottomFormBackground extends StatelessWidget {
       width: double.infinity,
       decoration: BoxDecoration(
         // Border
-        border: Border(
-          top: BorderSide(
-            color: Colors.white,
-            width: 8,
-          ),
-        ),
+        border: Border(top: BorderSide(color: Colors.white, width: 8)),
         // Border Radius
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(50),
@@ -33,10 +28,7 @@ class BottomFormBackground extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
-          colors: [
-            feastLightYellow,
-            feastLighterYellow,
-          ],
+          colors: [feastLightYellow, feastLighterYellow],
         ),
       ),
       child: child,

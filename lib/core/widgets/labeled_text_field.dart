@@ -3,7 +3,14 @@ import 'date_picker_modal.dart';
 import 'file_picker_modal.dart';
 import '../core.dart';
 
-enum TrailingAction { clear, togglePassword, dropdown, datePicker, filePicker, none }
+enum TrailingAction {
+  clear,
+  togglePassword,
+  dropdown,
+  datePicker,
+  filePicker,
+  none,
+}
 
 class LabeledTextFieldConfig {
   final String label;
@@ -49,9 +56,15 @@ class _LabeledTextFieldState extends State<LabeledTextField> {
       case TrailingAction.dropdown:
         widget.config.onDropdownTap?.call();
       case TrailingAction.datePicker:
-        DatePickerModal.show(context: context, controller: widget.config.controller);
+        DatePickerModal.show(
+          context: context,
+          controller: widget.config.controller,
+        );
       case TrailingAction.filePicker:
-        FilePickerModal.show(context: context, controller: widget.config.controller);
+        FilePickerModal.show(
+          context: context,
+          controller: widget.config.controller,
+        );
       default:
         break;
     }
@@ -67,7 +80,9 @@ class _LabeledTextFieldState extends State<LabeledTextField> {
       case TrailingAction.togglePassword:
         return IconButton(
           icon: Icon(
-            _obscure ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+            _obscure
+                ? Icons.visibility_off_outlined
+                : Icons.visibility_outlined,
             color: Colors.black54,
             size: 20,
           ),
@@ -75,12 +90,20 @@ class _LabeledTextFieldState extends State<LabeledTextField> {
         );
       case TrailingAction.dropdown:
         return IconButton(
-          icon: const Icon(Icons.keyboard_arrow_down, color: Colors.black54, size: 22),
+          icon: const Icon(
+            Icons.keyboard_arrow_down,
+            color: Colors.black54,
+            size: 22,
+          ),
           onPressed: widget.config.onDropdownTap,
         );
       case TrailingAction.datePicker:
         return IconButton(
-          icon: const Icon(Icons.calendar_today_outlined, color: Colors.black54, size: 20),
+          icon: const Icon(
+            Icons.calendar_today_outlined,
+            color: Colors.black54,
+            size: 20,
+          ),
           onPressed: () => DatePickerModal.show(
             context: context,
             controller: widget.config.controller,
@@ -88,7 +111,11 @@ class _LabeledTextFieldState extends State<LabeledTextField> {
         );
       case TrailingAction.filePicker:
         return IconButton(
-          icon: const Icon(Icons.image_outlined, color: Colors.black54, size: 20),
+          icon: const Icon(
+            Icons.image_outlined,
+            color: Colors.black54,
+            size: 20,
+          ),
           onPressed: () => FilePickerModal.show(
             context: context,
             controller: widget.config.controller,
@@ -101,7 +128,8 @@ class _LabeledTextFieldState extends State<LabeledTextField> {
 
   @override
   Widget build(BuildContext context) {
-    final isReadOnly = widget.config.trailingAction == TrailingAction.dropdown ||
+    final isReadOnly =
+        widget.config.trailingAction == TrailingAction.dropdown ||
         widget.config.trailingAction == TrailingAction.datePicker ||
         widget.config.trailingAction == TrailingAction.filePicker;
 
@@ -125,7 +153,8 @@ class _LabeledTextFieldState extends State<LabeledTextField> {
           child: TextField(
             controller: widget.config.controller,
             keyboardType: widget.config.keyboardType,
-            obscureText: widget.config.trailingAction == TrailingAction.togglePassword
+            obscureText:
+                widget.config.trailingAction == TrailingAction.togglePassword
                 ? _obscure
                 : false,
             readOnly: isReadOnly,

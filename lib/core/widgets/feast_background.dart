@@ -33,7 +33,7 @@ class FeastBackground extends StatelessWidget {
           ),
         ),
         // Foreground Content
-        child, 
+        child,
       ],
     );
   }

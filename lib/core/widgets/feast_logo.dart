@@ -4,10 +4,7 @@ class FeastLogo extends StatelessWidget {
   final double height;
 
   // 200.0 = Default Height Value (Can Be Changed When Called)
-  const FeastLogo({
-    super.key, 
-    this.height = 200.0, 
-  });
+  const FeastLogo({super.key, this.height = 200.0});
 
   @override
   Widget build(BuildContext context) {
@@ -28,10 +25,7 @@ class FeastLogo extends StatelessWidget {
                 size: height * 0.25,
                 color: Colors.grey,
               ),
-              const Text(
-                'Logo Image',
-                style: TextStyle(color: Colors.grey),
-              ),
+              const Text('Logo Image', style: TextStyle(color: Colors.grey)),
             ],
           ),
         );

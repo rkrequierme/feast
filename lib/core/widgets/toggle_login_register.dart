@@ -27,9 +27,14 @@ class ToggleLoginRegister extends StatelessWidget {
           children: [
             Expanded(
               child: GestureDetector(
-                onTap: isLogin ? null : () {
-                  Navigator.pushReplacementNamed(context, AppRoutes.login);
-                },
+                onTap: isLogin
+                    ? null
+                    : () {
+                        Navigator.pushReplacementNamed(
+                          context,
+                          AppRoutes.login,
+                        );
+                      },
                 child: Container(
                   decoration: BoxDecoration(
                     color: feastGreen,
@@ -50,9 +55,14 @@ class ToggleLoginRegister extends StatelessWidget {
             ),
             Expanded(
               child: GestureDetector(
-                onTap: isLogin ? () {
-                  Navigator.pushReplacementNamed(context, AppRoutes.register);
-                } : null,
+                onTap: isLogin
+                    ? () {
+                        Navigator.pushReplacementNamed(
+                          context,
+                          AppRoutes.register,
+                        );
+                      }
+                    : null,
                 child: Container(
                   color: Colors.transparent,
                   alignment: Alignment.center,
