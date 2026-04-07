@@ -68,7 +68,11 @@ export 'widgets/feast_logo.dart';
 export 'widgets/feast_tagline.dart';
 export 'widgets/bottom_form_background.dart';
 export 'widgets/toggle_login_register.dart';
+export 'widgets/labeled_text_field.dart';
 export 'widgets/field_label.dart';
+export 'widgets/feast_checkbox.dart';
+export 'widgets/feast_button.dart';
+export 'widgets/feast_link.dart';
 
 // Constants
 export 'constants/app_routes.dart';

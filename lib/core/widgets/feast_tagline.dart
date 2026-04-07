@@ -15,7 +15,7 @@ class FeastTagline extends StatelessWidget {
     this.fontSize = 20,
     this.textColor = Colors.white,
     this.strokeColor = feastGreen,
-    this.strokeWidth = 8,
+    this.strokeWidth = 10,
     this.fontFamily = "TitanOne",
   });
 

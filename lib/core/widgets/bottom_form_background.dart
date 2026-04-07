@@ -11,6 +11,13 @@ class BottomFormBackground extends StatelessWidget {
     return Container(
       width: double.infinity,
       decoration: BoxDecoration(
+        // Border
+        border: Border(
+          top: BorderSide(
+            color: Colors.white,
+            width: 8,
+          ),
+        ),
         // Border Radius
         borderRadius: const BorderRadius.only(
           topLeft: Radius.circular(50),

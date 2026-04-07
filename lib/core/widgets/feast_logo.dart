@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 class FeastLogo extends StatelessWidget {
   final double height;
 
-  // 200.0 = Default Value (Height Can Be Set)
+  // 200.0 = Default Height Value (Can Be Changed When Called)
   const FeastLogo({
     super.key, 
     this.height = 200.0, 
