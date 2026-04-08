@@ -88,6 +88,9 @@ export 'widgets/feast_bottom_nav_bar.dart';
 export 'widgets/group_member_list_item.dart';
 export 'widgets/history_log_list_item.dart';
 export 'widgets/notification_list_item.dart';
+export 'widgets/feast_drawer.dart';
+export 'widgets/feast_floating_button.dart';
+export 'widgets/feast_toast.dart';
 
 // Constants
 export 'constants/app_routes.dart';

@@ -295,7 +295,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   width: double.infinity,
                   child: ElevatedButton(
                     onPressed: () {
-                      // Perform registration
+                      // Perform registration then navigate to Home
+                      Navigator.pushReplacementNamed(
+                        context,
+                        AppRoutes.home,
+                      );
                     },
                     style: ElevatedButton.styleFrom(
                       backgroundColor: primaryGreen,
