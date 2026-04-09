@@ -42,8 +42,6 @@ export 'utils/currency_utils.dart';
 export 'utils/file_utils.dart';
 
 // Widgets
-export 'widgets/custom_button.dart';
-export 'widgets/confirm_dialog.dart';
 export 'widgets/loading_overlay.dart';
 export 'widgets/empty_state_widget.dart';
 export 'widgets/error_state_widget.dart';
@@ -51,13 +49,10 @@ export 'widgets/image_carousel.dart';
 export 'widgets/progress_bar_widget.dart';
 export 'widgets/offline_banner.dart';
 export 'widgets/feast_bottom_nav.dart';
-export 'widgets/burger_menu.dart';
 export 'widgets/report_content_dialog.dart';
 export 'widgets/donate_funds_dialog.dart';
 export 'widgets/give_items_dialog.dart';
 export 'widgets/edonation_screen.dart';
-export 'widgets/aid_request_card.dart';
-export 'widgets/charity_event_card.dart';
 export 'widgets/feast_app_bar.dart';
 export 'widgets/feast_background.dart';
 export 'widgets/feast_logo.dart';
