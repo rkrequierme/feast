@@ -3,92 +3,51 @@ import 'package:flutter/material.dart';
 // ---------------------------------------------------------------------------
 // HistoryLogListItem
 // ---------------------------------------------------------------------------
-// A reusable tile for the "Your History" / Activity Log screen.
-//
-// FIREBASE INTEGRATION:
-//   Subcollection : `users/{uid}/activity_logs`
-//   Document fields expected:
-//     - id          : String  (document ID)
-//     - actionType  : String  (e.g. "Post Handling", "User Authentication",
-//                              "Credential Changes")
-//     - description : String  (e.g. "Remove Charity Event.")
-//     - timestamp   : Timestamp
-//     - status      : String  ('Rejected' | 'Pending' | 'Approved' |
-//                              'Success' | 'In Progress')
-//
-//   To wire up:
-//     1. Create an `ActivityLog` model from DocumentSnapshot.
-//     2. Use StreamBuilder on `users/{uid}/activity_logs`
-//        ordered by `timestamp` descending.
-//     3. Separate into "Recent" (last 30 days) and "Past" sections.
-//     4. Cloud Function or client-side write to append a log entry whenever
-//        a significant user action occurs (create/edit/remove request, event,
-//        login, password change, etc.).
-//
-//   DATABASE STRUCTURE NEEDED:
-//     users/{uid}/activity_logs/{logId}
-//       - actionType  : String
-//       - description : String
-//       - timestamp   : Timestamp
-//       - status      : String
-// ---------------------------------------------------------------------------
-
 enum LogStatus { approved, pending, rejected, success, inProgress }
 
 class HistoryLogListItem extends StatelessWidget {
   final String id;
   final String actionType;
   final String description;
-  final String formattedDate; // e.g. "03-08-2026 | 12:00 PM"
+  final String formattedDate;
   final LogStatus status;
+  final DateTime? sortableDate;
 
   const HistoryLogListItem({
     super.key,
     this.id = 'placeholder_id',
     this.actionType = 'Post Handling',
     this.description = 'Performed an action.',
-    this.formattedDate = '03-08-2026 | 12:00 PM',
+    this.formattedDate = '02-08-2026 | 12:00 PM',
     this.status = LogStatus.success,
+    this.sortableDate,
   });
 
   String get _statusLabel {
     switch (status) {
-      case LogStatus.approved:
-        return 'Approved';
-      case LogStatus.pending:
-        return 'Pending';
-      case LogStatus.rejected:
-        return 'Rejected';
-      case LogStatus.success:
-        return 'Success';
-      case LogStatus.inProgress:
-        return 'In Progress';
+      case LogStatus.approved: return 'Approved';
+      case LogStatus.pending: return 'Pending';
+      case LogStatus.rejected: return 'Rejected';
+      case LogStatus.success: return 'Success';
+      case LogStatus.inProgress: return 'In Progress';
     }
   }
 
   Color get _statusColor {
     switch (status) {
-      case LogStatus.approved:
-        return Colors.green;
-      case LogStatus.pending:
-        return Colors.orange;
-      case LogStatus.rejected:
-        return Colors.red;
-      case LogStatus.success:
-        return Colors.green;
-      case LogStatus.inProgress:
-        return Colors.blue;
+      case LogStatus.approved: return Colors.green;
+      case LogStatus.pending: return Colors.orange;
+      case LogStatus.rejected: return Colors.red;
+      case LogStatus.success: return Colors.green;
+      case LogStatus.inProgress: return Colors.blue;
     }
   }
 
   IconData get _actionIcon {
     switch (actionType) {
-      case 'User Authentication':
-        return Icons.login;
-      case 'Credential Changes':
-        return Icons.lock_reset;
-      default:
-        return Icons.edit_note;
+      case 'User Authentication': return Icons.person_outline;
+      case 'Credential Changes': return Icons.sync;
+      default: return Icons.edit_note;
     }
   }
 
@@ -96,7 +55,7 @@ class HistoryLogListItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-      padding: const EdgeInsets.all(12),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(12),
@@ -104,7 +63,6 @@ class HistoryLogListItem extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // ── Action icon ────────────────────────────────────────────────
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
@@ -114,43 +72,58 @@ class HistoryLogListItem extends StatelessWidget {
             child: Icon(_actionIcon, size: 20, color: Colors.black54),
           ),
           const SizedBox(width: 12),
-
-          // ── Text ──────────────────────────────────────────────────────
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(actionType,
-                    style: const TextStyle(
-                        fontSize: 11, color: Colors.black45)),
+                Text(
+                  actionType,
+                  style: const TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 11,
+                    color: Colors.black45,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(description,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 13)),
+                Text(
+                  description,
+                  style: const TextStyle(
+                    fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                    color: Colors.black,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(formattedDate,
-                    style: const TextStyle(
-                        fontSize: 11, color: Colors.black45)),
+                Text(
+                  formattedDate,
+                  style: const TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 11,
+                    color: Colors.black45,
+                  ),
+                ),
               ],
             ),
           ),
-
-          // ── Status chip ────────────────────────────────────────────────
-          Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: _statusColor.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: _statusColor.withOpacity(0.4)),
-            ),
-            child: Text(
-              _statusLabel,
-              style: TextStyle(
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                _statusLabel,
+                style: TextStyle(
+                  fontFamily: 'Nunito',
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
                   color: _statusColor,
-                  fontWeight: FontWeight.w600,
-                  fontSize: 11),
-            ),
+                ),
+              ),
+              Icon(
+                Icons.chevron_right,
+                size: 16,
+                color: _statusColor,
+              ),
+            ],
           ),
         ],
       ),
@@ -159,165 +132,255 @@ class HistoryLogListItem extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// HistoryListView
-// ---------------------------------------------------------------------------
-// Groups log items into "Recent Activity Logs" and "Past Activity Logs"
-// sections, with a sort dialog trigger.
-//
-// FIREBASE INTEGRATION:
-//   - Fetch `users/{uid}/activity_logs` ordered by `timestamp` desc.
-//   - "Recent" = logs within the last 30 days.
-//   - "Past"   = older logs.
-//   - Sort dialog options: Newest / Oldest / In Progress / Log Type →
-//     re-query Firestore with appropriate orderBy / where clauses.
+// HistoryListView Logic
 // ---------------------------------------------------------------------------
 
-class HistoryListView extends StatelessWidget {
+enum _SortOption { newest, oldest, inProgress, logType }
+
+class HistoryListView extends StatefulWidget {
   final List<HistoryLogListItem> recentItems;
   final List<HistoryLogListItem> pastItems;
-  final VoidCallback? onSortTap;
 
   const HistoryListView({
     super.key,
     required this.recentItems,
     required this.pastItems,
-    this.onSortTap,
   });
 
   factory HistoryListView.placeholder() {
     return HistoryListView(
-      recentItems: const [
+      recentItems: [
         HistoryLogListItem(
           id: 'r1',
           actionType: 'Post Handling',
           description: 'Remove Charity Event.',
-          formattedDate: '03-08-2026 | 3:00 PM',
+          formattedDate: '02-08-2026 | 3:00 PM',
           status: LogStatus.rejected,
+          sortableDate: DateTime(2026, 8, 2, 15, 0),
         ),
         HistoryLogListItem(
           id: 'r2',
           actionType: 'Post Handling',
           description: 'Edit Event Details.',
-          formattedDate: '03-08-2026 | 11:30 AM',
+          formattedDate: '02-08-2026 | 11:30 AM',
           status: LogStatus.pending,
-        ),
-        HistoryLogListItem(
-          id: 'r3',
-          actionType: 'Post Handling',
-          description: 'Create Charity Event.',
-          formattedDate: '03-08-2026 | 9:00 AM',
-          status: LogStatus.approved,
-        ),
-        HistoryLogListItem(
-          id: 'r4',
-          actionType: 'User Authentication',
-          description: 'You Logged In.',
-          formattedDate: '03-08-2026 | 5:00 AM',
-          status: LogStatus.success,
-        ),
-        HistoryLogListItem(
-          id: 'r5',
-          actionType: 'Credential Changes',
-          description: 'Set New Password.',
-          formattedDate: '03-08-2026 | 5:05 AM',
-          status: LogStatus.success,
+          sortableDate: DateTime(2026, 8, 2, 11, 30),
         ),
       ],
-      pastItems: const [
+      pastItems: [
         HistoryLogListItem(
           id: 'p1',
           actionType: 'User Authentication',
           description: 'You Logged Out.',
-          formattedDate: '01-01-2026 | 2:00 PM',
+          formattedDate: '02-01-2026 | 1:00 PM',
           status: LogStatus.success,
-        ),
-        HistoryLogListItem(
-          id: 'p2',
-          actionType: 'Post Handling',
-          description: 'Remove Aid Request.',
-          formattedDate: '01-01-2026 | 12:00 PM',
-          status: LogStatus.approved,
+          sortableDate: DateTime(2026, 1, 2, 13, 0),
         ),
       ],
     );
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Stack(
-      children: [
-        ListView(
-          padding: const EdgeInsets.only(bottom: 80),
-          children: [
-            if (recentItems.isNotEmpty) ...[
-              _SectionHeader(title: 'Recent Activity Logs'),
-              ...recentItems,
-            ],
-            if (pastItems.isNotEmpty) ...[
-              _SectionHeader(title: 'Past Activity Logs'),
-              ...pastItems,
-            ],
-          ],
-        ),
-
-        // ── Floating sort button ───────────────────────────────────────────
-        Positioned(
-          bottom: 16,
-          right: 16,
-          child: FloatingActionButton(
-            onTap: onSortTap,
-            // TODO: Show sort bottom sheet with options:
-            //   Newest / Oldest / In Progress / Log Type
-            //   Then re-query Firestore accordingly.
-            backgroundColor: Colors.green,
-            child: const Icon(Icons.sort, color: Colors.white),
-          ),
-        ),
-      ],
-    );
-  }
+  State<HistoryListView> createState() => _HistoryListViewState();
 }
 
-// Tiny workaround: FloatingActionButton doesn't have onTap; use GestureDetector
-class FloatingActionButton extends StatelessWidget {
-  final Widget child;
-  final Color backgroundColor;
-  final VoidCallback? onTap;
+class _HistoryListViewState extends State<HistoryListView> {
+  _SortOption _currentSort = _SortOption.newest;
 
-  const FloatingActionButton(
-      {super.key,
-      required this.child,
-      required this.backgroundColor,
-      this.onTap});
+  List<HistoryLogListItem> _sorted(List<HistoryLogListItem> items, _SortOption option) {
+    final copy = List<HistoryLogListItem>.from(items);
+    switch (option) {
+      case _SortOption.newest:
+        copy.sort((a, b) => (b.sortableDate ?? DateTime(0)).compareTo(a.sortableDate ?? DateTime(0)));
+        break;
+      case _SortOption.oldest:
+        copy.sort((a, b) => (a.sortableDate ?? DateTime(0)).compareTo(b.sortableDate ?? DateTime(0)));
+        break;
+      case _SortOption.inProgress:
+        return copy.where((e) => e.status == LogStatus.inProgress).toList();
+      case _SortOption.logType:
+        copy.sort((a, b) {
+          final typeCompare = a.actionType.compareTo(b.actionType);
+          if (typeCompare != 0) return typeCompare;
+          return (b.sortableDate ?? DateTime(0)).compareTo(a.sortableDate ?? DateTime(0));
+        });
+        break;
+    }
+    return copy;
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 48,
-        height: 48,
-        decoration: BoxDecoration(
-            color: backgroundColor, shape: BoxShape.circle),
-        child: child,
+  void _showSortDialog() {
+    _SortOption dialogSelection = _currentSort;
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) {
+            return Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              backgroundColor: Colors.white,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Sort Logs By:',
+                          style: TextStyle(
+                            fontFamily: 'Nunito',
+                            fontWeight: FontWeight.w800,
+                            fontSize: 16,
+                            color: Colors.black,
+                          ),
+                        ),
+                        GestureDetector(
+                          onTap: () => Navigator.of(ctx).pop(),
+                          child: const Icon(Icons.close, size: 20, color: Colors.black45),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    // FIXED SECTION
+                    ...[
+                      (_SortOption.newest, 'Newest'),
+                      (_SortOption.oldest, 'Oldest'),
+                      (_SortOption.inProgress, 'In Progress'),
+                      (_SortOption.logType, 'Log Type'),
+                    ].map((entry) {
+                      final (option, label) = entry;
+                      final selected = dialogSelection == option;
+                      return InkWell(
+                        onTap: () {
+                          setDialogState(() => dialogSelection = option);
+                          setState(() => _currentSort = option);
+                          Navigator.of(ctx).pop();
+                        },
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 4),
+                          child: Row(
+                            children: [
+                              Container(
+                                width: 22,
+                                height: 22,
+                                decoration: BoxDecoration(
+                                  color: selected ? Colors.green : Colors.transparent,
+                                  border: Border.all(
+                                    color: selected ? Colors.green : Colors.grey.shade400,
+                                    width: 1.5,
+                                  ),
+                                  borderRadius: BorderRadius.circular(4),
+                                ),
+                                child: selected
+                                    ? const Icon(Icons.check, color: Colors.white, size: 16)
+                                    : null,
+                              ),
+                              const SizedBox(width: 14),
+                              Text(
+                                label,
+                                style: TextStyle(
+                                  fontFamily: 'Nunito',
+                                  fontSize: 15,
+                                  fontWeight: selected ? FontWeight.w700 : FontWeight.normal,
+                                  color: Colors.black87,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _sectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontFamily: 'Nunito',
+          fontWeight: FontWeight.bold,
+          fontSize: 14,
+          color: Colors.black87,
+        ),
       ),
     );
   }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  const _SectionHeader({required this.title});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
-      child: Text(title,
-          style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 14,
-              color: Colors.black87)),
+    final recent = _sorted(widget.recentItems, _currentSort);
+    final past = _sorted(widget.pastItems, _currentSort);
+    final showPastFirst = _currentSort == _SortOption.oldest;
+
+    return Stack(
+      children: [
+        ListView(
+          padding: const EdgeInsets.only(bottom: 90),
+          children: [
+            if (!showPastFirst) ...[
+              if (recent.isNotEmpty) ...[
+                _sectionHeader('Recent Activity Logs'),
+                ...recent,
+              ],
+              if (past.isNotEmpty) ...[
+                _sectionHeader('Past Activity Logs'),
+                ...past,
+              ],
+            ] else ...[
+              if (past.isNotEmpty) ...[
+                _sectionHeader('Past Activity Logs'),
+                ...past,
+              ],
+              if (recent.isNotEmpty) ...[
+                _sectionHeader('Recent Activity Logs'),
+                ...recent,
+              ],
+            ],
+            if (recent.isEmpty && past.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 40),
+                child: Center(
+                  child: Text(
+                    'No activity logs found.',
+                    style: TextStyle(fontFamily: 'Nunito', color: Colors.black45),
+                  ),
+                ),
+              ),
+          ],
+        ),
+        Positioned(
+          bottom: 16,
+          right: 16,
+          child: GestureDetector(
+            onTap: _showSortDialog,
+            child: Container(
+              width: 52,
+              height: 52,
+              decoration: const BoxDecoration(
+                color: Color(0xFF4CAF50),
+                shape: BoxShape.circle,
+                boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 6, offset: Offset(0, 3))],
+              ),
+              child: const Icon(Icons.sort, color: Colors.white, size: 26),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

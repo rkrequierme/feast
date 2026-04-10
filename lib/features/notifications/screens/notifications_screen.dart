@@ -1,7 +1,4 @@
 import 'package:flutter/material.dart';
-
-// Import the reusable list view widget generated previously.
-// Adjust the path to match your project's folder structure.
 import 'package:feast/core/core.dart';
 
 // ---------------------------------------------------------------------------
@@ -9,8 +6,19 @@ import 'package:feast/core/core.dart';
 // ---------------------------------------------------------------------------
 // Full screen that hosts the NotificationsListView widget.
 //
+// CHANGES:
+//   - Removed `showDeleteButton` from all NotificationListItems — deletion is
+//     now handled universally via swipe-to-dismiss on the component itself.
+//   - Removed `onTap` callbacks — tapping a tile now opens a full-message
+//     dialog handled internally by NotificationListItem.
+//   - Removed the local `_DeleteConfirmDialog` — it now lives inside
+//     notification_list_item.dart alongside the component that uses it.
+//   - `onDelete` callbacks are kept here so the screen can update local state
+//     and (eventually) call Firestore delete.
+//
 // FIREBASE INTEGRATION:
-//   1. Replace _buildPlaceholderData() with real Firestore streams.
+//   1. Replace _systemNotifications / _userNotifications init with real
+//      Firestore stream subscriptions in initState.
 //   2. Use three separate StreamBuilders (or one combined stream) for:
 //        - announcements   → collection('announcements')
 //        - systemNotifs    → collection('users/{uid}/notifications')
@@ -20,9 +28,9 @@ import 'package:feast/core/core.dart';
 //        WriteBatch batch = FirebaseFirestore.instance.batch();
 //        for (var doc in unreadDocs) batch.update(doc.reference, {'isRead': true});
 //        await batch.commit();
-//   4. The delete confirmation dialog already calls `onDelete`; wire that
-//        callback to: FirebaseFirestore.instance
-//          .doc('users/$uid/notifications/$notifId').delete()
+//   4. The onDelete callback is already wired; add the Firestore call there:
+//        await FirebaseFirestore.instance
+//          .doc('users/$uid/notifications/$notifId').delete();
 // ---------------------------------------------------------------------------
 
 class NotificationsScreen extends StatefulWidget {
@@ -40,14 +48,16 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     NotificationListItem(
       id: 'a1',
       title: 'Updated Guidelines & Policies',
-      body: 'Barangay Almarza Dos has decided to implement new guidelines...',
+      body: 'Barangay Almarza Dos has decided to implement new guidelines '
+          'effective immediately. Please review the updated community '
+          'policies in the announcements section.',
       timeAgo: '2m',
       status: NotificationStatus.info,
       isRead: false,
     ),
   ];
 
-  // Mutable so we can remove items when the user deletes them.
+  // Mutable so we can remove items after swipe-to-dismiss is confirmed.
   late List<NotificationListItem> _systemNotifications;
   late List<NotificationListItem> _userNotifications;
 
@@ -60,58 +70,65 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       NotificationListItem(
         id: 's1',
         title: 'System: Aid Request Accepted',
-        body: '"Surgery Bills" has been accepted and is now listed...',
+        body: '"Surgery Bills" has been accepted and is now listed on the '
+            'community aid board. Donors can now view and contribute to '
+            'your request.',
         timeAgo: '5m',
         status: NotificationStatus.accepted,
         isRead: false,
-        onTap: () => _onNotifTap('s1'),
+        onDelete: () => _deleteNotification('s1', isSystem: true),
       ),
       NotificationListItem(
         id: 's2',
         title: 'System: Awaiting Edit Approval',
-        body: 'Donated ₱100 to your "Surgery Bills" aid request.',
+        body: 'Your recent edits to "Surgery Bills" are pending admin '
+            'approval. You will be notified once a decision has been made.',
         timeAgo: '8m',
         status: NotificationStatus.pending,
         isRead: false,
-        onTap: () => _onNotifTap('s2'),
+        onDelete: () => _deleteNotification('s2', isSystem: true),
       ),
       NotificationListItem(
         id: 's3',
         title: 'System: Awaiting Event Approval',
-        body: 'Is helping you with your "Family Needs Furniture" aid...',
+        body: 'Your event submission "T.S. Cruz Food Bank Drive" is awaiting '
+            'approval from the barangay admin. Check back soon for updates.',
         timeAgo: '30m',
         status: NotificationStatus.pending,
         isRead: false,
-        onTap: () => _onNotifTap('s3'),
+        onDelete: () => _deleteNotification('s3', isSystem: true),
       ),
       NotificationListItem(
         id: 's4',
         title: 'System: Edits Denied',
-        body: 'Just joined your "T.S. Cruz Food Bank."',
+        body: 'Your requested edits to "T.S. Cruz Food Bank" have been '
+            'denied by the admin team. Please contact support for further '
+            'clarification.',
         timeAgo: '44m',
         status: NotificationStatus.denied,
         isRead: true,
-        showDeleteButton: true,
-        onTap: () => _onNotifTap('s4'),
-        onDelete: () => _confirmDelete('s4', isSystem: true),
+        onDelete: () => _deleteNotification('s4', isSystem: true),
       ),
       NotificationListItem(
         id: 's5',
         title: 'System: Charity Event Denied',
-        body: 'Accepted your collaborator request for "Almarza Dos..."',
+        body: 'Your charity event "Almanza Dos Community Outreach" was not '
+            'approved. Please review the event guidelines and resubmit.',
         timeAgo: '1h',
         status: NotificationStatus.denied,
         isRead: true,
-        onTap: () => _onNotifTap('s5'),
+        onDelete: () => _deleteNotification('s5', isSystem: true),
       ),
       NotificationListItem(
         id: 's6',
         title: 'System: Aid Request Denied',
-        body: 'Your report on David Garcia will be reviewed.',
+        body: 'Your aid request has been reviewed and unfortunately was not '
+            'approved at this time. You may re-submit with additional '
+            'supporting details.',
         timeAgo: '2h',
         status: NotificationStatus.denied,
         isRead: true,
-        onTap: () => _onNotifTap('s6'),
+        onDelete: () => _deleteNotification('s6', isSystem: true),
       ),
     ];
 
@@ -119,99 +136,85 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       NotificationListItem(
         id: 'u1',
         title: 'David Garcia',
-        body: 'Commented on your "Almarza Dos Food Bank" campaign...',
+        body: 'Commented on your "Almarza Dos Food Bank" campaign: '
+            '"This is a great initiative, happy to help in any way I can!"',
         timeAgo: '5m',
         status: NotificationStatus.info,
         isRead: false,
-        onTap: () => _onNotifTap('u1'),
+        onDelete: () => _deleteNotification('u1', isSystem: false),
       ),
       NotificationListItem(
         id: 'u2',
         title: 'Theresa Reyes',
-        body: 'Donated ₱100 to your "Surgery Bills" aid request.',
+        body: 'Donated ₱100 to your "Surgery Bills" aid request. '
+            'Consider sending them a thank-you message through the platform.',
         timeAgo: '8m',
         status: NotificationStatus.info,
         isRead: false,
-        onTap: () => _onNotifTap('u2'),
+        onDelete: () => _deleteNotification('u2', isSystem: false),
       ),
       NotificationListItem(
         id: 'u3',
         title: 'Marvin Ramos',
-        body: 'Is helping you with your "Family Needs Furniture" aid...',
+        body: 'Is now helping you with your "Family Needs Furniture" aid '
+            'request as a volunteer contributor.',
         timeAgo: '30m',
         status: NotificationStatus.info,
         isRead: false,
-        onTap: () => _onNotifTap('u3'),
+        onDelete: () => _deleteNotification('u3', isSystem: false),
       ),
       NotificationListItem(
         id: 'u4',
         title: 'Devon Mendoza',
-        body: 'Just joined your "T.S. Cruz Food Bank."',
+        body: 'Just joined your "T.S. Cruz Food Bank" as a volunteer. '
+            'You can coordinate with them via the Messages tab.',
         timeAgo: '44m',
         status: NotificationStatus.info,
         isRead: true,
-        showDeleteButton: true,
-        onTap: () => _onNotifTap('u4'),
-        onDelete: () => _confirmDelete('u4', isSystem: false),
+        onDelete: () => _deleteNotification('u4', isSystem: false),
       ),
       NotificationListItem(
         id: 'u5',
         title: 'Eleanor Santos',
-        body: 'Accepted your collaborator request for "Almarza Dos..."',
+        body: 'Accepted your collaborator request for "Almarza Dos Community '
+            'Pantry." You can now co-manage the event together.',
         timeAgo: '1h',
         status: NotificationStatus.info,
         isRead: true,
-        onTap: () => _onNotifTap('u5'),
+        onDelete: () => _deleteNotification('u5', isSystem: false),
       ),
       NotificationListItem(
         id: 'u6',
         title: 'Jesus Ramirez',
-        body: 'Sent you a message.',
+        body: 'Sent you a message. Tap to open the conversation in the '
+            'Messages tab.',
         timeAgo: '2m',
         status: NotificationStatus.info,
         isRead: false,
-        onTap: () => _onNotifTap('u6'),
+        onDelete: () => _deleteNotification('u6', isSystem: false),
       ),
     ];
   }
 
   // ── Handlers ──────────────────────────────────────────────────────────────
 
-  void _onNotifTap(String id) {
-    // TODO: navigate to the relevant screen depending on notification type.
-    // e.g. Navigator.pushNamed(context, '/aid-request', arguments: relatedId);
-    // Also mark isRead = true in Firestore here if not done via batch on open.
-    debugPrint('Tapped notification: $id');
-  }
+  /// Removes the notification from local state after swipe-dismiss is confirmed.
+  /// Called by the onDelete callback passed to each NotificationListItem.
+  void _deleteNotification(String id, {required bool isSystem}) {
+    setState(() {
+      if (isSystem) {
+        _systemNotifications =
+            _systemNotifications.where((n) => n.id != id).toList();
+      } else {
+        _userNotifications =
+            _userNotifications.where((n) => n.id != id).toList();
+      }
+    });
 
-  /// Shows the delete confirmation dialog (matches the design).
-  /// On confirm, removes from local state AND should delete from Firestore.
-  Future<void> _confirmDelete(String id, {required bool isSystem}) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      barrierDismissible: false,
-      builder: (ctx) => _DeleteConfirmDialog(
-        onConfirm: () => Navigator.pop(ctx, true),
-        onCancel: () => Navigator.pop(ctx, false),
-      ),
-    );
-
-    if (confirmed == true) {
-      setState(() {
-        if (isSystem) {
-          _systemNotifications =
-              _systemNotifications.where((n) => n.id != id).toList();
-        } else {
-          _userNotifications =
-              _userNotifications.where((n) => n.id != id).toList();
-        }
-      });
-
-      // TODO: delete from Firestore:
-      // await FirebaseFirestore.instance
-      //     .doc('users/$currentUid/notifications/$id')
-      //     .delete();
-    }
+    // TODO: delete from Firestore:
+    // await FirebaseFirestore.instance
+    //     .doc('users/$currentUid/notifications/$id')
+    //     .delete();
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────
@@ -245,110 +248,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           ),
         ),
       ),
-
-      // ── Bottom nav bar ───────────────────────────────────────────────────
+      // ── Bottom nav bar ────────────────────────────────────────────────────
       bottomNavigationBar: const FeastBottomNav(currentIndex: -1),
-    );
-  }
-}
-
-
-// ---------------------------------------------------------------------------
-// _DeleteConfirmDialog
-// ---------------------------------------------------------------------------
-// The confirmation modal shown before permanently deleting a notification.
-// Matches the design: red Delete button, black Cancel button.
-// ---------------------------------------------------------------------------
-class _DeleteConfirmDialog extends StatelessWidget {
-  final VoidCallback onConfirm;
-  final VoidCallback onCancel;
-
-  const _DeleteConfirmDialog({
-    required this.onConfirm,
-    required this.onCancel,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child:
-                      const Icon(Icons.delete_outline, color: Colors.red, size: 22),
-                ),
-                const Spacer(),
-                GestureDetector(
-                  onTap: onCancel,
-                  child: const Icon(Icons.close, color: Colors.black45, size: 20),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-            const Text(
-              'Delete Notification',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Are you sure you want to delete this bookmark?\nThis action cannot be undone.',
-              style: TextStyle(fontSize: 13, color: Colors.black54),
-            ),
-            const SizedBox(height: 20),
-
-            // Delete button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: onConfirm,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                ),
-                child: const Text('Delete',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-              ),
-            ),
-            const SizedBox(height: 8),
-
-            // Cancel button
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: onCancel,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.black87,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10)),
-                  padding: const EdgeInsets.symmetric(vertical: 13),
-                ),
-                child: const Text('Cancel',
-                    style:
-                        TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
