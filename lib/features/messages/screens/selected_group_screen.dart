@@ -12,16 +12,7 @@ class _SelectedGroupScreenState extends State<SelectedGroupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: FeastAppBar(
-        title: 'Selected Group',
-        showBurgerMenu: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.account_circle, color: feastBlack),
-            onPressed: () => Navigator.pushNamed(context, AppRoutes.login),
-          ),
-        ],
-      ),
+      appBar: FeastAppBar(title: 'Selected Group'),
     );
   }
 }

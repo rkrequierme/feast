@@ -12,16 +12,9 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: FeastAppBar(
-        title: 'Aid Requests',
-        showBurgerMenu: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.account_circle, color: feastBlack),
-            onPressed: () => Navigator.pushNamed(context, AppRoutes.login),
-          ),
-        ],
-      ),
+      appBar: FeastAppBar(title: 'Aid Requests'),
+      drawer: const FeastDrawer(username: 'Juan De La Cruz'),
+      bottomNavigationBar: FeastBottomNav(currentIndex: 1),
     );
   }
 }

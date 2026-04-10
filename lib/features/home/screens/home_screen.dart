@@ -119,68 +119,12 @@ class _HomeScreenState extends State<HomeScreen> {
     },
   ];
 
-  void _onNavTap(int index) {
-    if (index == _navIndex) return;
-    switch (index) {
-      case 0:
-        break; // Already on Home
-      case 1:
-        Navigator.pushNamed(context, AppRoutes.aidRequests);
-        break;
-      case 2:
-        Navigator.pushNamed(context, AppRoutes.charityEvents);
-        break;
-      case 3:
-        Navigator.pushNamed(context, AppRoutes.messages);
-        break;
-      case 4:
-        Navigator.pushNamed(context, AppRoutes.settings);
-        break;
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: feastLightGreen,
-        elevation: 0,
-        centerTitle: true,
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: feastBlack),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
-        title: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text(
-              'Home',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                fontFamily: 'Outfit',
-                color: feastBlack,
-              ),
-            ),
-            Text(
-              'Welcome To F.E.A.S.T., Juan!',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-                fontFamily: 'Outfit',
-                color: feastBlack.withAlpha(179),
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.account_circle, color: feastBlack, size: 32),
-            onPressed: () {},
-          ),
-        ],
+      appBar: const FeastAppBar(
+        title: 'Home',
+        username: 'Juan De La Cruz',
       ),
       drawer: const FeastDrawer(username: 'Juan De La Cruz'),
       body: FeastBackground(
@@ -210,10 +154,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ),
       ),
-      bottomNavigationBar: FeastBottomNav(
-        currentIndex: _navIndex,
-        onTap: _onNavTap,
-      ),
+      bottomNavigationBar: FeastBottomNav(currentIndex: 0),
     );
   }
 

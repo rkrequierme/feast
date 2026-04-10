@@ -12,16 +12,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: FeastAppBar(
-        title: 'Notifications',
-        showBurgerMenu: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.account_circle, color: feastBlack),
-            onPressed: () => Navigator.pushNamed(context, AppRoutes.login),
-          ),
-        ],
-      ),
+      appBar: FeastAppBar(title: 'Notifications'),
+      drawer: const FeastDrawer(username: 'Juan De La Cruz'),
+      bottomNavigationBar: FeastBottomNav(currentIndex: -1),
     );
   }
 }

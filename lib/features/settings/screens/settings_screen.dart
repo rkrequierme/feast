@@ -14,58 +14,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = true;
   int _navIndex = 4; // Settings is index 4
 
-  void _onNavTap(int index) {
-    if (index == _navIndex) return;
-    switch (index) {
-      case 0:
-        Navigator.pushNamed(context, AppRoutes.home);
-        break;
-      case 1:
-        Navigator.pushNamed(context, AppRoutes.aidRequests);
-        break;
-      case 2:
-        Navigator.pushNamed(context, AppRoutes.charityEvents);
-        break;
-      case 3:
-        Navigator.pushNamed(context, AppRoutes.messages);
-        break;
-      case 4:
-        break; // Already on Settings
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final bottomNavHeight = MediaQuery.of(context).padding.bottom + 56;
 
     return Scaffold(
       extendBody: true,
-      appBar: AppBar(
-        backgroundColor: feastLightGreen,
-        elevation: 0,
-        centerTitle: true,
-        leading: Builder(
-          builder: (context) => IconButton(
-            icon: const Icon(Icons.menu, color: feastBlack),
-            onPressed: () => Scaffold.of(context).openDrawer(),
-          ),
-        ),
-        title: const Text(
-          'Settings',
-          style: TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            fontFamily: 'Outfit',
-            color: feastBlack,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.account_circle, color: feastBlack, size: 32),
-            onPressed: () {},
-          ),
-        ],
-      ),
+      appBar: const FeastAppBar(title: 'Settings'),
       drawer: const FeastDrawer(username: 'Lee Fernandez'),
       body: FeastBackground(
         child: LayoutBuilder(
@@ -167,10 +122,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           },
         ),
       ),
-      bottomNavigationBar: FeastBottomNav(
-        currentIndex: _navIndex,
-        onTap: _onNavTap,
-      ),
+      bottomNavigationBar: FeastBottomNav(currentIndex: 4),
     );
   }
 

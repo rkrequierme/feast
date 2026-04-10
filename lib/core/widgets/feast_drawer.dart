@@ -23,14 +23,14 @@ class FeastDrawer extends StatelessWidget {
             child: ListView(
               padding: EdgeInsets.zero,
               children: [
-                _drawerTile(Icons.notifications_none_outlined, "Notifications", () {}),
-                _drawerTile(Icons.bookmark_add_outlined, "Bookmarks", () {}),
-                _drawerTile(Icons.history_edu_outlined, "Your History", () {}),
-                _drawerTile(Icons.info_outline, "About Us", () {}),
-                _drawerTile(Icons.contact_mail_outlined, "Contact Us", () {}),
-                _drawerTile(Icons.quiz_outlined, "Help & FAQ", () {}),
-                _drawerTile(Icons.menu_book_outlined, "App Guide", () {}),
-                _drawerTile(Icons.assignment_outlined, "Terms & Conditions", () {}),
+                _drawerTile(Icons.notifications_none_outlined, "Notifications", () { Navigator.pushNamed(context, AppRoutes.notifications); }),
+                _drawerTile(Icons.bookmark_add_outlined, "Bookmarks", () { Navigator.pushNamed(context, AppRoutes.bookmarks); }),
+                _drawerTile(Icons.history_edu_outlined, "Your History", () { Navigator.pushNamed(context, AppRoutes.history); }),
+                _drawerTile(Icons.info_outline, "About Us", () { Navigator.pushNamed(context, AppRoutes.about); }),
+                _drawerTile(Icons.contact_mail_outlined, "Contact Us", () { Navigator.pushNamed(context, AppRoutes.contact); }),
+                _drawerTile(Icons.quiz_outlined, "Help & FAQ", () { Navigator.pushNamed(context, AppRoutes.support); }),
+                _drawerTile(Icons.menu_book_outlined, "App Guide", () { Navigator.pushNamed(context, AppRoutes.guide); }),
+                _drawerTile(Icons.assignment_outlined, "Terms & Conditions", () { Navigator.pushNamed(context, AppRoutes.legal); }),
               ],
             ),
           ),
@@ -84,7 +84,7 @@ class FeastDrawer extends StatelessWidget {
               FeastLink(
                 text: "Current User: $username",
                 onPressed: () {
-
+                  
                 },
               ),
             ],

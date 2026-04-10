@@ -12,16 +12,9 @@ class _CreateCharityEventScreenState extends State<CreateCharityEventScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: FeastAppBar(
-        title: 'Create Charity Event',
-        showBurgerMenu: false,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.account_circle, color: feastBlack),
-            onPressed: () => Navigator.pushNamed(context, AppRoutes.login),
-          ),
-        ],
-      ),
+      appBar: FeastAppBar(title: 'Create Charity Event'),
+      drawer: const FeastDrawer(username: 'Juan De La Cruz'),
+      bottomNavigationBar: FeastBottomNav(currentIndex: 2),
     );
   }
 }

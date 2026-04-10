@@ -12,16 +12,8 @@ class _HelpFAQScreenState extends State<HelpFAQScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: FeastAppBar(
-        title: 'Help & FAQ',
-        showBurgerMenu: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.account_circle, color: feastBlack),
-            onPressed: () => Navigator.pushNamed(context, AppRoutes.login),
-          ),
-        ],
-      ),
+      appBar: const FeastAppBar(title: 'Help & FAQ'),
+      drawer: const FeastDrawer(username: 'Juan De La Cruz'),
     );
   }
 }
