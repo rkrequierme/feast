@@ -37,12 +37,12 @@ class _LoginScreenState extends State<LoginScreen> {
                   children: [
                     // Logo and Tagline
                     Padding(
-                      padding: const EdgeInsets.only(bottom: 40),
+                      padding: const EdgeInsets.only(top: 80, bottom: 40),
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
                           // Logo
-                          FeastLogo(),
+                          FeastLogo(height: 120,),
                           // Tagline
                           FeastTagline(
                             "Welcome To The F.E.A.S.T.\nCharity Management System!",

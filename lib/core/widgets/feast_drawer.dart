@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import '../core.dart'; // Ensure feastLightGreen and feastDarkGreen are here
+import '../core.dart';
 
 class FeastDrawer extends StatelessWidget {
-  final String userName;
+  final String username;
 
   const FeastDrawer({
     super.key,
-    required this.userName,
+    required this.username,
   });
 
   @override
@@ -15,10 +15,10 @@ class FeastDrawer extends StatelessWidget {
       backgroundColor: feastLightGreen,
       child: Column(
         children: [
-          // 1. Header Section
+          // Header Section
           _buildHeader(context),
 
-          // 2. Navigation Items (List of Tiles)
+          // Navigation Items
           Expanded(
             child: ListView(
               padding: EdgeInsets.zero,
@@ -40,40 +40,58 @@ class FeastDrawer extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.only(top: 50, bottom: 20),
-      decoration: BoxDecoration(
-        color: feastLightGreen.withOpacity(0.8), // Adjust based on background image needs
-      ),
-      child: Column(
-        children: [
-          // Close button at top left
-          Align(
-            alignment: Alignment.topLeft,
-            child: IconButton(
-              icon: const Icon(Icons.close, size: 30),
-              onPressed: () => Navigator.pop(context),
+    return Column(
+      children: [
+        // Header and Background
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 40),
+          decoration: BoxDecoration(
+            color: feastLightGreen,
+            image: const DecorationImage(
+              image: AssetImage('assets/images/Almanza_Dos.jpg'),
+              fit: BoxFit.cover,
+              opacity: 0.1,
             ),
           ),
-          // Logo and Branding (Replace with your actual Image.asset)
-          const Icon(Icons.eco, size: 60, color: Colors.green), // Placeholder for logo
-          const Text(
-            "F.E.A.S.T.",
-            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.blue),
+          child: Column(
+            children: [
+              // Close Button
+              Align(
+                alignment: Alignment.topLeft,
+                child: IconButton(
+                  icon: const Icon(Icons.close, size: 32, color: Colors.black),
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ),
+              // Logo and Branding
+              const FeastLogo(height: 80,),
+              SizedBox(height: 8),
+              const FeastTagline(
+                "F.E.A.S.T.",
+                fontSize: 24,
+                fontFamily: "Ultra",
+                strokeColor: feastBlue,
+                strokeWidth: 8,
+              ),
+              SizedBox(height: 8),
+              const FeastTagline(
+                "Charity Management System",
+                fontSize: 16,
+                strokeWidth: 8,
+              ),
+              SizedBox(height: 8),
+              FeastLink(
+                text: "Current User: $username",
+                onPressed: () {
+
+                },
+              ),
+            ],
           ),
-          const Text(
-            "Charity Management System",
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            "Current User: $userName",
-            style: const TextStyle(color: Colors.blue, decoration: TextDecoration.underline),
-          ),
-          const Divider(thickness: 1.5, color: feastGreen),
-        ],
-      ),
+        ),
+        const Divider(height: 1, thickness: 1, color: feastGreen),
+      ],
     );
   }
 
@@ -81,15 +99,15 @@ class FeastDrawer extends StatelessWidget {
     return Column(
       children: [
         ListTile(
-          leading: Icon(icon, color: Colors.black87),
+          leading: Icon(icon, color: Colors.black),
           title: Text(
             title,
-            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+            style: const TextStyle(color: Colors.black, fontSize: 16, fontFamily: "Outfit", fontWeight: FontWeight.w900,),
           ),
-          trailing: const Icon(Icons.arrow_forward_ios, size: 18),
+          trailing: const Icon(Icons.arrow_forward_ios, size: 20, color: Colors.black),
           onTap: onTap,
         ),
-        const Divider(height: 1, color: feastGreen), // Matching the green lines in your image
+        const Divider(height: 1, thickness: 1, color: feastGreen),
       ],
     );
   }

@@ -182,7 +182,7 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
         ],
       ),
-      drawer: const FeastDrawer(userName: 'Juan De La Cruz'),
+      drawer: const FeastDrawer(username: 'Juan De La Cruz'),
       body: FeastBackground(
         child: SafeArea(
           bottom: false,

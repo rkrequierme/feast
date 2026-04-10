@@ -64,6 +64,7 @@ flutter:
     - assets/images/GPC_Logo.png
     - assets/images/Background_Image.png
     - assets/images/Charity_Pattern.jpg
+    - assets/images/Almanza_Dos.jpg
   # - images/a_dot_ham.jpeg
 
   fonts:
@@ -74,6 +75,10 @@ flutter:
     - family: TitanOne
       fonts:
         - asset: assets/fonts/TitanOne.ttf
+    
+    - family: Ultra
+      fonts:
+        - asset: assets/fonts/UltraRegular.ttf
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

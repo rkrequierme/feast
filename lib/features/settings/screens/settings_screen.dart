@@ -66,7 +66,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
-      drawer: const FeastDrawer(userName: 'Lee Fernandez'),
+      drawer: const FeastDrawer(username: 'Lee Fernandez'),
       body: FeastBackground(
         child: LayoutBuilder(
           builder: (context, constraints) {

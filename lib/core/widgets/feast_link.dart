@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core.dart';
 
 class FeastLink extends StatelessWidget {
   final String text;
@@ -11,7 +12,7 @@ class FeastLink extends StatelessWidget {
     required this.text,
     required this.onPressed,
     this.alignment = Alignment.center, // Default is still center
-    this.color = Colors.blue,
+    this.color = feastLink,
   });
 
   @override
@@ -30,7 +31,7 @@ class FeastLink extends StatelessWidget {
           style: TextStyle(
             color: color,
             fontFamily: "Outfit",
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w900,
             decoration: TextDecoration.underline,
           ),
         ),
