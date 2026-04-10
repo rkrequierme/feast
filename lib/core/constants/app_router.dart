@@ -18,15 +18,14 @@ class AppRouter {
     AppRoutes.createEvent:      (_) => const CreateCharityEventScreen(),
     AppRoutes.messages:         (_) => const MessagesScreen(),
     AppRoutes.settings:         (_) => const SettingsScreen(),
-    AppRoutes.editProfile:      (_) => const EditProfileScreen(),
     AppRoutes.about:            (_) => const AboutUsScreen(),
     AppRoutes.bookmarks:        (_) => const BookmarksScreen(),
     AppRoutes.contact:          (_) => const ContactUsScreen(),
     AppRoutes.guide:            (_) => const AppGuideScreen(),
     AppRoutes.history:          (_) => const HistoryScreen(),
-    AppRoutes.legal:            (_) => const CommunityGuidelinesScreen(),
+    AppRoutes.legal:            (_) => const TermsConditionsScreen(),
     AppRoutes.notifications:    (_) => const NotificationsScreen(),
-    AppRoutes.support:          (_) => const HelpFAQScreen(),
+    AppRoutes.support:          (_) => const HelpFaqScreen(),
   };
 
   // Only the screens that need arguments go here

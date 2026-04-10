@@ -17,7 +17,6 @@ export 'messages/screens/messages_screen.dart';
 export 'messages/screens/selected_chat_screen.dart';
 export 'messages/screens/selected_group_screen.dart';
 export 'settings/screens/settings_screen.dart';
-export 'settings/screens/edit_profile_screen.dart';
 
 // Side Menu Features
 export 'about/screens/about_us_screen.dart';

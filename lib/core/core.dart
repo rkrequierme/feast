@@ -86,6 +86,12 @@ export 'widgets/notification_list_item.dart';
 export 'widgets/feast_drawer.dart';
 export 'widgets/feast_floating_button.dart';
 export 'widgets/feast_toast.dart';
+export 'widgets/profile_menu_dialog.dart';
+export 'widgets/file_picker.dart';
+export 'widgets/edit_profile_modal.dart';
+export 'widgets/feast_yellow_section.dart';
+export 'widgets/feast_white_section.dart';
+export 'widgets/feast_expandable_item.dart';
 
 // Constants
 export 'constants/app_routes.dart';

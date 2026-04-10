@@ -219,6 +219,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      appBar: const FeastAppBar(title: 'Notifications'),
       // ── Gradient background matching the app's green-to-white style ───────
       body: Container(
         decoration: const BoxDecoration(
@@ -232,10 +233,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // ── AppBar ───────────────────────────────────────────────────
-              _NotificationsAppBar(),
-              const SizedBox(height: 4),
-
               // ── NotificationsListView (the reusable widget) ───────────────
               Expanded(
                 child: NotificationsListView(
@@ -255,53 +252,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 }
 
-// ---------------------------------------------------------------------------
-// _NotificationsAppBar
-// ---------------------------------------------------------------------------
-class _NotificationsAppBar extends StatelessWidget {
-  const _NotificationsAppBar();
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      child: Row(
-        children: [
-          // Hamburger menu
-          IconButton(
-            onPressed: () {
-              // TODO: open drawer or navigate to settings
-            },
-            icon: const Icon(Icons.menu, color: Colors.black87),
-          ),
-          const Expanded(
-            child: Text(
-              'Notifications',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.black87,
-              ),
-            ),
-          ),
-          // Profile avatar
-          GestureDetector(
-            onTap: () {
-              // TODO: navigate to profile screen
-            },
-            child: const CircleAvatar(
-              radius: 18,
-              backgroundColor: Colors.white,
-              child: Icon(Icons.person, color: Colors.black54),
-              // TODO: replace child with CachedNetworkImage of current user's avatar
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // ---------------------------------------------------------------------------
 // _DeleteConfirmDialog

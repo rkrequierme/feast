@@ -55,7 +55,12 @@ class FeastAppBar extends StatelessWidget implements PreferredSizeWidget {
       actions: [
         IconButton(
           icon: const Icon(Icons.account_circle, color: feastBlack, size: 32),
-          onPressed: onProfileTap ?? () {},
+          onPressed: () {
+            showDialog(
+              context: context,
+              builder: (context) => const ProfileMenuDialog(),
+            );
+          },
         ),
       ],
     );
