@@ -11,17 +11,23 @@ class CreateAidRequestScreen extends StatefulWidget {
 class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
   bool _agreedToTerms = false;
 
-  // ─── Controllers ───
-  final _titleController = TextEditingController();
-  final _descriptionController = TextEditingController();
-  final _durationController = TextEditingController();
-  final _typeController = TextEditingController(text: 'Fundraiser');
-  final _categoryController = TextEditingController(text: 'Disaster Management');
-  final _locationController = TextEditingController();
-  final _goalController = TextEditingController();
-  final _itemsController = TextEditingController();
+  // ── Draft tracking ─────────────────────────────────────────────────────────
+  // When true, the user has unsaved field changes. Cleared on save.
+  bool _isDirty = false;
+  // When true, the user has explicitly saved a draft this session.
+  bool _hasDraft = false;
 
-  // ─── Dropdown options ───
+  // ─── Controllers ───────────────────────────────────────────────────────────
+  final _titleController       = TextEditingController();
+  final _descriptionController = TextEditingController();
+  final _durationController    = TextEditingController();
+  final _typeController        = TextEditingController(text: 'Fundraiser');
+  final _categoryController    = TextEditingController(text: 'Disaster Management');
+  final _locationController    = TextEditingController();
+  final _goalController        = TextEditingController();
+  final _itemsController       = TextEditingController();
+
+  // ─── Dropdown options ──────────────────────────────────────────────────────
   final List<String> _requestTypes = [
     'Fundraiser',
     'Item Donation',
@@ -37,56 +43,153 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
   ];
 
   @override
-  void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
-    _durationController.dispose();
-    _typeController.dispose();
-    _categoryController.dispose();
-    _locationController.dispose();
-    _goalController.dispose();
-    _itemsController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    // Mark form as dirty whenever any field changes
+    for (final c in _allControllers) {
+      c.addListener(_onFieldChanged);
+    }
+  }
+
+  List<TextEditingController> get _allControllers => [
+        _titleController,
+        _descriptionController,
+        _durationController,
+        _typeController,
+        _categoryController,
+        _locationController,
+        _goalController,
+        _itemsController,
+      ];
+
+  void _onFieldChanged() {
+    if (!_isDirty) setState(() => _isDirty = true);
   }
 
   @override
+  void dispose() {
+    for (final c in _allControllers) {
+      c.removeListener(_onFieldChanged);
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  // ── Guard back navigation ──────────────────────────────────────────────────
+
+  /// Returns true if it is safe to leave (no unsaved dirty state).
+  bool get _canLeaveFreely => !_isDirty || _hasDraft;
+
+  void _handleBackAttempt() {
+    if (_canLeaveFreely) {
+      Navigator.pop(context);
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (_) => UnsavedChangesDialog(
+        onLeave: () => Navigator.pop(context),
+      ),
+    );
+  }
+
+  // ── Save draft ─────────────────────────────────────────────────────────────
+
+  void _saveDraft() {
+    // TODO: Persist to local storage (SharedPreferences / Hive) or Firestore
+    // drafts/{uid}/aid_request_draft
+    setState(() {
+      _isDirty = false;
+      _hasDraft = true;
+    });
+    _showSnackbar('Draft saved.');
+  }
+
+  // ── Reset form ─────────────────────────────────────────────────────────────
+
+  void _resetForm() {
+    showDialog(
+      context: context,
+      builder: (_) => ResetFormDialog(
+        bodyText:
+            'Are you sure you want to reset the contents or field data of this aid request form?',
+        onConfirm: () {
+          _titleController.clear();
+          _descriptionController.clear();
+          _durationController.clear();
+          _typeController.text = 'Fundraiser';
+          _categoryController.text = 'Disaster Management';
+          _locationController.clear();
+          _goalController.clear();
+          _itemsController.clear();
+          setState(() {
+            _agreedToTerms = false;
+            _isDirty = false;
+            _hasDraft = false;
+          });
+          _showSnackbar('Form has been reset.');
+        },
+      ),
+    );
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  void _showSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
+        ),
+        backgroundColor: Colors.black87,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
+
+  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: const FeastAppBar(title: 'Create Aid Request'),
-      drawer: const FeastDrawer(username: 'Juan De La Cruz'),
-      body: FeastBackground(
-        child: SafeArea(
-          bottom: false,
-          child: SingleChildScrollView(
-            child: Column(
-              children: [
-                const SizedBox(height: 8),
-
-                // ─── Top Action Bar ───
-                _buildTopActionBar(),
-
-                const SizedBox(height: 8),
-
-                // ─── Warning Banner ───
-                _buildWarningBanner(),
-
-                const SizedBox(height: 16),
-
-                // ─── Image Upload Section ───
-                _buildImageUploadSection(),
-
-                const SizedBox(height: 20),
-
-                // ─── Form Section ───
-                _buildFormSection(),
-
-                const SizedBox(height: 100), // Space for nav bar
-              ],
+    // PopScope intercepts the system back gesture / button
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) {
+        if (!didPop) _handleBackAttempt();
+      },
+      child: Scaffold(
+        appBar: const FeastAppBar(title: 'Create Aid Request'),
+        drawer: const FeastDrawer(username: 'Juan De La Cruz'),
+        body: FeastBackground(
+          child: SafeArea(
+            bottom: false,
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  const SizedBox(height: 8),
+                  _buildTopActionBar(),
+                  const SizedBox(height: 8),
+                  _buildWarningBanner(),
+                  const SizedBox(height: 16),
+                  _buildImageUploadSection(),
+                  const SizedBox(height: 20),
+                  _buildFormSection(),
+                  const SizedBox(height: 100),
+                ],
+              ),
             ),
           ),
         ),
+        bottomNavigationBar: const FeastBottomNav(currentIndex: 1),
       ),
-      bottomNavigationBar: const FeastBottomNav(currentIndex: 1),
     );
   }
 
@@ -99,30 +202,24 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          // Back button
           _buildCircleButton(
             icon: Icons.arrow_back,
-            onTap: () => Navigator.pop(context),
+            onTap: _handleBackAttempt,
           ),
           Row(
             children: [
-              // Delete / Discard button
+              // Reset / clear all fields
               _buildCircleButton(
                 icon: Icons.delete_outline,
                 iconColor: Colors.red,
-                onTap: () {
-                  // Discard action
-                  Navigator.pop(context);
-                },
+                onTap: _resetForm,
               ),
               const SizedBox(width: 8),
-              // Save draft button
+              // Save draft — icon tinted green when unsaved changes exist
               _buildCircleButton(
                 icon: Icons.save_outlined,
-                iconColor: feastGreen,
-                onTap: () {
-                  // Save draft action
-                },
+                iconColor: _isDirty ? feastGreen : feastGray.withAlpha(140),
+                onTap: _saveDraft,
               ),
             ],
           ),
@@ -178,7 +275,6 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
         children: [
-          // Main image placeholder
           Container(
             height: 160,
             width: double.infinity,
@@ -188,18 +284,13 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
               border: Border.all(color: feastLightGreen, width: 1.5),
             ),
             child: Center(
-              child: Icon(
-                Icons.image_outlined,
-                size: 56,
-                color: feastGreen.withAlpha(120),
-              ),
+              child: Icon(Icons.image_outlined,
+                  size: 56, color: feastGreen.withAlpha(120)),
             ),
           ),
           const SizedBox(height: 10),
-          // Thumbnail row + upload button
           Row(
             children: [
-              // Thumbnail placeholders
               ...List.generate(
                 3,
                 (i) => Container(
@@ -210,28 +301,20 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
                     color: feastLightGreen.withAlpha(40),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: feastLightGreen.withAlpha(80),
-                      width: 1,
-                    ),
+                        color: feastLightGreen.withAlpha(80), width: 1),
                   ),
-                  child: Icon(
-                    Icons.image_outlined,
-                    size: 20,
-                    color: feastGreen.withAlpha(80),
-                  ),
+                  child: Icon(Icons.image_outlined,
+                      size: 20, color: feastGreen.withAlpha(80)),
                 ),
               ),
               const Spacer(),
-              // Upload button
               GestureDetector(
                 onTap: () {
-                  // Upload action
+                  // TODO: image picker
                 },
                 child: Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 14,
-                    vertical: 8,
-                  ),
+                      horizontal: 14, vertical: 8),
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
@@ -273,7 +356,6 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Aid Request Title
           LabeledTextField(
             config: LabeledTextFieldConfig(
               label: 'Aid Request Title',
@@ -284,11 +366,9 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Aid Request Description
           _buildDescriptionField(),
           const SizedBox(height: 16),
 
-          // Post Duration
           LabeledTextField(
             config: LabeledTextFieldConfig(
               label: 'Post Duration',
@@ -300,7 +380,6 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Aid Request Type
           LabeledTextField(
             config: LabeledTextFieldConfig(
               label: 'Aid Request Type',
@@ -317,7 +396,6 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Aid Request Category
           LabeledTextField(
             config: LabeledTextFieldConfig(
               label: 'Aid Request Category',
@@ -334,7 +412,6 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Location
           LabeledTextField(
             config: LabeledTextFieldConfig(
               label: 'Location',
@@ -345,7 +422,6 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Fundraiser Goal
           LabeledTextField(
             config: LabeledTextFieldConfig(
               label: 'Fundraiser Goal',
@@ -357,7 +433,6 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
           ),
           const SizedBox(height: 16),
 
-          // Accepted / Wanted Items
           LabeledTextField(
             config: LabeledTextFieldConfig(
               label: 'Accepted / Wanted Items',
@@ -369,12 +444,9 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
           ),
           const SizedBox(height: 24),
 
-          // ─── Terms Checkbox ───
           _buildTermsCheckbox(),
-
           const SizedBox(height: 20),
 
-          // ─── Submit Button ───
           FeastButton(
             text: 'CREATE AID REQUEST',
             onPressed: _agreedToTerms
@@ -398,10 +470,7 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
           ),
 
           const SizedBox(height: 16),
-
-          // ─── Final Warning ───
           _buildFinalWarning(),
-
           const SizedBox(height: 12),
         ],
       ),
@@ -409,7 +478,7 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
   }
 
   // ═══════════════════════════════════════════════════
-  // ─── DESCRIPTION FIELD (multiline) ───
+  // ─── DESCRIPTION FIELD ───
   // ═══════════════════════════════════════════════════
   Widget _buildDescriptionField() {
     return Column(
@@ -436,19 +505,14 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
             decoration: InputDecoration(
               hintText: 'Insert Description Here...',
               hintStyle: const TextStyle(
-                color: Colors.grey,
-                fontSize: 14,
-                fontFamily: 'Outfit',
-              ),
+                  color: Colors.grey, fontSize: 14, fontFamily: 'Outfit'),
               prefixIcon: Padding(
                 padding: const EdgeInsets.only(bottom: 60),
                 child: Icon(Icons.description_outlined, color: Colors.black54),
               ),
               border: InputBorder.none,
               contentPadding: const EdgeInsets.symmetric(
-                vertical: 16,
-                horizontal: 12,
-              ),
+                  vertical: 16, horizontal: 12),
             ),
           ),
         ),
@@ -470,20 +534,17 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
             onChanged: (v) => setState(() => _agreedToTerms = v ?? false),
             activeColor: feastGreen,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(4),
-            ),
+                borderRadius: BorderRadius.circular(4)),
           ),
         ),
         const SizedBox(width: 8),
         GestureDetector(
-          onTap: () => setState(() => _agreedToTerms = !_agreedToTerms),
+          onTap: () =>
+              setState(() => _agreedToTerms = !_agreedToTerms),
           child: RichText(
             text: const TextSpan(
               style: TextStyle(
-                fontSize: 13,
-                fontFamily: 'Outfit',
-                color: feastBlack,
-              ),
+                  fontSize: 13, fontFamily: 'Outfit', color: feastBlack),
               children: [
                 TextSpan(text: "I've read the "),
                 TextSpan(
@@ -521,11 +582,10 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
           const Text(
             'FINAL WARNING:',
             style: TextStyle(
-              fontSize: 12,
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.bold,
-              color: Colors.red,
-            ),
+                fontSize: 12,
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.bold,
+                color: Colors.red),
           ),
           const SizedBox(height: 4),
           Text(
@@ -546,7 +606,7 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
   }
 
   // ═══════════════════════════════════════════════════
-  // ─── HELPER WIDGETS ───
+  // ─── HELPERS ───
   // ═══════════════════════════════════════════════════
   Widget _buildCircleButton({
     required IconData icon,
@@ -562,10 +622,7 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
           color: Colors.white.withAlpha(220),
           shape: BoxShape.circle,
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(20),
-              blurRadius: 6,
-            ),
+            BoxShadow(color: Colors.black.withAlpha(20), blurRadius: 6),
           ],
         ),
         child: Icon(icon, size: 20, color: iconColor ?? feastBlack),
@@ -582,8 +639,7 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
       context: context,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (_) => Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -593,11 +649,10 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
             Text(
               title,
               style: const TextStyle(
-                fontSize: 16,
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.bold,
-                color: feastBlack,
-              ),
+                  fontSize: 16,
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.bold,
+                  color: feastBlack),
             ),
             const SizedBox(height: 12),
             ...options.map(
@@ -608,7 +663,9 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     fontFamily: 'Outfit',
-                    color: controller.text == option ? feastGreen : feastBlack,
+                    color: controller.text == option
+                        ? feastGreen
+                        : feastBlack,
                     fontWeight: controller.text == option
                         ? FontWeight.bold
                         : FontWeight.w400,
