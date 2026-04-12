@@ -19,6 +19,8 @@ class AppRouter {
     AppRoutes.eventDetail:      (_) => const SelectedCharityEventScreen(),
     AppRoutes.createEvent:      (_) => const CreateCharityEventScreen(),
     AppRoutes.messages:         (_) => const MessagesScreen(),
+    AppRoutes.chatDetail:       (_) => const SelectedChatScreen(),
+    AppRoutes.groupDetail:      (_) => const SelectedGroupScreen(),
     AppRoutes.settings:         (_) => const SettingsScreen(),
     AppRoutes.about:            (_) => const AboutUsScreen(),
     AppRoutes.bookmarks:        (_) => const BookmarksScreen(),
