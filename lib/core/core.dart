@@ -92,6 +92,11 @@ export 'widgets/edit_profile_modal.dart';
 export 'widgets/feast_yellow_section.dart';
 export 'widgets/feast_white_section.dart';
 export 'widgets/feast_expandable_item.dart';
+export 'widgets/donate_items_dialog.dart';
+export 'widgets/item_donation_dialog.dart';
+export 'widgets/donate_funds_amount_dialog.dart';
+export 'widgets/reset_form_dialog.dart';
+export 'widgets/bookmarks_registry.dart';
 
 // Constants
 export 'constants/app_routes.dart';

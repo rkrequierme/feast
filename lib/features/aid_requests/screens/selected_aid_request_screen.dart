@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:feast/core/core.dart';
 
 class SelectedAidRequestScreen extends StatefulWidget {
@@ -9,11 +10,13 @@ class SelectedAidRequestScreen extends StatefulWidget {
       _SelectedAidRequestScreenState();
 }
 
-class _SelectedAidRequestScreenState extends State<SelectedAidRequestScreen> {
-  bool _isBookmarked = true;
+class _SelectedAidRequestScreenState
+    extends State<SelectedAidRequestScreen> {
+  bool _isBookmarked = false;
 
   // ─── Placeholder data (replace with real data from Firebase) ───
   final Map<String, dynamic> _request = {
+    'id': 'request_001',
     'title': 'Surgery Meds & Treatment',
     'beneficiary': 'Jacob Vasquez',
     'category': 'Health\n(Support & Supply)',
@@ -31,7 +34,137 @@ class _SelectedAidRequestScreenState extends State<SelectedAidRequestScreen> {
     'donors': 5,
     'fundsDonated': '₱1,000',
     'itemsDonated': 3,
+    // Deep-link for sharing
+    'shareLink': 'https://feast.app/requests/request_001',
   };
+
+  // ── Bookmark toggle ────────────────────────────────────────────────────────
+
+  void _toggleBookmark() {
+    setState(() => _isBookmarked = !_isBookmarked);
+
+    if (_isBookmarked) {
+      // Add to BookmarksScreen's global list
+      BookmarksRegistry.add(
+        BookmarkListItem(
+          id: _request['id'] as String,
+          type: BookmarkType.request,
+          title: _request['title'] as String,
+          author: 'By: ${_request['beneficiary']}',
+          category: 'Category: ${(_request['category'] as String).replaceAll('\n', ' ')}',
+          description: _request['description'] as String,
+          shareLink: _request['shareLink'] as String?,
+          onRemove: () {
+            // Sync removal back to this screen if still mounted
+            if (mounted) setState(() => _isBookmarked = false);
+          },
+        ),
+      );
+      _showSnackbar('Saved To Bookmarks.');
+    } else {
+      BookmarksRegistry.remove(_request['id'] as String);
+      _showSnackbar('Removed from Bookmarks.');
+    }
+  }
+
+  // ── Share ──────────────────────────────────────────────────────────────────
+
+  Future<void> _handleShare() async {
+    final link = _request['shareLink'] as String? ??
+        'https://feast.app/requests/${_request['id']}';
+    await Clipboard.setData(ClipboardData(text: link));
+    if (!mounted) return;
+    _showSnackbar('Link Copied To Clipboard.');
+  }
+
+  // ── Report ─────────────────────────────────────────────────────────────────
+
+  void _showReportDialog() {
+    showDialog(
+      context: context,
+      builder: (_) => ReportContentDialog(
+        title: _request['title'] as String,
+        onConfirm: (reportTitle, reportDesc) {
+          // TODO: submit report to Firestore
+          _showSnackbar('Report submitted. Thank you.');
+        },
+      ),
+    );
+  }
+
+  // ── Give Items flow ────────────────────────────────────────────────────────
+
+  void _showGiveItemsFlow() {
+    showDialog(
+      context: context,
+      builder: (_) => DonateItemsDialog(
+        requestTitle: _request['title'] as String,
+        onConfirm: _showItemDonationConfig,
+      ),
+    );
+  }
+
+  void _showItemDonationConfig() {
+    showDialog(
+      context: context,
+      builder: (_) => ItemDonationDialog(
+        onConfirm: (items) {
+          // TODO: submit item donation to Firestore
+          _showSnackbar('Item donation submitted. Thank you!');
+        },
+      ),
+    );
+  }
+
+  // ── Donate Funds flow ──────────────────────────────────────────────────────
+
+  void _showDonateFundsFlow() {
+    showDialog(
+      context: context,
+      builder: (_) => DonateFundsDialog(
+        requestTitle: _request['title'] as String,
+        onConfirm: _showDonateFundsAmount,
+      ),
+    );
+  }
+
+  void _showDonateFundsAmount() {
+    showDialog(
+      context: context,
+      builder: (_) => DonateFundsAmountDialog(
+        requestTitle: _request['title'] as String,
+        onConfirm: (amount) {
+          // TODO: initiate payment via GCash / Maya / Stripe etc.
+          _showSnackbar('₱${amount.toStringAsFixed(2)} donation submitted. Thank you!');
+        },
+      ),
+    );
+  }
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+
+  void _showSnackbar(String message) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontFamily: 'Outfit',
+            fontWeight: FontWeight.w600,
+            fontSize: 13,
+          ),
+        ),
+        backgroundColor: Colors.black87,
+        behavior: SnackBarBehavior.floating,
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  // ── Build ──────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -44,28 +177,15 @@ class _SelectedAidRequestScreenState extends State<SelectedAidRequestScreen> {
           child: SingleChildScrollView(
             child: Column(
               children: [
-                // ─── Hero Image Section ───
                 _buildHeroImage(),
-
-                // ─── Content Card ───
                 _buildContentCard(),
-
                 const SizedBox(height: 20),
-
-                // ─── Stats Row ───
                 _buildStatsRow(),
-
                 const SizedBox(height: 24),
-
-                // ─── Action Buttons ───
                 _buildActionButtons(),
-
                 const SizedBox(height: 16),
-
-                // ─── Bookmark Badge ───
                 if (_isBookmarked) _buildBookmarkBadge(),
-
-                const SizedBox(height: 100), // Space for nav bar
+                const SizedBox(height: 100),
               ],
             ),
           ),
@@ -84,7 +204,6 @@ class _SelectedAidRequestScreenState extends State<SelectedAidRequestScreen> {
       width: double.infinity,
       child: Stack(
         children: [
-          // Hero image placeholder
           Positioned.fill(
             child: Container(
               decoration: BoxDecoration(
@@ -99,26 +218,18 @@ class _SelectedAidRequestScreenState extends State<SelectedAidRequestScreen> {
               ),
               child: Stack(
                 children: [
-                  // Decorative background icons
                   Positioned(
                     top: 30,
                     left: 30,
-                    child: Icon(
-                      Icons.medical_services_outlined,
-                      size: 80,
-                      color: Colors.white.withAlpha(60),
-                    ),
+                    child: Icon(Icons.medical_services_outlined,
+                        size: 80, color: Colors.white.withAlpha(60)),
                   ),
                   Positioned(
                     bottom: 50,
                     right: 40,
-                    child: Icon(
-                      Icons.favorite_outline,
-                      size: 60,
-                      color: Colors.white.withAlpha(50),
-                    ),
+                    child: Icon(Icons.favorite_outline,
+                        size: 60, color: Colors.white.withAlpha(50)),
                   ),
-                  // Central placeholder
                   Center(
                     child: Container(
                       width: 120,
@@ -127,11 +238,8 @@ class _SelectedAidRequestScreenState extends State<SelectedAidRequestScreen> {
                         color: Colors.white.withAlpha(40),
                         borderRadius: BorderRadius.circular(16),
                       ),
-                      child: Icon(
-                        Icons.person_outline,
-                        size: 64,
-                        color: Colors.white.withAlpha(150),
-                      ),
+                      child: Icon(Icons.person_outline,
+                          size: 64, color: Colors.white.withAlpha(150)),
                     ),
                   ),
                 ],
@@ -147,20 +255,23 @@ class _SelectedAidRequestScreenState extends State<SelectedAidRequestScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Back button
                 _buildCircleButton(
                   icon: Icons.arrow_back,
                   onTap: () => Navigator.pop(context),
                 ),
                 Row(
                   children: [
-                    // Report button
                     _buildCircleButton(
                       icon: Icons.warning_amber_rounded,
                       iconColor: Colors.red,
-                      onTap: () {
-                        // Report action
-                      },
+                      onTap: _showReportDialog,
+                    ),
+                    const SizedBox(width: 8),
+                    // Share button
+                    _buildCircleButton(
+                      icon: Icons.share,
+                      iconColor: feastGreen,
+                      onTap: _handleShare,
                     ),
                     const SizedBox(width: 8),
                     // Bookmark button
@@ -169,9 +280,7 @@ class _SelectedAidRequestScreenState extends State<SelectedAidRequestScreen> {
                           ? Icons.bookmark
                           : Icons.bookmark_border,
                       iconColor: feastGreen,
-                      onTap: () {
-                        setState(() => _isBookmarked = !_isBookmarked);
-                      },
+                      onTap: _toggleBookmark,
                     ),
                   ],
                 ),
@@ -206,11 +315,9 @@ class _SelectedAidRequestScreenState extends State<SelectedAidRequestScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ─── Title + Beneficiary Row ───
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Title & Meta
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -226,26 +333,16 @@ class _SelectedAidRequestScreenState extends State<SelectedAidRequestScreen> {
                         ),
                       ),
                       const SizedBox(height: 10),
-                      _buildMetaRow(
-                        Icons.category_outlined,
-                        'Request Category: ',
-                        _request['category'] as String,
-                      ),
-                      _buildMetaRow(
-                        Icons.location_on_outlined,
-                        'Location: ',
-                        _request['location'] as String,
-                      ),
-                      _buildMetaRow(
-                        Icons.access_time,
-                        'Time Remaining: ',
-                        _request['timeRemaining'] as String,
-                      ),
+                      _buildMetaRow(Icons.category_outlined,
+                          'Request Category: ', _request['category'] as String),
+                      _buildMetaRow(Icons.location_on_outlined,
+                          'Location: ', _request['location'] as String),
+                      _buildMetaRow(Icons.access_time,
+                          'Time Remaining: ', _request['timeRemaining'] as String),
                     ],
                   ),
                 ),
                 const SizedBox(width: 12),
-                // Beneficiary avatar section
                 Column(
                   children: [
                     const SizedBox(height: 4),
@@ -262,11 +359,8 @@ class _SelectedAidRequestScreenState extends State<SelectedAidRequestScreen> {
                     CircleAvatar(
                       radius: 24,
                       backgroundColor: feastLightGreen,
-                      child: const Icon(
-                        Icons.person,
-                        size: 28,
-                        color: feastGreen,
-                      ),
+                      child: const Icon(Icons.person,
+                          size: 28, color: feastGreen),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -283,18 +377,9 @@ class _SelectedAidRequestScreenState extends State<SelectedAidRequestScreen> {
                 ),
               ],
             ),
-
             const SizedBox(height: 16),
-
-            // ─── Divider ───
-            Container(
-              height: 1,
-              color: feastLightGreen.withAlpha(100),
-            ),
-
+            Container(height: 1, color: feastLightGreen.withAlpha(100)),
             const SizedBox(height: 14),
-
-            // ─── Description ───
             Text(
               _request['description'] as String,
               style: TextStyle(
@@ -402,19 +487,15 @@ class _SelectedAidRequestScreenState extends State<SelectedAidRequestScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Row(
         children: [
-          // GIVE ITEMS button
           Expanded(
             child: ElevatedButton(
-              onPressed: () {
-                // Give items action
-              },
+              onPressed: _showGiveItemsFlow,
               style: ElevatedButton.styleFrom(
                 backgroundColor: feastGreen,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 elevation: 3,
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(25),
-                ),
+                    borderRadius: BorderRadius.circular(25)),
               ),
               child: const Text(
                 'GIVE ITEMS',
@@ -428,18 +509,14 @@ class _SelectedAidRequestScreenState extends State<SelectedAidRequestScreen> {
             ),
           ),
           const SizedBox(width: 12),
-          // DONATE FUNDS button
           Expanded(
             child: OutlinedButton(
-              onPressed: () {
-                // Donate funds action
-              },
+              onPressed: _showDonateFundsFlow,
               style: OutlinedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 side: const BorderSide(color: feastGreen, width: 2),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(25),
-                ),
+                    borderRadius: BorderRadius.circular(25)),
               ),
               child: const Text(
                 'DONATE FUNDS',
@@ -504,17 +581,10 @@ class _SelectedAidRequestScreenState extends State<SelectedAidRequestScreen> {
           color: Colors.white.withAlpha(220),
           shape: BoxShape.circle,
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(20),
-              blurRadius: 6,
-            ),
+            BoxShadow(color: Colors.black.withAlpha(20), blurRadius: 6),
           ],
         ),
-        child: Icon(
-          icon,
-          size: 20,
-          color: iconColor ?? feastBlack,
-        ),
+        child: Icon(icon, size: 20, color: iconColor ?? feastBlack),
       ),
     );
   }
@@ -537,16 +607,14 @@ class _SelectedAidRequestScreenState extends State<SelectedAidRequestScreen> {
                 ),
                 children: [
                   TextSpan(
-                    text: label,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
+                      text: label,
+                      style:
+                          const TextStyle(fontWeight: FontWeight.w600)),
                   TextSpan(
-                    text: value,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w400,
-                      color: feastGray.withAlpha(220),
-                    ),
-                  ),
+                      text: value,
+                      style: TextStyle(
+                          fontWeight: FontWeight.w400,
+                          color: feastGray.withAlpha(220))),
                 ],
               ),
             ),

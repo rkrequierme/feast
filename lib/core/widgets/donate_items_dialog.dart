@@ -2,38 +2,38 @@ import 'package:flutter/material.dart';
 import 'package:feast/core/core.dart';
 
 // ---------------------------------------------------------------------------
-// DonateFundsDialog
+// DonateItemsDialog
 // ---------------------------------------------------------------------------
-// Step 1 confirmation shown when the user taps "DONATE FUNDS".
-// The user must tick T&C before proceeding to DonateFundsAmountDialog.
+// Step 1 confirmation shown when the user taps "GIVE ITEMS".
+// On "Yes" -> show ItemDonationDialog.
 //
 // Usage:
 //   showDialog(
 //     context: context,
-//     builder: (_) => DonateFundsDialog(
+//     builder: (_) => DonateItemsDialog(
 //       requestTitle: 'Surgery Meds & Treatment',
-//       onConfirm: () { /* show DonateFundsAmountDialog */ },
+//       onConfirm: () { /* show ItemDonationDialog */ },
 //     ),
 //   );
 // ---------------------------------------------------------------------------
 
-class DonateFundsDialog extends StatefulWidget {
+class DonateItemsDialog extends StatefulWidget {
   final String requestTitle;
 
   /// Called when the user accepts T&C and taps "Yes".
   final VoidCallback? onConfirm;
 
-  const DonateFundsDialog({
+  const DonateItemsDialog({
     super.key,
     required this.requestTitle,
     this.onConfirm,
   });
 
   @override
-  State<DonateFundsDialog> createState() => _DonateFundsDialogState();
+  State<DonateItemsDialog> createState() => _DonateItemsDialogState();
 }
 
-class _DonateFundsDialogState extends State<DonateFundsDialog> {
+class _DonateItemsDialogState extends State<DonateItemsDialog> {
   bool _accepted = false;
 
   @override
@@ -53,7 +53,7 @@ class _DonateFundsDialogState extends State<DonateFundsDialog> {
               children: [
                 const Expanded(
                   child: Text(
-                    'Donate Funds',
+                    'Donate Items',
                     style: TextStyle(
                       fontFamily: 'Outfit',
                       fontSize: 20,
@@ -73,12 +73,24 @@ class _DonateFundsDialogState extends State<DonateFundsDialog> {
             const SizedBox(height: 8),
 
             Text(
-              'We wish to verify whether or not you are willing to donate to the "${widget.requestTitle}" aid request. Do you wish to proceed?',
+              'We wish to verify whether or not you are willing to donate items to the "${widget.requestTitle}" aid request. Do you wish to proceed?',
               style: const TextStyle(
                 fontFamily: 'Outfit',
                 fontSize: 13,
                 color: Colors.black54,
                 height: 1.5,
+              ),
+            ),
+
+            const SizedBox(height: 6),
+
+            const Text(
+              'NOTE: You will have to deliver these items physically.',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.bold,
+                fontSize: 12,
+                color: feastBlack,
               ),
             ),
 
