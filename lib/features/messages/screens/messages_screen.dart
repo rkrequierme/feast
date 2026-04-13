@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:feast/core/core.dart';
+import 'selected_chat_screen.dart';
 
 class MessagesScreen extends StatefulWidget {
   const MessagesScreen({super.key});
@@ -19,49 +20,26 @@ class _MessagesScreenState extends State<MessagesScreen> {
     'My Groups',
   ];
 
-  // ─── Placeholder chat data ───
-  final List<Map<String, dynamic>> _chats = [
-    {
-      'name': 'Darlene Lopez',
-      'message': 'Pls take a look at the donations.',
-      'time': '5 min',
-      'unread': 5,
-      'isOnline': true,
-      'type': 'personal',
-    },
-    {
-      'name': 'T.S. Cruz Food Bank',
-      'message': 'Hello guys, we have discussed about ...',
-      'time': '30 min',
-      'unread': 0,
-      'isOnline': true,
-      'type': 'group',
-    },
-    {
-      'name': 'Lee Fernandez',
-      'message': "Yes, that's gonna help them out, hopefully.",
-      'time': '1 hr',
-      'unread': 0,
-      'isOnline': false,
-      'type': 'personal',
-    },
-    {
-      'name': 'Ronald Mendoza',
-      'message': '✔✔ Thank you po! 😊',
-      'time': 'Yesterday',
-      'unread': 0,
-      'isOnline': false,
-      'type': 'personal',
-    },
-    {
-      'name': 'Albert Flores',
-      'message': "I'm happy this event has such grea...",
-      'time': 'Yesterday',
-      'unread': 0,
-      'isOnline': false,
-      'type': 'event',
-    },
+  // Maps tab index → chat type filter (null = show all)
+  static const List<ChatType?> _tabTypeFilter = [
+    null,
+    ChatType.personal,
+    ChatType.event,
+    ChatType.myGroup,
   ];
+
+  List<ChatItem> get _filteredChats {
+    final query = _searchController.text.toLowerCase().trim();
+    final typeFilter = _tabTypeFilter[_selectedTab];
+
+    return ChatStore.chats.where((c) {
+      final matchesTab = typeFilter == null || c.type == typeFilter;
+      final matchesSearch = query.isEmpty ||
+          c.name.toLowerCase().contains(query) ||
+          c.lastMessage.toLowerCase().contains(query);
+      return matchesTab && matchesSearch;
+    }).toList();
+  }
 
   @override
   void dispose() {
@@ -69,59 +47,56 @@ class _MessagesScreenState extends State<MessagesScreen> {
     super.dispose();
   }
 
+  void _openChat(ChatItem chat) {
+    // Clear unread badge before navigating
+    setState(() {
+      ChatStore.markRead(chat.id);
+    });
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => SelectedChatScreen(chatId: chat.id),
+      ),
+    ).then((_) => setState(() {})); // Refresh on return
+  }
+
+  void _showNewChatModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (_) => NewChatModal(
+        onCreated: () => setState(() {}),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const FeastAppBar(title: 'Messages'),
       drawer: const FeastDrawer(username: 'Juan De La Cruz'),
-      body: FeastBackground(
-        child: SafeArea(
-          bottom: false,
-          child: Column(
-            children: [
-              const SizedBox(height: 12),
-
-              // ─── Search Bar ───
-              _buildSearchBar(),
-
-              const SizedBox(height: 12),
-
-              // ─── Filter Tabs ───
-              _buildFilterTabs(),
-
-              const SizedBox(height: 8),
-
-              // ─── Chat List ───
-              Expanded(
-                child: ListView.separated(
-                  padding: const EdgeInsets.only(bottom: 80),
-                  itemCount: _chats.length,
-                  separatorBuilder: (_, __) => Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20),
-                    child: Divider(height: 1, color: feastGray.withAlpha(40)),
-                  ),
-                  itemBuilder: (context, index) =>
-                      _buildChatListItem(_chats[index]),
-                ),
-              ),
-            ],
-          ),
-        ),
+      backgroundColor: Colors.white,
+      body: Column(
+        children: [
+          const SizedBox(height: 12),
+          _buildSearchBar(),
+          const SizedBox(height: 10),
+          _buildFilterTabs(),
+          const SizedBox(height: 4),
+          Expanded(child: _buildChatList()),
+        ],
       ),
       bottomNavigationBar: FeastBottomNav(currentIndex: 3),
       floatingActionButton: FeastFloatingButton(
         icon: Icons.chat_bubble_outline,
-        onPressed: () {
-          // Create new chat action
-        },
+        onPressed: _showNewChatModal,
         tooltip: 'New Chat',
       ),
     );
   }
 
-  // ═══════════════════════════════════════════════════
-  // ─── SEARCH BAR ───
-  // ═══════════════════════════════════════════════════
+  // ─── SEARCH BAR ───────────────────────────────────
   Widget _buildSearchBar() {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -130,9 +105,10 @@ class _MessagesScreenState extends State<MessagesScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: feastGray.withAlpha(40)),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withAlpha(15),
+              color: Colors.black.withAlpha(12),
               blurRadius: 6,
               offset: const Offset(0, 2),
             ),
@@ -141,11 +117,12 @@ class _MessagesScreenState extends State<MessagesScreen> {
         child: Row(
           children: [
             const SizedBox(width: 12),
-            Icon(Icons.search, color: feastGray.withAlpha(150), size: 22),
+            Icon(Icons.search, color: feastGray.withAlpha(160), size: 20),
             const SizedBox(width: 8),
             Expanded(
               child: TextField(
                 controller: _searchController,
+                onChanged: (_) => setState(() {}),
                 style: const TextStyle(
                   fontSize: 14,
                   fontFamily: 'Outfit',
@@ -164,26 +141,22 @@ class _MessagesScreenState extends State<MessagesScreen> {
                 ),
               ),
             ),
-            IconButton(
-              icon: Icon(
-                Icons.close,
-                color: feastGray.withAlpha(150),
-                size: 20,
+            if (_searchController.text.isNotEmpty)
+              IconButton(
+                icon: Icon(Icons.close, color: feastGray.withAlpha(150), size: 18),
+                onPressed: () {
+                  _searchController.clear();
+                  setState(() {});
+                },
+                splashRadius: 18,
               ),
-              onPressed: () {
-                _searchController.clear();
-              },
-              splashRadius: 20,
-            ),
           ],
         ),
       ),
     );
   }
 
-  // ═══════════════════════════════════════════════════
-  // ─── FILTER TABS ───
-  // ═══════════════════════════════════════════════════
+  // ─── FILTER TABS ──────────────────────────────────
   Widget _buildFilterTabs() {
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
@@ -193,7 +166,8 @@ class _MessagesScreenState extends State<MessagesScreen> {
           final selected = i == _selectedTab;
           return GestureDetector(
             onTap: () => setState(() => _selectedTab = i),
-            child: Container(
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
               margin: const EdgeInsets.only(right: 8),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
@@ -220,47 +194,83 @@ class _MessagesScreenState extends State<MessagesScreen> {
     );
   }
 
-  // ═══════════════════════════════════════════════════
-  // ─── CHAT LIST ITEM ───
-  // ═══════════════════════════════════════════════════
-  Widget _buildChatListItem(Map<String, dynamic> chat) {
-    final bool isGroup = chat['type'] == 'group' || chat['type'] == 'event';
+  // ─── CHAT LIST ────────────────────────────────────
+  Widget _buildChatList() {
+    final chats = _filteredChats;
+
+    if (chats.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.chat_bubble_outline, size: 48, color: feastGray.withAlpha(80)),
+            const SizedBox(height: 12),
+            Text(
+              _searchController.text.isNotEmpty
+                  ? 'No chats match your search'
+                  : 'No chats here yet',
+              style: TextStyle(
+                fontSize: 14,
+                fontFamily: 'Outfit',
+                color: feastGray.withAlpha(150),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    return ListView.separated(
+      padding: const EdgeInsets.only(bottom: 80),
+      itemCount: chats.length,
+      separatorBuilder: (_, __) => Divider(
+        height: 1,
+        indent: 72,
+        color: feastGray.withAlpha(30),
+      ),
+      itemBuilder: (context, index) => _buildChatItem(chats[index]),
+    );
+  }
+
+  // ─── CHAT LIST ITEM ───────────────────────────────
+  Widget _buildChatItem(ChatItem chat) {
+    final isGroup = chat.type != ChatType.personal;
+    final unread = chat.unreadCount;
 
     return InkWell(
-      onTap: () {
-        if (isGroup) {
-          Navigator.pushNamed(context, AppRoutes.chatDetail);
-        } else {
-          Navigator.pushNamed(context, AppRoutes.chatDetail);
-        }
-      },
+      onTap: () => _openChat(chat),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
         child: Row(
           children: [
-            // ── Avatar with online indicator ──
+            // Avatar
             Stack(
               children: [
                 CircleAvatar(
                   radius: 26,
-                  backgroundColor: feastLightGreen.withAlpha(128),
-                  child: Icon(
-                    isGroup ? Icons.group : Icons.person,
-                    size: 28,
-                    color: feastGreen,
-                  ),
+                  backgroundColor: feastLightGreen.withAlpha(140),
+                  backgroundImage: chat.avatarUrl != null
+                      ? NetworkImage(chat.avatarUrl!)
+                      : null,
+                  child: chat.avatarUrl == null
+                      ? Icon(
+                          isGroup ? Icons.group : Icons.person,
+                          size: 26,
+                          color: feastGreen,
+                        )
+                      : null,
                 ),
-                if (chat['isOnline'] == true)
+                if (chat.isOnline)
                   Positioned(
                     bottom: 1,
                     right: 1,
                     child: Container(
-                      width: 14,
-                      height: 14,
+                      width: 13,
+                      height: 13,
                       decoration: BoxDecoration(
                         color: feastGreen,
                         shape: BoxShape.circle,
-                        border: Border.all(color: Colors.white, width: 2.5),
+                        border: Border.all(color: Colors.white, width: 2),
                       ),
                     ),
                   ),
@@ -268,31 +278,65 @@ class _MessagesScreenState extends State<MessagesScreen> {
             ),
             const SizedBox(width: 12),
 
-            // ── Name + last message ──
+            // Name + preview
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    chat['name'] as String,
-                    style: TextStyle(
-                      fontWeight: (chat['unread'] as int) > 0
-                          ? FontWeight.bold
-                          : FontWeight.w600,
-                      fontSize: 15,
-                      fontFamily: 'Outfit',
-                      color: feastBlack,
-                    ),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          chat.name,
+                          style: TextStyle(
+                            fontWeight: unread > 0 ? FontWeight.bold : FontWeight.w600,
+                            fontSize: 15,
+                            fontFamily: 'Outfit',
+                            color: feastBlack,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (chat.type == ChatType.event)
+                        Container(
+                          margin: const EdgeInsets.only(left: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: feastLightGreen,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'Event',
+                            style: TextStyle(fontSize: 9, color: feastGreen, fontWeight: FontWeight.bold, fontFamily: 'Outfit'),
+                          ),
+                        ),
+                      if (chat.type == ChatType.myGroup)
+                        Container(
+                          margin: const EdgeInsets.only(left: 6),
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: feastLightGreen,
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: const Text(
+                            'Group',
+                            style: TextStyle(fontSize: 9, color: feastGreen, fontWeight: FontWeight.bold, fontFamily: 'Outfit'),
+                          ),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 3),
                   Text(
-                    chat['message'] as String,
+                    chat.lastMessage,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: 13,
                       fontFamily: 'Outfit',
-                      color: feastGray.withAlpha(180),
+                      color: unread > 0
+                          ? feastBlack.withAlpha(200)
+                          : feastGray.withAlpha(180),
+                      fontWeight: unread > 0 ? FontWeight.w500 : FontWeight.normal,
                     ),
                   ),
                 ],
@@ -300,28 +344,28 @@ class _MessagesScreenState extends State<MessagesScreen> {
             ),
             const SizedBox(width: 8),
 
-            // ── Time + unread badge ──
+            // Time + unread badge
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(
-                  chat['time'] as String,
+                  chat.lastMessageTime,
                   style: TextStyle(
                     fontSize: 11,
                     fontFamily: 'Outfit',
                     color: feastGray.withAlpha(150),
                   ),
                 ),
-                const SizedBox(height: 6),
-                if ((chat['unread'] as int) > 0)
+                const SizedBox(height: 5),
+                if (unread > 0)
                   Container(
-                    padding: const EdgeInsets.all(6),
+                    padding: const EdgeInsets.all(5),
                     decoration: const BoxDecoration(
                       color: feastGreen,
                       shape: BoxShape.circle,
                     ),
                     child: Text(
-                      '${chat['unread']}',
+                      '$unread',
                       style: const TextStyle(
                         color: Colors.white,
                         fontSize: 11,
@@ -329,7 +373,9 @@ class _MessagesScreenState extends State<MessagesScreen> {
                         fontFamily: 'Outfit',
                       ),
                     ),
-                  ),
+                  )
+                else
+                  const SizedBox(height: 20),
               ],
             ),
           ],

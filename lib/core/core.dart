@@ -98,6 +98,9 @@ export 'widgets/donate_funds_amount_dialog.dart';
 export 'widgets/reset_form_dialog.dart';
 export 'widgets/bookmarks_registry.dart';
 export 'widgets/join_event_dialog.dart';
+export 'widgets/message_modals.dart';
+export 'widgets/dm_detail.dart';
+export 'widgets/chat_data.dart' hide MemberRole;
 
 // Constants
 export 'constants/app_routes.dart';
