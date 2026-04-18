@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core.dart';
 
 class DatePickerModal {
   static Future<void> show({
@@ -117,9 +118,9 @@ class DatePickerModal {
                           margin: const EdgeInsets.all(2),
                           decoration: BoxDecoration(
                             color: isSelected
-                                ? Colors.blue
+                                ? feastBlue
                                 : inRange
-                                    ? Colors.blue.withAlpha(30)
+                                    ? feastBlue.withAlpha(30)
                                     : Colors.transparent,
                             shape: BoxShape.circle,
                           ),
@@ -164,7 +165,7 @@ class DatePickerModal {
                             Navigator.pop(context);
                           },
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.blue,
+                            backgroundColor: feastBlue,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),

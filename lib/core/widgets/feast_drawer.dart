@@ -65,8 +65,8 @@ class FeastDrawer extends StatelessWidget {
                 ),
               ),
               // Logo and Branding
-              const FeastLogo(height: 80,),
-              SizedBox(height: 8),
+              const FeastLogo(height: 80),
+              const SizedBox(height: 8),
               const FeastTagline(
                 "F.E.A.S.T.",
                 fontSize: 24,
@@ -74,13 +74,13 @@ class FeastDrawer extends StatelessWidget {
                 strokeColor: feastBlue,
                 strokeWidth: 8,
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               const FeastTagline(
                 "Charity Management System",
                 fontSize: 16,
                 strokeWidth: 8,
               ),
-              SizedBox(height: 8),
+              const SizedBox(height: 8),
               FeastLink(
                 text: "Current User: $username",
                 onPressed: () {
@@ -112,15 +112,3 @@ class FeastDrawer extends StatelessWidget {
     );
   }
 }
-
-// IMPLEMENTATION GUIDE
-/*
-Scaffold(
-  appBar: FeastAppBar(
-    title: "Home",
-    showBurgerMenu: false, // This will trigger openDrawer() in your earlier code
-  ),
-  drawer: const FeastDrawer(userName: "Juan De La Cruz"), // Add it here!
-  body: YourBodyWidget(),
-);
-*/

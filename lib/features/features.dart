@@ -24,7 +24,7 @@ export 'bookmarks/screens/bookmarks_screen.dart';
 export 'contact/screens/contact_us_screen.dart';
 export 'guide/screens/app_guide_screen.dart';
 export 'history/screens/history_screen.dart';
-export 'legal/screens/community_guidelines_screen.dart';
+export 'legal/screens/terms_conditions_screen.dart';
 export 'notifications/screens/notifications_screen.dart';
 export 'support/screens/help_faq_screen.dart';
 export 'splash_screen.dart';

@@ -4,8 +4,6 @@ import 'firebase_options.dart';
 
 // Library Components
 import 'package:feast/core/core.dart';
-// import 'package:feast/providers/providers.dart';
-// import 'package:feast/features/features.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();

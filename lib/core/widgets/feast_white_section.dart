@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../core.dart';
 
 /// A reusable white rounded card used to display body content in the About Us screen.
 /// Accepts a [child] widget for flexible content composition.
@@ -21,7 +20,7 @@ class FeastWhiteSection extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.08),
+            color: Colors.black.withAlpha(20),
             blurRadius: 6,
             offset: const Offset(0, 3),
           ),

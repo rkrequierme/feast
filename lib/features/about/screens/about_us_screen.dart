@@ -14,9 +14,9 @@ class _AboutUsScreenState extends State<AboutUsScreen> {
     return Scaffold(
       appBar: const FeastAppBar(title: 'About Us'),
       drawer: const FeastDrawer(username: 'Juan De La Cruz'),
-      bottomNavigationBar: FeastBottomNav(currentIndex: -1),
-      backgroundColor: feastLightYellow, // subtle warm background
-      body: SingleChildScrollView(
+      bottomNavigationBar: const FeastBottomNav(currentIndex: -1),
+      body: FeastBackground(
+        child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -113,6 +113,7 @@ class _AboutUsScreenState extends State<AboutUsScreen> {
             const SizedBox(height: 24),
           ],
         ),
+      ),
       ),
     );
   }

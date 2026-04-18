@@ -14,9 +14,9 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
     return Scaffold(
       appBar: const FeastAppBar(title: 'Contact Us'),
       drawer: const FeastDrawer(username: 'Juan De La Cruz'),
-      bottomNavigationBar: FeastBottomNav(currentIndex: -1),
-      backgroundColor: feastLightYellow,
-      body: SingleChildScrollView(
+      bottomNavigationBar: const FeastBottomNav(currentIndex: -1),
+      body: FeastBackground(
+        child: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -223,6 +223,7 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
             const SizedBox(height: 24),
           ],
         ),
+      ),
       ),
     );
   }

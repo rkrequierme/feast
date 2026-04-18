@@ -9,7 +9,6 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _navIndex = 0;
   int _tabIndex = 0; // 0 = Requests, 1 = Events
   int _featuredPage = 0;
   final PageController _featuredPageController = PageController();

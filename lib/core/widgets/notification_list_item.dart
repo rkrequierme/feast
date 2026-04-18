@@ -109,7 +109,7 @@ class NotificationListItem extends StatelessWidget {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: _statusColor.withOpacity(0.15),
+                      color: _statusColor.withAlpha(38),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(_statusIcon, color: _statusColor, size: 22),
@@ -242,7 +242,7 @@ class NotificationListItem extends StatelessWidget {
       child: InkWell(
         onTap: () => _showFullMessageDialog(context),
         child: Container(
-          color: isRead ? Colors.transparent : Colors.green.withOpacity(0.06),
+          color: isRead ? Colors.transparent : Colors.green.withAlpha(15),
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -269,7 +269,7 @@ class NotificationListItem extends StatelessWidget {
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
-                        color: _statusColor.withOpacity(0.15),
+                        color: _statusColor.withAlpha(38),
                         shape: BoxShape.circle,
                       ),
                       child: Icon(_statusIcon, color: _statusColor, size: 22),

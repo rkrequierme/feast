@@ -43,20 +43,6 @@ class AppRouter {
         return MaterialPageRoute(
           builder: (_) => SelectedChatScreen(chatId: args as String),
         );
-      /*
-      case AppRoutes.aidRequestDetail:
-        return MaterialPageRoute(
-          builder: (_) => SelectedAidRequestScreen(request: args as AidRequestModel),
-        );
-      case AppRoutes.eventDetail:
-        return MaterialPageRoute(
-          builder: (_) => SelectedCharityEventScreen(event: args as CommunityEventModel),
-        );
-      case AppRoutes.chatDetail:
-        return MaterialPageRoute(
-          builder: (_) => SelectedChatScreen(chat: args as ChatModel),
-        );
-      */
       default:
         return MaterialPageRoute(
           builder: (_) => Scaffold(

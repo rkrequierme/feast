@@ -184,119 +184,120 @@ class _HelpFaqScreenState extends State<HelpFaqScreen> {
     return Scaffold(
       appBar: const FeastAppBar(title: 'Help & FAQ'),
       drawer: const FeastDrawer(username: 'Juan De La Cruz'),
-      bottomNavigationBar: FeastBottomNav(currentIndex: -1),
-      backgroundColor: feastLightYellow,
+      bottomNavigationBar: const FeastBottomNav(currentIndex: -1),
       floatingActionButton: FeastFloatingButton(
         icon: Icons.chat_bubble_outline,
         tooltip: 'Submit a Question',
         onPressed: _showSubmitQuestionModal,
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // ── Hero Card ─────────────────────────────────────────────
-            FeastWhiteSection(
-              child: const Text(
-                'Whatever your role in the Almanza Dos community, we\'re '
-                'here to support you.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'Nunito',
-                  fontWeight: FontWeight.w800,
-                  fontSize: 18,
-                  color: Colors.black,
-                  height: 1.4,
+      body: FeastBackground(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // ── Hero Card ─────────────────────────────────────────────
+              FeastWhiteSection(
+                child: const Text(
+                  'Whatever your role in the Almanza Dos community, we\'re '
+                  'here to support you.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Nunito',
+                    fontWeight: FontWeight.w800,
+                    fontSize: 18,
+                    color: Colors.black,
+                    height: 1.4,
+                  ),
                 ),
               ),
-            ),
 
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
-            FeastWhiteSection(
-              child: const Text(
-                'Whether you are managing operations, donating to a cause, '
-                'volunteering your time, or seeking support as a beneficiary, '
-                'we want your experience to be seamless. Find quick answers '
-                'to your questions below, or reach out to us if you need '
-                'further assistance.',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'Nunito',
-                  fontSize: 13,
-                  color: Colors.black87,
-                  height: 1.5,
+              FeastWhiteSection(
+                child: const Text(
+                  'Whether you are managing operations, donating to a cause, '
+                  'volunteering your time, or seeking support as a beneficiary, '
+                  'we want your experience to be seamless. Find quick answers '
+                  'to your questions below, or reach out to us if you need '
+                  'further assistance.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 13,
+                    color: Colors.black87,
+                    height: 1.5,
+                  ),
                 ),
               ),
-            ),
 
-            const SizedBox(height: 20),
+              const SizedBox(height: 20),
 
-            // ── Section Header ────────────────────────────────────────
-            const FeastYellowSection(title: 'FAQ List'),
+              // ── Section Header ────────────────────────────────────────
+              const FeastYellowSection(title: 'FAQ List'),
 
-            const SizedBox(height: 12),
+              const SizedBox(height: 12),
 
-            // ── FAQ Expandable Items ──────────────────────────────────
-            FeastExpandableItem(
-              title: 'What is F.E.A.S.T.?',
-              initiallyExpanded: true,
-              content: const Text(
-                'F.E.A.S.T. is more than just a management tool; it\'s a '
-                'platform built on the belief that we should all be better '
-                'and more supported than we were yesterday. By integrating '
-                'donors, volunteers, and beneficiaries into one seamless '
-                'system, F.E.A.S.T. empowers charities to maximize their '
-                'impact and ensures that help reaches the right people at '
-                'the right time.',
-                style: TextStyle(
-                  fontFamily: 'Nunito',
-                  fontSize: 13,
-                  color: Colors.black87,
-                  height: 1.5,
+              // ── FAQ Expandable Items ──────────────────────────────────
+              FeastExpandableItem(
+                title: 'What is F.E.A.S.T.?',
+                initiallyExpanded: true,
+                content: const Text(
+                  'F.E.A.S.T. is more than just a management tool; it\'s a '
+                  'platform built on the belief that we should all be better '
+                  'and more supported than we were yesterday. By integrating '
+                  'donors, volunteers, and beneficiaries into one seamless '
+                  'system, F.E.A.S.T. empowers charities to maximize their '
+                  'impact and ensures that help reaches the right people at '
+                  'the right time.',
+                  style: TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 13,
+                    color: Colors.black87,
+                    height: 1.5,
+                  ),
                 ),
               ),
-            ),
 
-            const SizedBox(height: 8),
+              const SizedBox(height: 8),
 
-            const FeastExpandableItem(
-              title: 'What are aid requests or charity events?',
-              content: Text(
-                'Aid requests are community-submitted needs such as food, '
-                'medicine, or services. Charity events are organized '
-                'activities where volunteers and donors can contribute '
-                'directly to the Almanza Dos community.',
-                style: TextStyle(
-                  fontFamily: 'Nunito',
-                  fontSize: 13,
-                  color: Colors.black87,
-                  height: 1.5,
+              const FeastExpandableItem(
+                title: 'What are aid requests or charity events?',
+                content: Text(
+                  'Aid requests are community-submitted needs such as food, '
+                  'medicine, or services. Charity events are organized '
+                  'activities where volunteers and donors can contribute '
+                  'directly to the Almanza Dos community.',
+                  style: TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 13,
+                    color: Colors.black87,
+                    height: 1.5,
+                  ),
                 ),
               ),
-            ),
 
-            const SizedBox(height: 8),
+              const SizedBox(height: 8),
 
-            const FeastExpandableItem(
-              title: 'How do I report users for misbehavior?',
-              content: Text(
-                'You can report users by navigating to their profile and '
-                'tapping the report button. Alternatively, use the Submit '
-                'a Question button on this screen to contact the moderation '
-                'team directly.',
-                style: TextStyle(
-                  fontFamily: 'Nunito',
-                  fontSize: 13,
-                  color: Colors.black87,
-                  height: 1.5,
+              const FeastExpandableItem(
+                title: 'How do I report users for misbehavior?',
+                content: Text(
+                  'You can report users by navigating to their profile and '
+                  'tapping the report button. Alternatively, use the Submit '
+                  'a Question button on this screen to contact the moderation '
+                  'team directly.',
+                  style: TextStyle(
+                    fontFamily: 'Nunito',
+                    fontSize: 13,
+                    color: Colors.black87,
+                    height: 1.5,
+                  ),
                 ),
               ),
-            ),
 
-            const SizedBox(height: 80), // Space for FAB clearance
-          ],
+              const SizedBox(height: 80), // Space for FAB clearance
+            ],
+          ),
         ),
       ),
     );

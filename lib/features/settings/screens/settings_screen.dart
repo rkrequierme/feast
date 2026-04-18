@@ -12,7 +12,6 @@ class SettingsScreen extends StatefulWidget {
 
 class _SettingsScreenState extends State<SettingsScreen> {
   bool _notificationsEnabled = true;
-  int _navIndex = 4; // Settings is index 4
 
   @override
   Widget build(BuildContext context) {

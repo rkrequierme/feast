@@ -223,16 +223,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const FeastAppBar(title: 'Notifications'),
-      // ── Gradient background matching the app's green-to-white style ───────
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFB8E6C8), Colors.white],
-            stops: [0.0, 0.35],
-          ),
-        ),
+      drawer: const FeastDrawer(username: 'Juan De La Cruz'),
+      body: FeastBackground(
         child: SafeArea(
           child: Column(
             children: [

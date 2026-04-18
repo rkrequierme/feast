@@ -76,18 +76,19 @@ class _MessagesScreenState extends State<MessagesScreen> {
     return Scaffold(
       appBar: const FeastAppBar(title: 'Messages'),
       drawer: const FeastDrawer(username: 'Juan De La Cruz'),
-      backgroundColor: Colors.white,
-      body: Column(
-        children: [
-          const SizedBox(height: 12),
-          _buildSearchBar(),
-          const SizedBox(height: 10),
-          _buildFilterTabs(),
-          const SizedBox(height: 4),
-          Expanded(child: _buildChatList()),
-        ],
+      body: FeastBackground(
+        child: Column(
+          children: [
+            const SizedBox(height: 12),
+            _buildSearchBar(),
+            const SizedBox(height: 10),
+            _buildFilterTabs(),
+            const SizedBox(height: 4),
+            Expanded(child: _buildChatList()),
+          ],
+        ),
       ),
-      bottomNavigationBar: FeastBottomNav(currentIndex: 3),
+      bottomNavigationBar: const FeastBottomNav(currentIndex: 3),
       floatingActionButton: FeastFloatingButton(
         icon: Icons.chat_bubble_outline,
         onPressed: _showNewChatModal,

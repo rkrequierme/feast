@@ -112,17 +112,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
     return Scaffold(
       appBar: const FeastAppBar(title: 'Your History'),
       drawer: const FeastDrawer(username: 'Juan De La Cruz'),
-      bottomNavigationBar: FeastBottomNav(currentIndex: -1),
-      backgroundColor: Colors.white,
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFFB8E6C8), Colors.white],
-            stops: [0.0, 0.35],
-          ),
-        ),
+      bottomNavigationBar: const FeastBottomNav(currentIndex: -1),
+      body: FeastBackground(
         child: SafeArea(
           child: HistoryListView(
             recentItems: _recentItems,

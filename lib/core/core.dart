@@ -42,17 +42,15 @@ export 'utils/currency_utils.dart';
 export 'utils/file_utils.dart';
 
 // Widgets
-export 'widgets/loading_overlay.dart';
 export 'widgets/empty_state_widget.dart';
 export 'widgets/error_state_widget.dart';
-export 'widgets/image_carousel.dart';
+export 'widgets/loading_overlay.dart';
 export 'widgets/progress_bar_widget.dart';
+export 'widgets/image_carousel.dart';
 export 'widgets/offline_banner.dart';
 export 'widgets/feast_bottom_nav.dart';
 export 'widgets/report_content_dialog.dart';
 export 'widgets/donate_funds_dialog.dart';
-export 'widgets/give_items_dialog.dart';
-export 'widgets/edonation_screen.dart';
 export 'widgets/feast_app_bar.dart';
 export 'widgets/feast_background.dart';
 export 'widgets/feast_logo.dart';
@@ -79,7 +77,6 @@ export 'widgets/aid_request_list_item.dart';
 export 'widgets/bookmark_list_item.dart';
 export 'widgets/charity_event_list_item.dart';
 export 'widgets/chat_list_item.dart';
-export 'widgets/feast_bottom_nav_bar.dart';
 export 'widgets/group_member_list_item.dart';
 export 'widgets/history_log_list_item.dart';
 export 'widgets/notification_list_item.dart';
@@ -100,6 +97,7 @@ export 'widgets/bookmarks_registry.dart';
 export 'widgets/join_event_dialog.dart';
 export 'widgets/message_modals.dart';
 export 'widgets/dm_detail.dart';
+export 'widgets/give_items_dialog.dart';
 export 'widgets/chat_data.dart' hide MemberRole;
 
 // Constants
