@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:feast/core/core.dart';
-import 'package:feast/features/settings/widgets/disable_notification_dialog.dart';
-import 'package:feast/features/settings/widgets/profile_popup.dart';
+import 'package:feast/core/widgets/disable_notification_dialog.dart';
+import 'package:feast/core/widgets/profile_popup.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});

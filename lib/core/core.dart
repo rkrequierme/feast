@@ -1,5 +1,5 @@
 // Theme
-export 'theme/app_colors.dart';
+export 'constants/app_colors.dart';
 
 // Widgets
 export 'widgets/empty_state_widget.dart';
