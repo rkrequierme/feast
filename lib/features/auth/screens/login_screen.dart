@@ -64,9 +64,11 @@ class _LoginScreenState extends State<LoginScreen> {
       Navigator.pushReplacementNamed(context, AppRoutes.home);
     } on AuthException catch (e) {
       if (!mounted) return;
+      debugPrint('Login AuthException: ${e.message}');
       FeastToast.showError(context, e.message);
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
+      debugPrint('Login unexpected error: $e');
       FeastToast.showError(context, 'Something went wrong. Please try again.');
     } finally {
       if (mounted) setState(() => _isLoading = false);

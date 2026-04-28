@@ -12,6 +12,7 @@
 // React email verification: await sendEmailVerification(auth.currentUser)
 // Remember Me: setPersistence(auth, browserLocalPersistence)
 
+import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -33,11 +34,10 @@ class AuthService {
   bool get isSignedIn => _auth.currentUser != null;
 
   // ──────────────────────────────────────────────────────────────────────────
-  // SIGN IN (WITHOUT ADMIN APPROVAL FOR DEVELOPMENT)
+  // SIGN IN (WITHOUT setPersistence - using SharedPreferences instead)
   // ──────────────────────────────────────────────────────────────────────────
 
   /// Signs in with email + password.
-  /// NOTE: Admin approval is temporarily disabled for development.
   /// Throws [AuthException] with user-friendly message on failure.
   Future<UserCredential> signIn({
     required String email,
@@ -45,15 +45,15 @@ class AuthService {
     required bool rememberMe,
   }) async {
     try {
-      // Set session persistence based on "Remember Me"
-      await _auth.setPersistence(
-        rememberMe ? Persistence.LOCAL : Persistence.SESSION,
-      );
-
+      // Note: setPersistence is REMOVED because it causes errors on some platforms
+      // We'll handle "Remember Me" using SharedPreferences only
+      
       final cred = await _auth.signInWithEmailAndPassword(
         email: email.trim(),
         password: password,
       );
+
+      debugPrint('✅ AuthService.signIn: User signed in: ${cred.user!.uid}');
 
       // Ensure user document exists (create if missing)
       await _ensureUserDocument(cred.user!.uid, email.trim());
@@ -77,8 +77,11 @@ class AuthService {
 
       return cred;
     } on FirebaseAuthException catch (e) {
+      debugPrint('❌ AuthService.signIn FirebaseAuthException: ${e.code} - ${e.message}');
       throw AuthException(_mapFirebaseError(e.code));
-    } catch (e) {
+    } catch (e, stackTrace) {
+      debugPrint('❌ AuthService.signIn unexpected error: $e');
+      debugPrint('Stack trace: $stackTrace');
       throw AuthException('Something went wrong. Please try again.');
     }
   }
@@ -86,23 +89,33 @@ class AuthService {
   /// Ensures a Firestore user document exists for the given UID.
   /// Creates one with default values if missing.
   Future<void> _ensureUserDocument(String uid, String email) async {
-    final docRef = _db.collection(FirestorePaths.users).doc(uid);
-    final doc = await docRef.get();
-    
-    if (!doc.exists) {
-      // Create default user document for new registrations
-      await docRef.set({
-        'uid': uid,
-        'email': email,
-        'displayName': email.split('@').first,
-        'role': 'user',
-        'status': 'active',      // AUTO-APPROVED FOR DEVELOPMENT
-        'isResident': false,
-        'notificationsEnabled': true,
-        'warningCount': 0,
-        'createdAt': FieldValue.serverTimestamp(),
-        'updatedAt': FieldValue.serverTimestamp(),
-      });
+    try {
+      final docRef = _db.collection(FirestorePaths.users).doc(uid);
+      final doc = await docRef.get();
+      
+      if (!doc.exists) {
+        debugPrint('📄 Creating user document for UID: $uid');
+        // Create default user document for new registrations
+        await docRef.set({
+          'uid': uid,
+          'email': email,
+          'displayName': email.split('@').first,
+          'role': 'user',
+          'status': 'active',      // AUTO-APPROVED FOR DEVELOPMENT
+          'isResident': false,
+          'notificationsEnabled': true,
+          'warningCount': 0,
+          'createdAt': FieldValue.serverTimestamp(),
+          'updatedAt': FieldValue.serverTimestamp(),
+        });
+        debugPrint('✅ User document created');
+      } else {
+        debugPrint('📄 User document already exists for UID: $uid');
+      }
+    } catch (e, stackTrace) {
+      debugPrint('❌ _ensureUserDocument error: $e');
+      debugPrint('Stack trace: $stackTrace');
+      rethrow;
     }
   }
 
@@ -125,6 +138,8 @@ class AuthService {
     String? legalIdUrl,
   }) async {
     try {
+      debugPrint('📝 Registering user: $email');
+      
       final cred = await _auth.createUserWithEmailAndPassword(
         email: email.trim(),
         password: password,
@@ -159,6 +174,8 @@ class AuthService {
         'updatedAt': FieldValue.serverTimestamp(),
       });
 
+      debugPrint('✅ User registered successfully: $uid');
+
       // Log registration activity
       await _logActivity(
         uid: uid,
@@ -169,7 +186,12 @@ class AuthService {
 
       return cred;
     } on FirebaseAuthException catch (e) {
+      debugPrint('❌ AuthService.register FirebaseAuthException: ${e.code} - ${e.message}');
       throw AuthException(_mapFirebaseError(e.code));
+    } catch (e, stackTrace) {
+      debugPrint('❌ AuthService.register unexpected error: $e');
+      debugPrint('Stack trace: $stackTrace');
+      throw AuthException('Registration failed. Please try again.');
     }
   }
 
@@ -182,7 +204,9 @@ class AuthService {
   Future<void> sendPasswordReset(String email) async {
     try {
       await _auth.sendPasswordResetEmail(email: email.trim());
-    } on FirebaseAuthException {
+      debugPrint('📧 Password reset email sent to: $email');
+    } on FirebaseAuthException catch (e) {
+      debugPrint('❌ sendPasswordReset error: ${e.code} - ${e.message}');
       // Swallow the error — always show success toast
     }
   }
@@ -205,6 +229,7 @@ class AuthService {
     await prefs.remove('remember_me');
     await prefs.remove('cached_email');
     await _auth.signOut();
+    debugPrint('👋 User signed out');
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -224,7 +249,9 @@ class AuthService {
       await _db.collection(FirestorePaths.users).doc(uid).update({
         'updatedAt': FieldValue.serverTimestamp(),
       });
+      debugPrint('🔐 Password updated for user: $uid');
     } on FirebaseAuthException catch (e) {
+      debugPrint('❌ updatePassword error: ${e.code} - ${e.message}');
       throw AuthException(_mapFirebaseError(e.code));
     }
   }
@@ -264,14 +291,18 @@ class AuthService {
     required String description,
     required String status,
   }) async {
-    await _db
-        .collection(FirestorePaths.userHistory(uid))
-        .add({
-      'type': type,
-      'description': description,
-      'status': status,
-      'timestamp': FieldValue.serverTimestamp(),
-    });
+    try {
+      await _db
+          .collection(FirestorePaths.userHistory(uid))
+          .add({
+        'type': type,
+        'description': description,
+        'status': status,
+        'timestamp': FieldValue.serverTimestamp(),
+      });
+    } catch (e) {
+      debugPrint('⚠️ Failed to log activity: $e');
+    }
   }
 
   // ──────────────────────────────────────────────────────────────────────────
