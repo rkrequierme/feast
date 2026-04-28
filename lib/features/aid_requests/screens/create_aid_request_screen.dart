@@ -7,8 +7,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:feast/core/core.dart';
-import 'package:feast/core/services/firestore_service.dart';
-import 'package:feast/core/services/storage_service.dart';
 
 class CreateAidRequestScreen extends StatefulWidget {
   const CreateAidRequestScreen({super.key});
@@ -18,8 +16,7 @@ class CreateAidRequestScreen extends StatefulWidget {
       _CreateAidRequestScreenState();
 }
 
-class _CreateAidRequestScreenState
-    extends State<CreateAidRequestScreen> {
+class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
   final _formKey = GlobalKey<FormState>();
   bool _agreedToTerms = false;
   bool _isSubmitting = false;
@@ -63,6 +60,7 @@ class _CreateAidRequestScreenState
   @override
   void initState() {
     super.initState();
+    _loadDraft();
     for (final c in [
       _titleController,
       _descriptionController,
@@ -84,26 +82,25 @@ class _CreateAidRequestScreenState
     super.dispose();
   }
 
-  // ── Image Picker ─────────────────────────────────────────────────────────
+  // ── Draft Management ─────────────────────────────────────────────────────
 
-  Future<void> _pickImages() async {
-    final result = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
-      allowMultiple: true,
-    );
-    if (result == null) return;
-    setState(() {
-      _selectedImages.addAll(
-        result.files
-            .where((f) => f.path != null)
-            .map((f) => File(f.path!)),
-      );
-      _isDirty = true;
-    });
+  Future<void> _loadDraft() async {
+    final draft = await FirestoreService.instance.loadDraft('aid_requests');
+    if (draft != null && mounted) {
+      setState(() {
+        _titleController.text = draft['title'] ?? '';
+        _descriptionController.text = draft['description'] ?? '';
+        _selectedType = draft['aidType'] ?? 'Fundraiser';
+        _selectedCategory = draft['category'] ?? 'Health';
+        _selectedLocation = draft['location'] ?? 'BF Almanza, Almanza Dos';
+        _postDurationDays = draft['postDurationDays'] ?? 7;
+        _goalController.text = (draft['fundraiserGoal'] ?? 0).toString();
+        _itemsController.text = draft['acceptedItems'] ?? '';
+        _hasDraft = true;
+        _isDirty = false;
+      });
+    }
   }
-
-  // ── Save Draft ────────────────────────────────────────────────────────────
 
   Future<void> _saveDraft() async {
     try {
@@ -132,6 +129,32 @@ class _CreateAidRequestScreenState
     }
   }
 
+  // ── Image Picker ─────────────────────────────────────────────────────────
+
+  Future<void> _pickImages() async {
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: ['jpg', 'jpeg', 'png', 'webp', 'gif'],
+      allowMultiple: true,
+    );
+    if (result == null) return;
+    setState(() {
+      _selectedImages.addAll(
+        result.files
+            .where((f) => f.path != null)
+            .map((f) => File(f.path!)),
+      );
+      _isDirty = true;
+    });
+  }
+
+  void _removeImage(int index) {
+    setState(() {
+      _selectedImages.removeAt(index);
+      _isDirty = true;
+    });
+  }
+
   // ── Reset Form ────────────────────────────────────────────────────────────
 
   void _resetForm() {
@@ -153,6 +176,8 @@ class _CreateAidRequestScreenState
             _isDirty = false;
             _hasDraft = false;
           });
+          FirestoreService.instance.deleteDraft('aid_requests');
+          FeastToast.showSuccess(context, 'Form reset.');
         },
       ),
     );
@@ -189,7 +214,9 @@ class _CreateAidRequestScreenState
   Future<void> _doSubmit() async {
     setState(() => _isSubmitting = true);
     try {
-      // 1. Create aid request doc to get its ID
+      final user = await FirestoreService.instance.getCurrentUser();
+      final fullName = user?['displayName'] ?? user?['firstName'] ?? 'Anonymous';
+
       final ref = await FirestoreService.instance.createAidRequest({
         'title': _titleController.text.trim(),
         'description': _descriptionController.text.trim(),
@@ -197,30 +224,26 @@ class _CreateAidRequestScreenState
         'category': _selectedCategory,
         'location': _selectedLocation,
         'postDurationDays': _postDurationDays,
-        'fundraiserGoal':
-            double.tryParse(_goalController.text) ?? 0,
-        'acceptedItems': _itemsController.text.trim(),
-        'expiresAt': DateTime.now()
-            .add(Duration(days: _postDurationDays))
-            .toIso8601String(),
-        'imageUrls': [], // placeholder; updated below
+        'fundraiserGoal': double.tryParse(_goalController.text) ?? 0,
+        'acceptedItems': _itemsController.text.trim().split(',').map((e) => e.trim()).toList(),
+        'expiresAt': DateTime.now().add(Duration(days: _postDurationDays)).toIso8601String(),
+        'imageUrls': [],
+        'fullName': fullName,
       });
 
-      // 2. Upload images
-      final urls = await StorageService.instance.uploadPostImages(
-        _selectedImages,
-        'aid_requests',
-        ref.id,
-      );
+      if (_selectedImages.isNotEmpty) {
+        final urls = await StorageService.instance.uploadPostImages(
+          _selectedImages,
+          'aid_requests',
+          ref.id,
+        );
+        await ref.update({'imageUrls': urls});
+      }
 
-      // 3. Update doc with real image URLs
-      await ref.update({'imageUrls': urls});
+      await FirestoreService.instance.deleteDraft('aid_requests');
 
       if (!mounted) return;
-      FeastToast.showSuccess(
-        context,
-        'Aid request submitted for admin approval.',
-      );
+      FeastToast.showSuccess(context, 'Aid request submitted for admin approval.');
       Navigator.pushReplacementNamed(context, AppRoutes.aidRequests);
     } catch (e) {
       if (!mounted) return;
@@ -230,23 +253,26 @@ class _CreateAidRequestScreenState
     }
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
     return PopScope(
       canPop: !_isDirty || _hasDraft,
       onPopInvokedWithResult: (didPop, _) {
-        if (!didPop) {
+        if (!didPop && _isDirty && !_hasDraft) {
           showDialog(
             context: context,
             builder: (_) => ConfirmationModal(
               title: 'Unsaved Changes',
               body: 'You have unsaved changes. Save as draft before leaving?',
+              yesLabel: 'Save Draft',
+              noLabel: 'Discard',
               onYes: () async {
                 Navigator.pop(context);
                 await _saveDraft();
-                if (!mounted) return;
+                if (mounted) Navigator.pop(context);
+              },
+              onNo: () {
+                Navigator.pop(context);
                 Navigator.pop(context);
               },
             ),
@@ -257,7 +283,6 @@ class _CreateAidRequestScreenState
         appBar: const FeastAppBar(title: 'Create Aid Request'),
         body: FeastBackground(
           child: SafeArea(
-            bottom: false,
             child: Form(
               key: _formKey,
               child: SingleChildScrollView(
@@ -265,15 +290,12 @@ class _CreateAidRequestScreenState
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // ── Top action bar ──────────────────────────────
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        _iconBtn(Icons.arrow_back,
-                            () => Navigator.pop(context)),
+                        _iconBtn(Icons.arrow_back, () => Navigator.pop(context)),
                         Row(children: [
-                          _iconBtn(Icons.delete_outline,
-                              _resetForm, color: Colors.red),
+                          _iconBtn(Icons.delete_outline, _resetForm, color: Colors.red),
                           const SizedBox(width: 8),
                           _iconBtn(Icons.save_outlined, _saveDraft,
                               color: _isDirty ? feastGreen : feastGray),
@@ -281,88 +303,60 @@ class _CreateAidRequestScreenState
                       ],
                     ),
                     const SizedBox(height: 12),
-
-                    // Warning banner
-                    _warningBanner(
-                        'WARNING: Edits CANNOT be made after posting.'),
+                    _warningBanner('WARNING: Edits CANNOT be made after posting.'),
                     const SizedBox(height: 16),
-
-                    // ── Images ─────────────────────────────────────
                     _buildImageSection(),
                     const SizedBox(height: 20),
-
-                    // ── Title ──────────────────────────────────────
                     _buildField(
                       label: 'Aid Request Title',
                       controller: _titleController,
                       hint: 'Help Flood Victims in Almanza Dos',
                       icon: Icons.title,
                       maxLength: 120,
-                      validator: (v) => (v == null || v.trim().isEmpty)
-                          ? 'Title is required'
-                          : null,
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Title is required' : null,
                     ),
                     const SizedBox(height: 16),
-
-                    // ── Description ────────────────────────────────
                     _buildMultilineField(
                       label: 'Aid Request Description',
                       controller: _descriptionController,
                       hint: 'Describe your situation...',
                       maxLength: 1000,
-                      validator: (v) => (v == null || v.trim().isEmpty)
-                          ? 'Description is required'
-                          : null,
+                      validator: (v) => (v == null || v.trim().isEmpty) ? 'Description is required' : null,
                     ),
                     const SizedBox(height: 16),
-
-                    // ── Post Duration ──────────────────────────────
                     _buildDropdown(
                       label: 'Post Duration (Days)',
                       value: _postDurationDays.toString(),
                       items: ['3', '5', '7', '14', '30'],
                       icon: Icons.timer_outlined,
-                      onChanged: (v) => setState(
-                          () => _postDurationDays = int.parse(v!)),
+                      onChanged: (v) => setState(() => _postDurationDays = int.parse(v!)),
                     ),
                     const SizedBox(height: 16),
-
-                    // ── Aid Request Type ───────────────────────────
                     _buildDropdown(
                       label: 'Aid Request Type',
                       value: _selectedType,
                       items: _requestTypes,
                       icon: Icons.category_outlined,
-                      onChanged: (v) =>
-                          setState(() => _selectedType = v!),
+                      onChanged: (v) => setState(() => _selectedType = v!),
                     ),
                     const SizedBox(height: 16),
-
-                    // ── Category ───────────────────────────────────
                     _buildDropdown(
                       label: 'Aid Request Category',
                       value: _selectedCategory,
                       items: _categories,
                       icon: Icons.list_alt_outlined,
-                      onChanged: (v) =>
-                          setState(() => _selectedCategory = v!),
+                      onChanged: (v) => setState(() => _selectedCategory = v!),
                     ),
                     const SizedBox(height: 16),
-
-                    // ── Location ───────────────────────────────────
                     _buildDropdown(
                       label: 'Location',
                       value: _selectedLocation,
                       items: _locations,
                       icon: Icons.location_on_outlined,
-                      onChanged: (v) =>
-                          setState(() => _selectedLocation = v!),
+                      onChanged: (v) => setState(() => _selectedLocation = v!),
                     ),
                     const SizedBox(height: 16),
-
-                    // ── Fundraiser Goal (conditional) ──────────────
-                    if (_selectedType == 'Fundraiser' ||
-                        _selectedType == 'Supply & Support') ...[
+                    if (_selectedType == 'Fundraiser' || _selectedType == 'Supply & Support') ...[
                       _buildField(
                         label: 'Fundraiser Goal (₱)',
                         controller: _goalController,
@@ -370,83 +364,51 @@ class _CreateAidRequestScreenState
                         icon: Icons.attach_money,
                         keyboardType: TextInputType.number,
                         validator: (v) {
-                          if (v == null || v.trim().isEmpty) {
-                            return 'Goal amount is required';
-                          }
-                          if (double.tryParse(v) == null) {
-                            return 'Enter a valid amount';
-                          }
+                          if (v == null || v.trim().isEmpty) return 'Goal amount is required';
+                          if (double.tryParse(v) == null) return 'Enter a valid amount';
                           return null;
                         },
                       ),
                       const SizedBox(height: 16),
                     ],
-
-                    // ── Accepted Items (conditional) ───────────────
-                    if (_selectedType == 'In-Kind' ||
-                        _selectedType == 'Supply & Support') ...[
+                    if (_selectedType == 'In-Kind' || _selectedType == 'Supply & Support') ...[
                       _buildField(
                         label: 'Accepted / Wanted Items',
                         controller: _itemsController,
                         hint: 'Food, Clothes, Medicine...',
                         icon: Icons.inventory_2_outlined,
-                        validator: (v) => (v == null || v.trim().isEmpty)
-                            ? 'Please specify accepted items'
-                            : null,
+                        validator: (v) => (v == null || v.trim().isEmpty) ? 'Please specify accepted items' : null,
                       ),
                       const SizedBox(height: 16),
                     ],
-
-                    // ── T&C ────────────────────────────────────────
                     FeastCheckbox(
                       text: "I've read the terms and conditions.",
                       value: _agreedToTerms,
                       linkText: 'terms and conditions',
-                      onLinkTap: () =>
-                          Navigator.pushNamed(context, AppRoutes.legal),
-                      onChanged: (v) =>
-                          setState(() => _agreedToTerms = v ?? false),
+                      onLinkTap: () => Navigator.pushNamed(context, AppRoutes.legal),
+                      onChanged: (v) => setState(() => _agreedToTerms = v ?? false),
                     ),
                     const SizedBox(height: 20),
-
-                    // ── Create Button ──────────────────────────────
                     _isSubmitting
-                        ? const Center(
-                            child: CircularProgressIndicator(
-                                color: feastGreen))
-                        : FeastButton(
-                            text: 'CREATE AID REQUEST',
-                            onPressed:
-                                _agreedToTerms ? _submit : null,
-                          ),
+                        ? const Center(child: CircularProgressIndicator(color: feastGreen))
+                        : FeastButton(text: 'CREATE AID REQUEST', onPressed: _agreedToTerms ? _submit : null),
                     const SizedBox(height: 16),
-
-                    // ── Final Warning ──────────────────────────────
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
                         color: feastLightYellow.withAlpha(120),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                            color: feastOrange.withAlpha(60)),
+                        border: Border.all(color: feastOrange.withAlpha(60)),
                       ),
                       child: const Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('FINAL WARNING:',
-                              style: TextStyle(
-                                  fontFamily: 'Outfit',
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.red)),
+                          Text('FINAL WARNING:', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: Colors.red)),
                           SizedBox(height: 4),
                           Text(
                             '• Edits CANNOT be made after posting.\n'
                             '• Aid request CANNOT be removed after a certain duration OR donors have accepted.',
-                            style: TextStyle(
-                                fontFamily: 'Outfit',
-                                fontSize: 12,
-                                color: feastGray,
-                                height: 1.4),
+                            style: TextStyle(fontFamily: 'Outfit', fontSize: 12, color: feastGray, height: 1.4),
                           ),
                         ],
                       ),
@@ -462,8 +424,6 @@ class _CreateAidRequestScreenState
       ),
     );
   }
-
-  // ── Widget helpers ────────────────────────────────────────────────────────
 
   Widget _buildImageSection() {
     return Column(
@@ -483,24 +443,15 @@ class _CreateAidRequestScreenState
                 ? Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.cloud_upload_outlined,
-                          size: 48,
-                          color: feastGreen.withAlpha(120)),
+                      Icon(Icons.cloud_upload_outlined, size: 48, color: feastGreen.withAlpha(120)),
                       const SizedBox(height: 8),
-                      const Text('Tap to upload images',
-                          style: TextStyle(
-                              fontFamily: 'Outfit', color: feastGray)),
-                      const Text('JPG, JPEG, PNG, WEBP, GIF',
-                          style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontSize: 11,
-                              color: feastGray)),
+                      const Text('Tap to upload images', style: TextStyle(fontFamily: 'Outfit', color: feastGray)),
+                      const Text('JPG, JPEG, PNG, WEBP, GIF', style: TextStyle(fontFamily: 'Outfit', fontSize: 11, color: feastGray)),
                     ],
                   )
                 : ClipRRect(
                     borderRadius: BorderRadius.circular(15),
-                    child: Image.file(_selectedImages.first,
-                        fit: BoxFit.cover),
+                    child: Image.file(_selectedImages.first, fit: BoxFit.cover),
                   ),
           ),
         ),
@@ -535,24 +486,18 @@ class _CreateAidRequestScreenState
                       margin: const EdgeInsets.only(right: 8),
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(8),
-                        child: Image.file(_selectedImages[i],
-                            fit: BoxFit.cover),
+                        child: Image.file(_selectedImages[i], fit: BoxFit.cover),
                       ),
                     ),
                     Positioned(
                       top: 2,
                       right: 10,
                       child: GestureDetector(
-                        onTap: () => setState(
-                            () => _selectedImages.removeAt(i)),
+                        onTap: () => _removeImage(i),
                         child: Container(
                           padding: const EdgeInsets.all(2),
-                          decoration: const BoxDecoration(
-                            color: feastError,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(Icons.close,
-                              color: Colors.white, size: 12),
+                          decoration: const BoxDecoration(color: feastError, shape: BoxShape.circle),
+                          child: const Icon(Icons.close, color: Colors.white, size: 12),
                         ),
                       ),
                     ),
@@ -587,15 +532,11 @@ class _CreateAidRequestScreenState
           validator: validator,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle:
-                const TextStyle(color: Colors.grey, fontSize: 13),
+            hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
             prefixIcon: Icon(icon, color: Colors.black54, size: 20),
             filled: true,
             fillColor: Colors.white,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide.none,
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
           ),
         ),
       ],
@@ -621,14 +562,10 @@ class _CreateAidRequestScreenState
           validator: validator,
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle:
-                const TextStyle(color: Colors.grey, fontSize: 13),
+            hintStyle: const TextStyle(color: Colors.grey, fontSize: 13),
             filled: true,
             fillColor: Colors.white,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide.none,
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
           ),
         ),
       ],
@@ -654,27 +591,16 @@ class _CreateAidRequestScreenState
             prefixIcon: Icon(icon, color: Colors.black54, size: 20),
             filled: true,
             fillColor: Colors.white,
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(8),
-              borderSide: BorderSide.none,
-            ),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
           ),
-          items: items
-              .map((i) => DropdownMenuItem(
-                    value: i,
-                    child: Text(i,
-                        style: const TextStyle(
-                            fontFamily: 'Outfit', fontSize: 14)),
-                  ))
-              .toList(),
+          items: items.map((i) => DropdownMenuItem(value: i, child: Text(i, style: const TextStyle(fontFamily: 'Outfit', fontSize: 14)))).toList(),
           onChanged: onChanged,
         ),
       ],
     );
   }
 
-  Widget _iconBtn(IconData icon, VoidCallback onTap,
-      {Color? color}) {
+  Widget _iconBtn(IconData icon, VoidCallback onTap, {Color? color}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -683,10 +609,7 @@ class _CreateAidRequestScreenState
         decoration: BoxDecoration(
           color: Colors.white.withAlpha(220),
           shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withAlpha(20), blurRadius: 6),
-          ],
+          boxShadow: [BoxShadow(color: Colors.black.withAlpha(20), blurRadius: 6)],
         ),
         child: Icon(icon, size: 20, color: color ?? feastBlack),
       ),
@@ -696,27 +619,10 @@ class _CreateAidRequestScreenState
   Widget _warningBanner(String message) {
     return Row(
       children: [
-        const Icon(Icons.warning_amber_rounded,
-            color: Colors.red, size: 18),
+        const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 18),
         const SizedBox(width: 6),
-        Expanded(
-          child: Text(
-            message,
-            style: const TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: Colors.red),
-          ),
-        ),
+        Expanded(child: Text(message, style: const TextStyle(fontFamily: 'Outfit', fontSize: 12, fontWeight: FontWeight.w600, color: Colors.red))),
       ],
     );
   }
 }
-
-// ■■ REACT.JS INTEGRATION NOTE ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-// Collection : aid_requests
-// Write     : addDoc(collection(db,'aid_requests'), { ...data, status:'pending' })
-// Images    : uploadBytes(ref(storage,'aid_requests/{id}/{uuid}.ext'), file)
-// Draft     : addDoc(collection(db,'drafts'), { ...data, collection:'aid_requests' })
-// ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
