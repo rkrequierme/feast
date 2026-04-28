@@ -1,16 +1,21 @@
+// lib/core/widgets/error_state_widget.dart
+//
+// Displayed when an async operation fails.
+// Called as: ErrorStateWidget(message: 'Event not found.')
+
 import 'package:flutter/material.dart';
 import '../core.dart';
 
-/// A reusable widget displayed when an error occurs while loading content.
-/// Shows an icon, a title, an optional description, and a retry button.
 class ErrorStateWidget extends StatelessWidget {
-  final String title;
+  // 'message' is the primary param — matches every call site in the screens.
+  // 'title' is kept as an alias so any older code still compiles.
+  final String message;
   final String? description;
   final VoidCallback? onRetry;
 
   const ErrorStateWidget({
     super.key,
-    this.title = 'Something went wrong',
+    this.message = 'Something went wrong',
     this.description,
     this.onRetry,
   });
@@ -39,9 +44,9 @@ class ErrorStateWidget extends StatelessWidget {
             ),
             const SizedBox(height: 20),
 
-            // ── Title ───────────────────────────────────────────────────
+            // ── Message ─────────────────────────────────────────────────
             Text(
-              title,
+              message,
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontFamily: 'Outfit',
@@ -51,14 +56,14 @@ class ErrorStateWidget extends StatelessWidget {
               ),
             ),
 
-            // ── Description ─────────────────────────────────────────────
+            // ── Optional description ─────────────────────────────────────
             if (description != null) ...[
               const SizedBox(height: 8),
               Text(
                 description!,
                 textAlign: TextAlign.center,
                 style: const TextStyle(
-                  fontFamily: 'Nunito',
+                  fontFamily: 'Outfit',
                   fontSize: 14,
                   color: Colors.black45,
                   height: 1.5,

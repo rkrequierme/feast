@@ -1,6 +1,11 @@
+// lib/features/charity_events/screens/selected_charity_event_screen.dart
+
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 import 'package:feast/core/core.dart';
+import 'package:feast/core/services/firestore_service.dart';
 
 class SelectedCharityEventScreen extends StatefulWidget {
   const SelectedCharityEventScreen({super.key});
@@ -12,157 +17,273 @@ class SelectedCharityEventScreen extends StatefulWidget {
 
 class _SelectedCharityEventScreenState
     extends State<SelectedCharityEventScreen> {
-  bool _isBookmarked = false;
+  String? _docId;
+  Map<String, dynamic>? _data;
+  bool _isLoading = true;
   bool _hasJoined = false;
+  bool _isBookmarked = false;
+  int _carouselPage = 0;
+  final PageController _pageController = PageController();
 
-  // ─── Placeholder data (replace with real data passed via Navigator args) ───
-  final Map<String, dynamic> _event = {
-    'id': 'event_001',
-    'title': 'Flood Relief Project',
-    'organizer': 'Jose De La Cruz',
-    'collaborators': ['Ana De La Cruz', 'Juan Rodriguez & Family'],
-    'category': 'Disaster Management\n(Support & Supply)',
-    'location': 'BF Almanza, Almanza Dos',
-    'duration': '5:00 PM | May 28, 2026',
-    'isNotYetStarted': true,
-    'description':
-        'Help us help those flood-ravaged families. Providing food, '
-        'medicine, and essential supplies to those in desperate need. '
-        'Every volunteer and every donated item brings hope to a family '
-        'that has lost almost everything. Join us and be part of something '
-        'bigger than yourself — because together, we rise.',
-    'participants': '11 / 20',
-    'participantCount': 11,
-    'participantMax': 20,
-    'itemsDonated': 0,
-    'goalPercent': 55,
-    // Gradient colors used as hero placeholder (indices match CharityEventsScreen)
-    'gradientStart': const Color(0xFF4FC3F7),
-    'gradientEnd': const Color(0xFF0288D1),
-    'heroIcon': Icons.flood_outlined,
-    'shareLink': 'https://feast.app/events/event_001',
-  };
-
-  // ── Bookmark toggle ────────────────────────────────────────────────────────
-
-  void _toggleBookmark() {
-    setState(() => _isBookmarked = !_isBookmarked);
-
-    if (_isBookmarked) {
-      BookmarksRegistry.add(
-        BookmarkListItem(
-          id: _event['id'] as String,
-          type: BookmarkType.event,
-          title: _event['title'] as String,
-          author: 'By: ${_event['organizer']}',
-          category:
-              'Category: ${(_event['category'] as String).replaceAll('\n', ' ')}',
-          description: _event['description'] as String,
-          shareLink: _event['shareLink'] as String?,
-          onRemove: () {
-            if (mounted) setState(() => _isBookmarked = false);
-          },
-        ),
-      );
-      _showSnackbar('Saved To Bookmarks.');
-    } else {
-      BookmarksRegistry.remove(_event['id'] as String);
-      _showSnackbar('Removed from Bookmarks.');
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final arg = ModalRoute.of(context)?.settings.arguments;
+    if (arg is String && _docId == null) {
+      _docId = arg;
+      _loadEvent();
+      _checkJoined();
+      _checkBookmark();
     }
   }
 
-  // ── Share ──────────────────────────────────────────────────────────────────
-
-  Future<void> _handleShare() async {
-    final link = _event['shareLink'] as String? ??
-        'https://feast.app/events/${_event['id']}';
-    await Clipboard.setData(ClipboardData(text: link));
+  Future<void> _loadEvent() async {
+    final snap = await FirebaseFirestore.instance
+        .collection(FirestorePaths.charityEvents)
+        .doc(_docId)
+        .get();
     if (!mounted) return;
-    _showSnackbar('Link Copied To Clipboard.');
+    setState(() {
+      _data = snap.data();
+      _isLoading = false;
+    });
   }
 
-  // ── Report ─────────────────────────────────────────────────────────────────
-
-  void _showReportDialog() {
-    showDialog(
-      context: context,
-      builder: (_) => ReportContentDialog(
-        title: _event['title'] as String,
-        onConfirm: (reportTitle, reportDesc) {
-          // TODO: submit report to Firestore
-          _showSnackbar('Report submitted. Thank you.');
-        },
-      ),
-    );
+  Future<void> _checkJoined() async {
+    final snap = await FirebaseFirestore.instance
+        .collection(FirestorePaths.charityEventVolunteers(_docId!))
+        .doc(FirebaseAuth.instance.currentUser?.uid)
+        .get();
+    if (mounted) setState(() => _hasJoined = snap.exists);
   }
 
-  // ── Join Event flow ────────────────────────────────────────────────────────
+  Future<void> _checkBookmark() async {
+    final b = await FirestoreService.instance.isBookmarked(_docId!);
+    if (mounted) setState(() => _isBookmarked = b);
+  }
 
-  void _showJoinEventDialog() {
+  void _showJoinModal() {
     showDialog(
       context: context,
       builder: (_) => JoinEventDialog(
-        eventTitle: _event['title'] as String,
-        onConfirm: () {
+        onConfirm: () async {
+          await FirestoreService.instance.joinCharityEvent(_docId!);
+          if (!mounted) return;
           setState(() => _hasJoined = true);
-          // TODO: write to Firestore:
-          // FirebaseFirestore.instance
-          //   .doc('events/${_event['id']}/participants/$uid')
-          //   .set({...});
-          _showSnackbar("You've joined ${_event['title']}!");
+          FeastToast.showSuccess(
+            context,
+            'Join request submitted! Waiting for admin confirmation.',
+          );
         },
       ),
     );
   }
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
-
-  void _showSnackbar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
-          ),
-        ),
-        backgroundColor: Colors.black87,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20)),
-        duration: const Duration(seconds: 2),
-      ),
-    );
+  Future<void> _leaveEvent() async {
+    try {
+      await FirestoreService.instance.leaveCharityEvent(_docId!);
+      if (!mounted) return;
+      setState(() => _hasJoined = false);
+      FeastToast.showSuccess(context, 'You have left the event.');
+    } catch (e) {
+      if (!mounted) return;
+      FeastToast.showError(context, e.toString());
+    }
   }
 
-  // ── Build ──────────────────────────────────────────────────────────────────
+  bool get _isWithin24h {
+    final start = (_data?['startTime'] as Timestamp?)?.toDate();
+    if (start == null) return false;
+    return DateTime.now()
+        .isAfter(start.subtract(const Duration(hours: 24)));
+  }
+
+  double get _elapsedPercent {
+    final start = (_data?['startTime'] as Timestamp?)?.toDate();
+    final end = (_data?['endTime'] as Timestamp?)?.toDate();
+    if (start == null || end == null) return 0;
+    final total = end.difference(start).inMinutes;
+    if (total <= 0) return 0;
+    final elapsed = DateTime.now().difference(start).inMinutes;
+    return (elapsed / total).clamp(0.0, 1.0);
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(
+            child: CircularProgressIndicator(color: feastBlue)),
+      );
+    }
+    if (_data == null) {
+      return const Scaffold(
+          body: ErrorStateWidget(message: 'Event not found.'));
+    }
+
+    final images = (_data!['imageUrls'] as List?)?.cast<String>() ?? [];
+    final title = _data!['title'] as String? ?? '';
+    final category = _data!['category'] as String? ?? '';
+    final location = _data!['location'] as String? ?? '';
+    final description = _data!['description'] as String? ?? '';
+    final participantCount = (_data!['participantCount'] as int?) ?? 0;
+
+    final startTime = (_data!['startTime'] as Timestamp?)?.toDate();
+    final endTime = (_data!['endTime'] as Timestamp?)?.toDate();
+    final duration = startTime != null && endTime != null
+        ? '${DateFormat('h:mm a').format(startTime)} – ${DateFormat('h:mm a (MMM d, y)').format(endTime)}'
+        : 'TBD';
+
+    final started = startTime != null && DateTime.now().isAfter(startTime);
+
     return Scaffold(
-      appBar: const FeastAppBar(title: 'Charity Events'),
-      drawer: const FeastDrawer(username: 'Juan De La Cruz'),
+      appBar: FeastAppBar(title: title),
+      drawer: const FeastDrawer(username: ''),
       body: FeastBackground(
         child: SafeArea(
           bottom: false,
           child: SingleChildScrollView(
             child: Column(
               children: [
-                _buildHeroImage(),
-                _buildContentCard(),
-                const SizedBox(height: 20),
-                _buildStatsRow(),
+                _buildCarousel(images),
+                Transform.translate(
+                  offset: const Offset(0, -24),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withAlpha(20),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title,
+                            style: const TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                                color: feastBlack)),
+                        const SizedBox(height: 12),
+                        _metaRow(Icons.category_outlined,
+                            'Category: ', category),
+                        _metaRow(Icons.location_on_outlined,
+                            'Location: ', location),
+                        _metaRow(
+                            Icons.schedule, 'Duration: ', duration),
+                        const SizedBox(height: 12),
+                        const Divider(color: feastLighterBlue),
+                        const SizedBox(height: 8),
+                        Text(description,
+                            style: const TextStyle(
+                                fontSize: 13,
+                                fontFamily: 'Outfit',
+                                color: feastGray,
+                                height: 1.5)),
+                      ],
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Row(
+                    children: [
+                      if (started)
+                        Expanded(
+                          child: Column(
+                            children: [
+                              LinearProgressIndicator(
+                                value: _elapsedPercent,
+                                color: feastBlue,
+                                backgroundColor:
+                                    feastLighterBlue.withAlpha(80),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                '${(_elapsedPercent * 100).toInt()}% Elapsed',
+                                style: const TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 11,
+                                    color: feastGray),
+                              ),
+                            ],
+                          ),
+                        ),
+                      const SizedBox(width: 16),
+                      Column(
+                        children: [
+                          const Icon(Icons.people_outline,
+                              color: feastBlue, size: 28),
+                          Text('$participantCount',
+                              style: const TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.bold,
+                                  color: feastBlack)),
+                          const Text('Participants',
+                              style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 10,
+                                  color: feastGray)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 24),
-                _buildActionButtons(),
-                const SizedBox(height: 16),
-                if (_isBookmarked) _buildBookmarkBadge(),
-                if (_hasJoined) ...[
-                  const SizedBox(height: 8),
-                  _buildJoinedBadge(),
-                ],
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: _hasJoined
+                      ? ElevatedButton(
+                          onPressed:
+                              _isWithin24h ? null : _leaveEvent,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.red,
+                            minimumSize: const Size(double.infinity, 50),
+                            shape: RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.circular(25)),
+                            disabledBackgroundColor:
+                                Colors.red.withAlpha(80),
+                          ),
+                          child: Text(
+                            _isWithin24h
+                                ? 'Cannot Leave (< 24h to start)'
+                                : 'Leave Event',
+                            style: const TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white),
+                          ),
+                        )
+                      : ElevatedButton(
+                          onPressed: _showJoinModal,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: feastBlue,
+                            minimumSize: const Size(double.infinity, 50),
+                            shape: RoundedRectangleBorder(
+                                borderRadius:
+                                    BorderRadius.circular(25)),
+                          ),
+                          child: const Text('JOIN US',
+                              style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white)),
+                        ),
+                ),
                 const SizedBox(height: 100),
               ],
             ),
@@ -173,538 +294,146 @@ class _SelectedCharityEventScreenState
     );
   }
 
-  // ═══════════════════════════════════════════════════
-  // ─── HERO IMAGE ───
-  // ═══════════════════════════════════════════════════
-  Widget _buildHeroImage() {
-    return SizedBox(
-      height: 220,
-      width: double.infinity,
-      child: Stack(
-        children: [
-          // ── Gradient background ──
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    _event['gradientStart'] as Color,
-                    _event['gradientEnd'] as Color,
-                  ],
-                ),
-              ),
-              child: Stack(
-                children: [
-                  // Decorative background icons
-                  Positioned(
-                    top: 30,
-                    left: 30,
-                    child: Icon(
-                      _event['heroIcon'] as IconData,
-                      size: 80,
-                      color: Colors.white.withAlpha(60),
-                    ),
-                  ),
-                  Positioned(
-                    bottom: 50,
-                    right: 40,
-                    child: Icon(
-                      Icons.volunteer_activism_outlined,
-                      size: 60,
-                      color: Colors.white.withAlpha(50),
-                    ),
-                  ),
-                  // Central placeholder
-                  Center(
-                    child: Container(
-                      width: 120,
-                      height: 140,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withAlpha(40),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Icon(
-                        Icons.groups_outlined,
-                        size: 64,
-                        color: Colors.white.withAlpha(150),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-
-          // ── Top Action Bar ──
-          Positioned(
-            top: 8,
-            left: 8,
-            right: 8,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildCircleButton(
-                  icon: Icons.arrow_back,
-                  onTap: () => Navigator.pop(context),
-                ),
-                Row(
-                  children: [
-                    _buildCircleButton(
-                      icon: Icons.warning_amber_rounded,
-                      iconColor: Colors.red,
-                      onTap: _showReportDialog,
-                    ),
-                    const SizedBox(width: 8),
-                    _buildCircleButton(
-                      icon: Icons.share,
-                      iconColor: feastGreen,
-                      onTap: _handleShare,
-                    ),
-                    const SizedBox(width: 8),
-                    _buildCircleButton(
-                      icon: _isBookmarked
-                          ? Icons.bookmark
-                          : Icons.bookmark_border,
-                      iconColor: feastGreen,
-                      onTap: _toggleBookmark,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════
-  // ─── CONTENT CARD ───
-  // ═══════════════════════════════════════════════════
-  Widget _buildContentCard() {
-    final collaborators =
-        _event['collaborators'] as List<String>;
-
-    return Transform.translate(
-      offset: const Offset(0, -30),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(20),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Title + Organizer Row ──
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _event['title'] as String,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: 'Outfit',
-                          color: feastBlack,
-                          height: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      _buildMetaRow(
-                        Icons.category_outlined,
-                        'Event Category: ',
-                        _event['category'] as String,
-                      ),
-                      _buildMetaRow(
-                        Icons.location_on_outlined,
-                        'Location: ',
-                        _event['location'] as String,
-                      ),
-                      _buildMetaRow(
-                        Icons.schedule,
-                        'Duration: ',
-                        _event['duration'] as String,
-                        valueColor: (_event['isNotYetStarted'] as bool)
-                            ? feastOrange
-                            : null,
-                      ),
-                      _buildMetaRow(
-                        Icons.people_outline,
-                        'Participants: ',
-                        _event['participants'] as String,
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(width: 12),
-                // Organizer avatar
-                Column(
-                  children: [
-                    const SizedBox(height: 4),
-                    Text(
-                      'Organizer:',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w500,
-                        color: feastGray.withAlpha(180),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    CircleAvatar(
-                      radius: 24,
-                      backgroundColor: feastLighterBlue,
-                      child: const Icon(
-                        Icons.person,
-                        size: 28,
-                        color: feastBlue,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _event['organizer'] as String,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w600,
-                        color: feastBlack,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            // ── Collaborators ──
-            if (collaborators.isNotEmpty) ...[
-              Text(
-                'Collaborators:',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.w600,
-                  color: feastGray.withAlpha(200),
-                ),
-              ),
-              const SizedBox(height: 6),
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                children: collaborators.map((name) {
-                  return Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      CircleAvatar(
-                        radius: 10,
-                        backgroundColor: feastLightGreen,
-                        child: const Icon(
-                          Icons.person,
-                          size: 12,
-                          color: feastGreen,
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        name,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.w600,
-                          color: feastBlue,
-                        ),
-                      ),
-                    ],
-                  );
-                }).toList(),
-              ),
-              const SizedBox(height: 12),
-            ],
-
-            // ── Divider ──
-            Container(height: 1, color: feastLightGreen.withAlpha(100)),
-            const SizedBox(height: 14),
-
-            // ── Description ──
-            Text(
-              _event['description'] as String,
-              style: TextStyle(
-                fontSize: 12,
-                fontFamily: 'Outfit',
-                color: feastGray.withAlpha(220),
-                height: 1.5,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════
-  // ─── STATS ROW ───
-  // ═══════════════════════════════════════════════════
-  Widget _buildStatsRow() {
-    final participantCount = _event['participantCount'] as int;
-    final participantMax = _event['participantMax'] as int;
-    final fillPercent =
-        (participantCount / participantMax).clamp(0.0, 1.0);
-
-    return Transform.translate(
-      offset: const Offset(0, -20),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildStatItem(
-              icon: Icons.pie_chart_outline,
-              value: '${(fillPercent * 100).round()}%',
-              label: 'Filled\n($participantCount/$participantMax)',
-              iconColor: feastGreen,
-            ),
-            _buildStatItem(
-              icon: Icons.people_outline,
-              value: '$participantCount',
-              label: 'Joined',
-              iconColor: feastGreen,
-            ),
-            _buildStatItem(
-              icon: Icons.event_available_outlined,
-              value: (_event['isNotYetStarted'] as bool)
-                  ? 'Soon'
-                  : 'Active',
-              label: 'Status',
-              iconColor: (_event['isNotYetStarted'] as bool)
-                  ? feastOrange
-                  : feastGreen,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatItem({
-    required IconData icon,
-    required String value,
-    required String label,
-    required Color iconColor,
-  }) {
-    return Column(
+  Widget _buildCarousel(List<String> images) {
+    return Stack(
+      alignment: Alignment.center,
       children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: feastLightGreen.withAlpha(80),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, size: 24, color: iconColor),
+        SizedBox(
+          height: 240,
+          width: double.infinity,
+          child: images.isEmpty
+              ? Container(
+                  color: feastLighterBlue.withAlpha(80),
+                  child: const Icon(Icons.event,
+                      size: 80, color: feastBlue))
+              : PageView.builder(
+                  controller: _pageController,
+                  itemCount: images.length,
+                  onPageChanged: (i) =>
+                      setState(() => _carouselPage = i),
+                  itemBuilder: (_, i) => Image.network(images[i],
+                      fit: BoxFit.cover),
+                ),
         ),
-        const SizedBox(height: 6),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 12,
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.bold,
-            color: iconColor == feastOrange ? feastOrange : feastBlack,
+        Positioned(
+          top: 8,
+          left: 8,
+          right: 8,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _circleBtn(
+                  Icons.arrow_back, () => Navigator.pop(context)),
+              Row(children: [
+                _circleBtn(Icons.warning_amber_rounded, () {},
+                    color: Colors.red),
+                const SizedBox(width: 8),
+                _circleBtn(Icons.share, () {},
+                    color: feastBlue),
+                const SizedBox(width: 8),
+                _circleBtn(
+                  _isBookmarked
+                      ? Icons.bookmark
+                      : Icons.bookmark_border,
+                  () async {
+                    if (_isBookmarked) {
+                      await FirestoreService.instance
+                          .removeBookmark(_docId!);
+                    } else {
+                      await FirestoreService.instance.addBookmark(
+                        itemId: _docId!,
+                        itemType: 'event',
+                        title: _data?['title'] ?? '',
+                      );
+                    }
+                    setState(() => _isBookmarked = !_isBookmarked);
+                  },
+                  color: feastBlue,
+                ),
+              ]),
+            ],
           ),
-          textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.w500,
-            color: feastGray.withAlpha(180),
+        if (images.length > 1 && _carouselPage > 0)
+          Positioned(
+            left: 8,
+            child: _arrowBtn(Icons.chevron_left, () {
+              _pageController.previousPage(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut);
+            }),
           ),
-          textAlign: TextAlign.center,
-        ),
+        if (images.length > 1 && _carouselPage < images.length - 1)
+          Positioned(
+            right: 8,
+            child: _arrowBtn(Icons.chevron_right, () {
+              _pageController.nextPage(
+                  duration: const Duration(milliseconds: 300),
+                  curve: Curves.easeInOut);
+            }),
+          ),
       ],
     );
   }
 
-  // ═══════════════════════════════════════════════════
-  // ─── ACTION BUTTONS ───
-  // ═══════════════════════════════════════════════════
-  Widget _buildActionButtons() {
+  Widget _metaRow(IconData icon, String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
-      child: SizedBox(
-        width: double.infinity,
-        child: ElevatedButton.icon(
-          onPressed: _hasJoined ? null : _showJoinEventDialog,
-          icon: Icon(
-            _hasJoined
-                ? Icons.check_circle_outline
-                : Icons.group_add_outlined,
-            size: 18,
-          ),
-          label: Text(
-            _hasJoined ? 'JOINED' : 'JOIN US',
-            style: const TextStyle(
-              fontSize: 14,
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          style: ElevatedButton.styleFrom(
-            backgroundColor:
-                _hasJoined ? Colors.grey.shade400 : feastGreen,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 14),
-            elevation: _hasJoined ? 0 : 3,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(25)),
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════
-  // ─── BADGES ───
-  // ═══════════════════════════════════════════════════
-  Widget _buildBookmarkBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-      decoration: BoxDecoration(
-        color: feastLightYellow,
-        borderRadius: BorderRadius.circular(25),
-        border: Border.all(color: feastOrange.withAlpha(80), width: 1),
-      ),
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.bookmark, color: feastOrange, size: 16),
-          const SizedBox(width: 6),
-          const Text(
-            'Saved To Bookmarks.',
-            style: TextStyle(
-              fontSize: 13,
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w600,
-              color: feastGreen,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildJoinedBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-      decoration: BoxDecoration(
-        color: feastLightGreen.withAlpha(80),
-        borderRadius: BorderRadius.circular(25),
-        border: Border.all(color: feastGreen.withAlpha(80), width: 1),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.check_circle_outline, color: feastGreen, size: 16),
-          const SizedBox(width: 6),
-          const Text(
-            'You\'re In! See You There.',
-            style: TextStyle(
-              fontSize: 13,
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w600,
-              color: feastGreen,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════
-  // ─── HELPER WIDGETS ───
-  // ═══════════════════════════════════════════════════
-  Widget _buildCircleButton({
-    required IconData icon,
-    Color? iconColor,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: Colors.white.withAlpha(220),
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-                color: Colors.black.withAlpha(20), blurRadius: 6),
-          ],
-        ),
-        child: Icon(icon, size: 20, color: iconColor ?? feastBlack),
-      ),
-    );
-  }
-
-  Widget _buildMetaRow(
-    IconData icon,
-    String label,
-    String value, {
-    Color? valueColor,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Icon(icon, size: 14, color: feastGreen),
+          Icon(icon, size: 14, color: feastBlue),
           const SizedBox(width: 6),
           Expanded(
             child: RichText(
               text: TextSpan(
                 style: const TextStyle(
-                  fontSize: 11,
-                  fontFamily: 'Outfit',
-                  color: feastBlack,
-                ),
+                    fontSize: 12,
+                    fontFamily: 'Outfit',
+                    color: feastBlack),
                 children: [
                   TextSpan(
-                    text: label,
-                    style:
-                        const TextStyle(fontWeight: FontWeight.w600),
-                  ),
+                      text: label,
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600)),
                   TextSpan(
-                    text: value,
-                    style: TextStyle(
-                      fontWeight: FontWeight.w400,
-                      color: valueColor ?? feastGray.withAlpha(220),
-                    ),
-                  ),
+                      text: value,
+                      style:
+                          TextStyle(color: feastGray.withAlpha(220))),
                 ],
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _circleBtn(IconData icon, VoidCallback onTap,
+      {Color? color}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: Colors.white.withAlpha(220),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 18, color: color ?? feastBlack),
+      ),
+    );
+  }
+
+  Widget _arrowBtn(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: Colors.white.withAlpha(180),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: feastBlue, size: 22),
       ),
     );
   }

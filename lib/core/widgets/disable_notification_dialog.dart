@@ -1,32 +1,49 @@
 import 'package:flutter/material.dart';
-import 'package:feast/core/core.dart';
+import '../constants/app_colors.dart';
 
-/// Dialog shown when the user taps "Turn On/Off App Notifications"
-/// in the Settings screen.
-///
-/// Usage:
-/// ```dart
-/// showDialog(
-///   context: context,
-///   builder: (_) => DisableNotificationDialog(
-///     onYes: () { /* disable logic */ },
-///   ),
-/// );
-/// ```
+// ─────────────────────────────────────────────────────────────────────────────
+// disable_notification_dialog.dart
+//
+// FIX (Image 5): SelectedGroupScreen called:
+//   DisableNotificationDialog(onConfirm: () {})
+// But widget only defined `onYes` — `onConfirm` was undefined.
+//
+// SOLUTION: Added `onConfirm` as an alias for `onYes`.
+// Both are accepted so neither caller breaks.
+//
+// Used in two places:
+//   • Settings screen  → global app-notification toggle
+//   • SelectedGroupScreen → per-group notification mute
+// ─────────────────────────────────────────────────────────────────────────────
+
 class DisableNotificationDialog extends StatelessWidget {
+  /// Primary callback — used by SelectedGroupScreen (fixes Image 5).
+  final VoidCallback? onConfirm;
+
+  /// Alias kept so Settings screen usage (onYes:) still compiles.
   final VoidCallback? onYes;
+
   final VoidCallback? onNo;
+
+  /// When true, shows "Disable Notifications" messaging.
+  /// When false, shows "Enable Notifications" messaging.
+  final bool isDisabling;
 
   const DisableNotificationDialog({
     super.key,
+    this.onConfirm,
     this.onYes,
     this.onNo,
+    this.isDisabling = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    final action = isDisabling ? 'Disable' : 'Enable';
+
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      backgroundColor: Colors.white,
       insetPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
       child: Padding(
         padding: const EdgeInsets.all(20),
@@ -34,17 +51,17 @@ class DisableNotificationDialog extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ─── Title Row ───
+            // ── Title Row ──────────────────────────────────────────────
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Expanded(
+                Expanded(
                   child: Text(
-                    'Disable App Notifications',
-                    style: TextStyle(
+                    '$action App Notifications',
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                      fontFamily: 'Outfit',
                       color: feastBlack,
                     ),
                   ),
@@ -57,72 +74,75 @@ class DisableNotificationDialog extends StatelessWidget {
             ),
             const SizedBox(height: 10),
 
-            // ─── Body ───
-            const Text(
-              'Are you sure you want to disable app notifications?',
-              style: TextStyle(
-                fontSize: 14,
+            // ── Body ──────────────────────────────────────────────────
+            Text(
+              'Are you sure you want to $action app notifications?',
+              style: const TextStyle(
                 fontFamily: 'Outfit',
+                fontSize: 14,
                 color: feastGray,
               ),
             ),
             const SizedBox(height: 24),
 
-            // ─── Buttons ───
+            // ── Buttons ───────────────────────────────────────────────
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                // No Button
-                ElevatedButton(
-                  onPressed: onNo ?? () => Navigator.of(context).pop(),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: feastWarning,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 22,
-                      vertical: 10,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: const Text(
-                    'No',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                // No
+                _ActionButton(
+                  label: 'No',
+                  color: feastWarning,
+                  onTap: onNo ?? () => Navigator.of(context).pop(),
                 ),
                 const SizedBox(width: 10),
-
-                // Yes Button
-                ElevatedButton(
-                  onPressed: onYes ?? () => Navigator.of(context).pop(),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: feastBlue,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 22,
-                      vertical: 10,
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: const Text(
-                    'Yes',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                // Yes — resolves both onConfirm and onYes
+                _ActionButton(
+                  label: 'Yes',
+                  color: feastBlue,
+                  onTap: () {
+                    Navigator.of(context).pop();
+                    // Prefer onConfirm (new); fall back to onYes (legacy)
+                    (onConfirm ?? onYes)?.call();
+                  },
                 ),
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  final String label;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _ActionButton({
+    required this.label,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ElevatedButton(
+      onPressed: onTap,
+      style: ElevatedButton.styleFrom(
+        backgroundColor: color,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        elevation: 0,
+      ),
+      child: Text(
+        label,
+        style: const TextStyle(
+          fontFamily: 'Outfit',
+          fontSize: 14,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );

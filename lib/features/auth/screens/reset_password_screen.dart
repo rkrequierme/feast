@@ -1,3 +1,5 @@
+// lib/features/auth/screens/reset_password_screen.dart
+
 import 'package:flutter/material.dart';
 import 'package:feast/core/core.dart';
 
@@ -9,11 +11,13 @@ class ResetPasswordScreen extends StatefulWidget {
 }
 
 class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
-  bool _isNewPasswordVisible = false;
-  bool _isConfirmPasswordVisible = false;
-  bool _confirmChange = false;
-  final TextEditingController _newPasswordController = TextEditingController();
-  final TextEditingController _confirmPasswordController = TextEditingController();
+  final _formKey = GlobalKey<FormState>();
+  final _newPasswordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+
+  bool _confirmedChange = false;
+  bool _isLoading = false;
+  List<String> _passwordErrors = [];
 
   @override
   void dispose() {
@@ -22,248 +26,159 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
     super.dispose();
   }
 
+  Future<void> _changePassword() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (!_confirmedChange) {
+      FeastToast.showError(
+          context, 'Please confirm you want to change your password.');
+      return;
+    }
+    if (_newPasswordController.text != _confirmPasswordController.text) {
+      FeastToast.showError(context, 'Passwords do not match.');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      // Logic for updating the password
+      await AuthService.instance.updatePassword(_newPasswordController.text);
+      if (!mounted) return;
+      FeastToast.showSuccess(context, 'Password changed successfully!');
+      Navigator.pushReplacementNamed(context, AppRoutes.login);
+    } on AuthException catch (e) {
+      if (!mounted) return;
+      FeastToast.showError(context, e.message);
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: feastLighterYellow,
       body: FeastBackground(
-        child: SafeArea(
-          bottom: false,
-          child: Column(
-            children: [
-              // ─── Logo and Tagline ───
-              Expanded(
-                flex: 4,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Logo
-                    FeastLogo(),
-                    // Tagline
-                    FeastTagline("Welcome To The F.E.A.S.T.\nCharity Management System!"),
-                  ],
-                ),
-              ),
-              // ─── Bottom Form ───
-              Expanded(
-                flex: 6,
-                child: BottomFormBackground(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 40,
-                      vertical: 40,
-                    ),
-                    child: Column(
-                      children: [
-                        // ─── Title ───
-                        FeastTagline("Set New Password"),
-                        const SizedBox(height: 24),
-
-                        // ─── New Password Field ───
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(top: 80, bottom: 40),
+                        child: Column(
                           children: [
-                            FieldLabel(text: "New Password"),
-                            const SizedBox(height: 8),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(4),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withAlpha(13),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
+                            FeastLogo(height: 120),
+                            FeastTagline(
+                              'Welcome To The F.E.A.S.T.\nCharity Management System!',
+                            ),
+                          ],
+                        ),
+                      ),
+                      BottomFormBackground(
+                        child: Padding(
+                          padding: const EdgeInsets.all(40),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Text(
+                                'Set New Password',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontFamily: 'TitanOne',
+                                  fontSize: 22,
+                                  color: feastGreen,
+                                ),
                               ),
-                              child: TextField(
+                              const SizedBox(height: 24),
+
+                              // New Password
+                              LabeledTextField(
+                                label: 'New Password',
+                                hintText: '••••••••',
+                                prefixIcon: Icons.lock_outline,
                                 controller: _newPasswordController,
-                                obscureText: !_isNewPasswordVisible,
-                                decoration: InputDecoration(
-                                  hintText: '*********',
-                                  hintStyle: const TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 14,
-                                    fontFamily: "Outfit",
-                                  ),
-                                  prefixIcon: const Icon(
-                                    Icons.lock_outline,
-                                    color: Colors.black54,
-                                  ),
-                                  suffixIcon: IconButton(
-                                    icon: Icon(
-                                      _isNewPasswordVisible
-                                          ? Icons.visibility_outlined
-                                          : Icons.visibility_off_outlined,
-                                      color: Colors.black54,
-                                      size: 20,
-                                    ),
-                                    onPressed: () {
-                                      setState(() {
-                                        _isNewPasswordVisible =
-                                            !_isNewPasswordVisible;
-                                      });
-                                    },
-                                  ),
-                                  border: InputBorder.none,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    vertical: 16,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-
-                        // ─── Confirm New Password Field ───
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            FieldLabel(text: "Confirm New Password"),
-                            const SizedBox(height: 8),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(4),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withAlpha(13),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
-                              ),
-                              child: TextField(
-                                controller: _confirmPasswordController,
-                                obscureText: !_isConfirmPasswordVisible,
-                                decoration: InputDecoration(
-                                  hintText: '*********',
-                                  hintStyle: const TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 14,
-                                    fontFamily: "Outfit",
-                                  ),
-                                  prefixIcon: const Icon(
-                                    Icons.lock_outline,
-                                    color: Colors.black54,
-                                  ),
-                                  suffixIcon: IconButton(
-                                    icon: Icon(
-                                      _isConfirmPasswordVisible
-                                          ? Icons.visibility_outlined
-                                          : Icons.visibility_off_outlined,
-                                      color: Colors.black54,
-                                      size: 20,
-                                    ),
-                                    onPressed: () {
-                                      setState(() {
-                                        _isConfirmPasswordVisible =
-                                            !_isConfirmPasswordVisible;
-                                      });
-                                    },
-                                  ),
-                                  border: InputBorder.none,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    vertical: 16,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-
-                        // ─── Confirm Checkbox ───
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            SizedBox(
-                              height: 24,
-                              width: 24,
-                              child: Checkbox(
-                                value: _confirmChange,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _confirmChange = value ?? false;
-                                  });
+                                type: LabeledFieldType.password,
+                                onChanged: (v) => setState(() {
+                                  _passwordErrors =
+                                      AuthService.checkPasswordStrength(v);
+                                }),
+                                validator: (v) {
+                                  if (v == null || v.isEmpty) {
+                                    return 'Required';
+                                  }
+                                  final errors =
+                                      AuthService.checkPasswordStrength(v);
+                                  if (errors.isNotEmpty) return errors.first;
+                                  return null;
                                 },
-                                activeColor: feastGreen,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            const Text(
-                              "Yes, I'm sure. Change my password.",
-                              style: TextStyle(
-                                color: Colors.black87,
-                                fontFamily: "Outfit",
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 30),
+                              if (_passwordErrors.isNotEmpty) ...[
+                                const SizedBox(height: 6),
+                                ..._passwordErrors.map((e) => Text(
+                                      '• $e',
+                                      style: const TextStyle(
+                                          fontSize: 11, color: feastError),
+                                    )),
+                              ],
+                              const SizedBox(height: 16),
 
-                        // ─── Change Password Button ───
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: () {
-                              // Change password
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: feastGreen,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(25),
+                              // Confirm Password
+                              LabeledTextField(
+                                label: 'Confirm New Password',
+                                hintText: '••••••••',
+                                prefixIcon: Icons.lock_outline,
+                                controller: _confirmPasswordController,
+                                type: LabeledFieldType.password,
+                                validator: (v) {
+                                  if (v != _newPasswordController.text) {
+                                    return 'Passwords do not match';
+                                  }
+                                  return null;
+                                },
                               ),
-                              elevation: 4,
-                            ),
-                            child: const Text(
-                              'Change Password',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontFamily: "Outfit",
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
+                              const SizedBox(height: 20),
+
+                              FeastCheckbox(
+                                text: "Yes, I'm sure. Change my password.",
+                                value: _confirmedChange,
+                                onChanged: (val) => setState(
+                                    () => _confirmedChange = val ?? false),
                               ),
-                            ),
+                              const SizedBox(height: 24),
+
+                              _isLoading
+                                  ? const Center(
+                                      child: CircularProgressIndicator(
+                                          color: feastGreen))
+                                  : FeastButton(
+                                      text: 'Change Password',
+                                      onPressed: _changePassword,
+                                    ),
+                              const SizedBox(height: 16),
+
+                              FeastLink(
+                                text: 'Return To Login',
+                                alignment: Alignment.center,
+                                onPressed: () => Navigator.pushReplacementNamed(
+                                    context, AppRoutes.login),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 20),
-
-                        // ─── Return To Login ───
-                        TextButton(
-                          onPressed: () {
-                            Navigator.pushReplacementNamed(
-                              context,
-                              AppRoutes.login,
-                            );
-                          },
-                          child: const Text(
-                            'Return To Login',
-                            style: TextStyle(
-                              color: feastLink,
-                              fontFamily: "Outfit",
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              decoration: TextDecoration.underline,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
   }
+
 }

@@ -1,26 +1,18 @@
-import 'package:flutter/material.dart';
-import 'package:feast/core/core.dart';
-
-// ---------------------------------------------------------------------------
-// JoinEventDialog
-// ---------------------------------------------------------------------------
+// lib/core/widgets/join_event_dialog.dart
+//
 // Confirmation dialog shown when the user taps "JOIN US" on a charity event.
 //
-// Usage:
-//   showDialog(
-//     context: context,
-//     builder: (_) => JoinEventDialog(
-//       eventTitle: 'Flood Relief Project',
-//       onConfirm: () { /* register user in Firestore */ },
-//     ),
-//   );
-//
-// FIREBASE INTEGRATION:
-//   onConfirm: add the current user's UID to
-//   `events/{eventId}/participants/{uid}` and increment participantCount.
-// ---------------------------------------------------------------------------
+// The screen calls it as:
+//   JoinEventDialog(onConfirm: () async { ... })
+// so eventTitle must NOT be required — it has a sensible default.
+
+import 'package:flutter/material.dart';
+import '../constants/app_colors.dart';
+import '../constants/app_routes.dart';
 
 class JoinEventDialog extends StatefulWidget {
+  /// Display name of the event shown in the confirmation body.
+  /// Optional — screens may omit it and it gracefully defaults.
   final String eventTitle;
 
   /// Called when the user accepts T&C and taps "Yes".
@@ -28,7 +20,7 @@ class JoinEventDialog extends StatefulWidget {
 
   const JoinEventDialog({
     super.key,
-    required this.eventTitle,
+    this.eventTitle = 'this event', // ← default so callers can omit it
     this.onConfirm,
   });
 
@@ -50,13 +42,13 @@ class _JoinEventDialogState extends State<JoinEventDialog> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Header ──────────────────────────────────────────────────────
+            // ── Header ────────────────────────────────────────────────────
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 const Expanded(
                   child: Text(
-                    'Join Event',
+                    'Join Charity Event?',
                     style: TextStyle(
                       fontFamily: 'Outfit',
                       fontSize: 20,
@@ -76,7 +68,8 @@ class _JoinEventDialogState extends State<JoinEventDialog> {
             const SizedBox(height: 8),
 
             Text(
-              'Are you sure you want to join "${widget.eventTitle}"? You will be registered as a participant.',
+              'Are you sure you want to join "${widget.eventTitle}"?\n'
+              'You will be registered as a participant pending admin confirmation.',
               style: const TextStyle(
                 fontFamily: 'Outfit',
                 fontSize: 13,
@@ -88,7 +81,7 @@ class _JoinEventDialogState extends State<JoinEventDialog> {
             const SizedBox(height: 6),
 
             const Text(
-              'NOTE: You will need to be physically present at the event location.',
+              'NOTE: You must be physically present at the event location.',
               style: TextStyle(
                 fontFamily: 'Outfit',
                 fontWeight: FontWeight.bold,
@@ -99,7 +92,7 @@ class _JoinEventDialogState extends State<JoinEventDialog> {
 
             const SizedBox(height: 14),
 
-            // ── T&C checkbox ─────────────────────────────────────────────────
+            // ── T&C checkbox ──────────────────────────────────────────────
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -118,26 +111,34 @@ class _JoinEventDialogState extends State<JoinEventDialog> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: GestureDetector(
-                    onTap: () {
-                      // TODO: open T&C screen / webview
-                    },
+                    onTap: () =>
+                        setState(() => _accepted = !_accepted),
                     child: RichText(
-                      text: const TextSpan(
-                        style: TextStyle(
+                      text: TextSpan(
+                        style: const TextStyle(
                           fontFamily: 'Outfit',
                           fontSize: 12,
                           color: Colors.black87,
                         ),
                         children: [
-                          TextSpan(text: "I've read the "),
-                          TextSpan(
-                            text: 'terms and conditions',
-                            style: TextStyle(
-                              color: Colors.blue,
-                              decoration: TextDecoration.underline,
+                          const TextSpan(text: "I've read the "),
+                          WidgetSpan(
+                            child: GestureDetector(
+                              onTap: () => Navigator.pushNamed(
+                                  context, AppRoutes.legal),
+                              child: const Text(
+                                'terms and conditions',
+                                style: TextStyle(
+                                  color: feastBlue,
+                                  decoration:
+                                      TextDecoration.underline,
+                                  fontFamily: 'Outfit',
+                                  fontSize: 12,
+                                ),
+                              ),
                             ),
                           ),
-                          TextSpan(text: '.'),
+                          const TextSpan(text: '.'),
                         ],
                       ),
                     ),
@@ -148,19 +149,19 @@ class _JoinEventDialogState extends State<JoinEventDialog> {
 
             const SizedBox(height: 20),
 
-            // ── Buttons ──────────────────────────────────────────────────────
+            // ── Buttons ───────────────────────────────────────────────────
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                _buildActionButton(
+                _btn(
                   label: 'No',
-                  backgroundColor: Colors.red,
+                  color: Colors.red,
                   onTap: () => Navigator.pop(context),
                 ),
                 const SizedBox(width: 8),
-                _buildActionButton(
+                _btn(
                   label: 'Yes',
-                  backgroundColor: Colors.blue,
+                  color: feastBlue,
                   onTap: _accepted
                       ? () {
                           Navigator.pop(context);
@@ -176,20 +177,19 @@ class _JoinEventDialogState extends State<JoinEventDialog> {
     );
   }
 
-  Widget _buildActionButton({
+  Widget _btn({
     required String label,
-    required Color backgroundColor,
+    required Color color,
     VoidCallback? onTap,
   }) {
-    final isDisabled = onTap == null;
+    final disabled = onTap == null;
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 9),
+        padding:
+            const EdgeInsets.symmetric(horizontal: 22, vertical: 10),
         decoration: BoxDecoration(
-          color: isDisabled
-              ? backgroundColor.withAlpha(100)
-              : backgroundColor,
+          color: disabled ? color.withAlpha(100) : color,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(

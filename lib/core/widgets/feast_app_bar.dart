@@ -40,11 +40,11 @@ class FeastAppBar extends StatelessWidget implements PreferredSizeWidget {
               color: feastBlack,
             ),
           ),
-          if (username != null)
+          if (username != null && username!.isNotEmpty)
             Text(
               'Welcome To F.E.A.S.T., $username!',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 10, // Slightly smaller for better fit
                 fontWeight: FontWeight.w500,
                 fontFamily: 'Outfit',
                 color: feastBlack.withAlpha(179),
@@ -55,10 +55,10 @@ class FeastAppBar extends StatelessWidget implements PreferredSizeWidget {
       actions: [
         IconButton(
           icon: const Icon(Icons.account_circle, color: feastBlack, size: 32),
-          onPressed: () {
+          onPressed: onProfileTap ?? () {
             showDialog(
               context: context,
-              builder: (context) => const ProfileMenuDialog(),
+              builder: (context) => ProfilePopup(username: username ?? 'User'),
             );
           },
         ),

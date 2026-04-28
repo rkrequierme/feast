@@ -1,68 +1,163 @@
-import 'package:flutter/material.dart';
+// lib/core/widgets/charity_event_list_item.dart
+//
+// Reusable card for the Charity Events list screen.
+//
+// The screen calls it as:
+//   CharityEventListItem(
+//     data: data,           // raw Firestore map
+//     docId: doc.id,
+//     statusLabel: status,  // 'Not Yet Started' | 'Ongoing' | 'Concluded'
+//     statusColor: _statusColor(status),
+//     onTap: () => Navigator.pushNamed(...),
+//   )
+//
+// All field extraction happens inside the widget from the map,
+// so the screen never has to map fields manually.
 
-// ---------------------------------------------------------------------------
-// CharityEventListItem
-// ---------------------------------------------------------------------------
-// A reusable card widget for displaying a single Charity Event in a list.
-//
-// FIREBASE INTEGRATION:
-//   Collection : `charity_events`
-//   Document fields expected:
-//     - id               : String  (document ID)
-//     - title            : String  (e.g. "Flood Relief Project")
-//     - description      : String  (short blurb)
-//     - category         : String  (e.g. "Disaster Management (Support & Supply)")
-//     - location         : String
-//     - duration         : String  (e.g. "9:00 AM – 5:00 PM | Feb 28, 2026")
-//     - itemsDonated     : int
-//     - participantCount : int
-//     - maxParticipants  : int
-//     - isNotYetStarted  : bool
-//     - collaboratorNames: List<String>
-//     - collaboratorAvatarUrls: List<String> (Storage URLs)
-//     - heroImageUrl     : String (Storage URL)
-//
-//   To wire up:
-//     1. Create a `CharityEvent` model that maps from DocumentSnapshot.
-//     2. Use StreamBuilder with `charity_events` collection.
-//     3. Pass each CharityEvent into this widget replacing placeholders.
-// ---------------------------------------------------------------------------
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import '../constants/app_colors.dart';
 
 class CharityEventListItem extends StatelessWidget {
-  final String id;
-  final String title;
-  final String description;
-  final String category;
-  final String location;
-  final String duration;
-  final int itemsDonated;
-  final int participantCount;
-  final int maxParticipants;
-  final bool isNotYetStarted;
-  final List<String> collaboratorNames;
-  final List<String?> collaboratorAvatarUrls;
+  // ── Primary map-based constructor (used by CharityEventsScreen) ──────────
+  final Map<String, dynamic>? data;
+  final String? docId;
+  final String? statusLabel;
+  final Color? statusColor;
+
+  // ── Individual field overrides (used when constructing without a map) ────
+  final String? id;
+  final String? title;
+  final String? description;
+  final String? category;
+  final String? location;
+  final String? duration;
+  final int? participantCount;
+  final int? maxParticipants;
+  final List<String>? collaboratorNames;
+  final List<String?>? collaboratorAvatarUrls;
   final String? heroImageUrl;
+
   final VoidCallback? onTap;
 
   const CharityEventListItem({
     super.key,
-    this.id = 'placeholder_id',
-    this.title = 'Charity Event Title',
-    this.description =
-        'Helping Filipino families by delivering food and essential supplies '
-        'to those in need.',
-    this.category = 'Disaster Management (Support & Supply)',
-    this.location = 'BF Almarza, Almarza Dos',
-    this.duration = 'Not Yet Started',
-    this.itemsDonated = 0,
-    this.participantCount = 11,
-    this.maxParticipants = 20,
-    this.isNotYetStarted = true,
-    this.collaboratorNames = const ['Collaborator A', 'Collaborator B'],
-    this.collaboratorAvatarUrls = const [null, null],
+    // Map-based params
+    this.data,
+    this.docId,
+    this.statusLabel,
+    this.statusColor,
+    // Individual field params (fallbacks / direct construction)
+    this.id,
+    this.title,
+    this.description,
+    this.category,
+    this.location,
+    this.duration,
+    this.participantCount,
+    this.maxParticipants,
+    this.collaboratorNames,
+    this.collaboratorAvatarUrls,
     this.heroImageUrl,
     this.onTap,
   });
+
+  // ── Resolve values: map takes precedence ─────────────────────────────────
+
+  String get _title =>
+      (data?['title'] as String?) ?? title ?? 'Charity Event';
+
+  String get _description =>
+      (data?['description'] as String?) ??
+      description ??
+      'Helping the community.';
+
+  String get _category =>
+      (data?['category'] as String?) ?? category ?? '';
+
+  String get _location =>
+      (data?['location'] as String?) ?? location ?? '';
+
+  String get _duration {
+    if (data != null) {
+      final start = (data!['startTime'] as Timestamp?)?.toDate();
+      final end = (data!['endTime'] as Timestamp?)?.toDate();
+      if (start != null && end != null) {
+        String _fmt(DateTime dt) {
+          final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
+          final m = dt.minute.toString().padLeft(2, '0');
+          final ampm = dt.hour < 12 ? 'AM' : 'PM';
+          return '$h:$m $ampm';
+        }
+
+        final months = [
+          '', 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+          'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+        ];
+        return '${_fmt(start)} – ${_fmt(end)} (${months[end.month]} ${end.day}, ${end.year})';
+      }
+    }
+    return duration ?? statusLabel ?? 'TBD';
+  }
+
+  int get _participantCount =>
+      (data?['participantCount'] as int?) ?? participantCount ?? 0;
+
+  int get _maxParticipants =>
+      (data?['maxParticipants'] as int?) ?? maxParticipants ?? 0;
+
+  List<String> get _collaboratorNames {
+    if (data != null) {
+      return (data!['collaboratorNames'] as List?)?.cast<String>() ?? [];
+    }
+    return collaboratorNames ?? [];
+  }
+
+  List<String?> get _collaboratorAvatarUrls {
+    if (data != null) {
+      return (data!['collaboratorAvatarUrls'] as List?)
+              ?.map((e) => e as String?)
+              .toList() ??
+          [];
+    }
+    return collaboratorAvatarUrls ?? [];
+  }
+
+  String? get _heroImageUrl {
+    if (data != null) {
+      final urls = (data!['imageUrls'] as List?)?.cast<String>() ?? [];
+      return urls.isNotEmpty ? urls.first : null;
+    }
+    return heroImageUrl;
+  }
+
+  // Status resolved from the passed label or calculated from data
+  String get _statusLabel {
+    if (statusLabel != null) return statusLabel!;
+    if (data != null) {
+      final start = (data!['startTime'] as Timestamp?)?.toDate();
+      final end = (data!['endTime'] as Timestamp?)?.toDate();
+      final now = DateTime.now();
+      if (start == null || now.isBefore(start)) return 'Not Yet Started';
+      if (end != null && now.isAfter(end)) return 'Concluded';
+      return 'Ongoing';
+    }
+    return 'Not Yet Started';
+  }
+
+  Color get _statusColor {
+    if (statusColor != null) return statusColor!;
+    switch (_statusLabel) {
+      case 'Ongoing':
+        return feastSuccess;
+      case 'Concluded':
+        return feastGray;
+      default:
+        return feastOrange;
+    }
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -70,98 +165,65 @@ class CharityEventListItem extends StatelessWidget {
       onTap: onTap,
       child: Card(
         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         elevation: 2,
+        clipBehavior: Clip.antiAlias,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // ── Hero image ─────────────────────────────────────────────────
-            ClipRRect(
-              borderRadius:
-                  const BorderRadius.vertical(top: Radius.circular(16)),
-              child: Stack(
-                children: [
-                  // TODO: replace with CachedNetworkImage(imageUrl: heroImageUrl)
-                  Container(
-                    height: 140,
-                    width: double.infinity,
-                    color: Colors.grey[300],
-                    child: heroImageUrl != null
-                        ? Image.network(heroImageUrl!, fit: BoxFit.cover)
-                        : const Center(
-                            child:
-                                Icon(Icons.image, size: 48, color: Colors.grey)),
-                  ),
-                  // Title overlay card
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      width: 160,
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
-                        boxShadow: const [
-                          BoxShadow(color: Colors.black26, blurRadius: 4)
-                        ],
-                      ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(title,
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.bold, fontSize: 13)),
-                          const SizedBox(height: 4),
-                          // Collaborator avatars
-                          _CollaboratorAvatarRow(
-                            names: collaboratorNames,
-                            avatarUrls: collaboratorAvatarUrls,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            description,
-                            maxLines: 3,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                fontSize: 10, color: Colors.black54),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            // ── Hero image + overlay ───────────────────────────────────
+            _buildHero(),
 
-            // ── Meta info ──────────────────────────────────────────────────
+            // ── Meta rows ─────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   _MetaRow(
-                      icon: Icons.category_outlined,
-                      text: 'Event Category: $category'),
+                    icon: Icons.category_outlined,
+                    text: 'Event Category: $_category',
+                  ),
                   _MetaRow(
-                      icon: Icons.location_on_outlined,
-                      text: 'Location: $location'),
+                    icon: Icons.location_on_outlined,
+                    text: 'Location: $_location',
+                  ),
                   _MetaRow(
-                      icon: Icons.schedule,
-                      text: 'Duration: $duration',
-                      valueColor:
-                          isNotYetStarted ? Colors.orange : Colors.black87),
+                    icon: Icons.schedule,
+                    text: 'Duration: $_duration',
+                    valueWidget: Container(
+                      margin: const EdgeInsets.only(left: 6),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: _statusColor.withAlpha(30),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                            color: _statusColor.withAlpha(120),
+                            width: 1),
+                      ),
+                      child: Text(
+                        _statusLabel,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: _statusColor,
+                        ),
+                      ),
+                    ),
+                  ),
                   _MetaRow(
-                      icon: Icons.inventory_2_outlined,
-                      text: 'Items Donated: $itemsDonated'),
-                  _MetaRow(
-                      icon: Icons.people_outline,
-                      text: 'Participants: $participantCount / $maxParticipants'),
+                    icon: Icons.people_outline,
+                    text:
+                        'Participants: $_participantCount${_maxParticipants > 0 ? ' / $_maxParticipants' : ''}',
+                  ),
                 ],
               ),
             ),
 
-            // ── Tap link ───────────────────────────────────────────────────
+            // ── Footer link ────────────────────────────────────────────
             Align(
               alignment: Alignment.centerRight,
               child: Padding(
@@ -171,9 +233,10 @@ class CharityEventListItem extends StatelessWidget {
                   child: const Text(
                     'Tap To View Event →',
                     style: TextStyle(
-                      color: Colors.green,
+                      color: feastBlue,
                       fontWeight: FontWeight.w600,
                       fontSize: 12,
+                      fontFamily: 'Outfit',
                     ),
                   ),
                 ),
@@ -184,92 +247,145 @@ class CharityEventListItem extends StatelessWidget {
       ),
     );
   }
-}
 
-// ---------------------------------------------------------------------------
-// CharityEventListView
-// ---------------------------------------------------------------------------
-// FIREBASE INTEGRATION:
-//   StreamBuilder<QuerySnapshot>(
-//     stream: FirebaseFirestore.instance.collection('charity_events').snapshots(),
-//     builder: (context, snapshot) {
-//       if (!snapshot.hasData) return CircularProgressIndicator();
-//       final events = snapshot.data!.docs
-//           .map((doc) => CharityEvent.fromDoc(doc))
-//           .toList();
-//       return CharityEventListView(items: events);
-//     },
-//   );
-// ---------------------------------------------------------------------------
+  Widget _buildHero() {
+    final img = _heroImageUrl;
+    final names = _collaboratorNames;
+    final avatars = _collaboratorAvatarUrls;
 
-class CharityEventListView extends StatelessWidget {
-  final List<CharityEventListItem> items;
+    return SizedBox(
+      height: 140,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Background image
+          img != null
+              ? Image.network(img, fit: BoxFit.cover)
+              : Container(
+                  color: feastLighterBlue.withAlpha(80),
+                  child: const Icon(Icons.event,
+                      size: 48, color: feastBlue),
+                ),
 
-  const CharityEventListView({super.key, required this.items});
+          // Gradient scrim for readability
+          Container(
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Colors.transparent, Colors.black26],
+              ),
+            ),
+          ),
 
-  factory CharityEventListView.placeholder() {
-    return CharityEventListView(
-      items: List.generate(
-        3,
-        (i) => CharityEventListItem(id: 'placeholder_$i', title: 'Event ${i + 1}'),
+          // Title + collaborator overlay (top-right)
+          Positioned(
+            top: 8,
+            right: 8,
+            child: Container(
+              constraints: const BoxConstraints(maxWidth: 170),
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.white.withAlpha(230),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: const [
+                  BoxShadow(color: Colors.black26, blurRadius: 4),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    _title,
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  if (names.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    _CollaboratorRow(
+                        names: names, avatarUrls: avatars),
+                  ],
+                  const SizedBox(height: 4),
+                  Text(
+                    _description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        fontSize: 9, color: Colors.black54),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
-
-  @override
-  Widget build(BuildContext context) {
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: items.length,
-      itemBuilder: (context, index) => items[index],
-    );
-  }
 }
 
-// ---------------------------------------------------------------------------
-// Private helpers
-// ---------------------------------------------------------------------------
-class _CollaboratorAvatarRow extends StatelessWidget {
+// ── Collaborator avatar row ───────────────────────────────────────────────
+class _CollaboratorRow extends StatelessWidget {
   final List<String> names;
   final List<String?> avatarUrls;
 
-  const _CollaboratorAvatarRow(
+  const _CollaboratorRow(
       {required this.names, required this.avatarUrls});
 
   @override
   Widget build(BuildContext context) {
+    final count = names.length.clamp(0, 3);
     return Row(
-      children: List.generate(
-        names.length.clamp(0, 3),
-        (i) => Padding(
+      children: List.generate(count, (i) {
+        final url = i < avatarUrls.length ? avatarUrls[i] : null;
+        return Padding(
           padding: const EdgeInsets.only(right: 4),
           child: Row(
+            mainAxisSize: MainAxisSize.min,
             children: [
               CircleAvatar(
                 radius: 9,
                 backgroundImage:
-                    avatarUrls[i] != null ? NetworkImage(avatarUrls[i]!) : null,
-                child:
-                    avatarUrls[i] == null ? const Icon(Icons.person, size: 10) : null,
+                    url != null ? NetworkImage(url) : null,
+                child: url == null
+                    ? const Icon(Icons.person, size: 10)
+                    : null,
               ),
               const SizedBox(width: 3),
-              Text(names[i],
-                  style:
-                      const TextStyle(fontSize: 9, color: Colors.black87)),
+              Text(
+                names[i],
+                style: const TextStyle(
+                    fontSize: 9, color: Colors.black87),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ],
           ),
-        ),
-      ),
+        );
+      }),
     );
   }
 }
 
+// ── Meta row helper ───────────────────────────────────────────────────────
 class _MetaRow extends StatelessWidget {
   final IconData icon;
   final String text;
   final Color? valueColor;
+  // Optional widget appended after the text (e.g. status badge)
+  final Widget? valueWidget;
 
-  const _MetaRow({required this.icon, required this.text, this.valueColor});
+  const _MetaRow({
+    required this.icon,
+    required this.text,
+    this.valueColor,
+    this.valueWidget,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -280,10 +396,16 @@ class _MetaRow extends StatelessWidget {
           Icon(icon, size: 14, color: Colors.black54),
           const SizedBox(width: 6),
           Expanded(
-            child: Text(text,
-                style: TextStyle(
-                    fontSize: 11, color: valueColor ?? Colors.black87)),
+            child: Text(
+              text,
+              style: TextStyle(
+                fontSize: 11,
+                fontFamily: 'Outfit',
+                color: valueColor ?? Colors.black87,
+              ),
+            ),
           ),
+          if (valueWidget != null) valueWidget!,
         ],
       ),
     );

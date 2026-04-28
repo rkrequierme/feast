@@ -1,5 +1,11 @@
+// lib/features/aid_requests/screens/selected_aid_request_screen.dart
+//
+// Detail view for a single aid request, loaded live from Firestore.
+// Route argument: String docId
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:feast/core/core.dart';
 
 class SelectedAidRequestScreen extends StatefulWidget {
@@ -12,179 +18,392 @@ class SelectedAidRequestScreen extends StatefulWidget {
 
 class _SelectedAidRequestScreenState
     extends State<SelectedAidRequestScreen> {
+  String? _docId;
+  Map<String, dynamic>? _data;
   bool _isBookmarked = false;
+  bool _isLoading = true;
+  int _carouselPage = 0;
+  final PageController _pageController = PageController();
 
-  // ─── Placeholder data (replace with real data from Firebase) ───
-  final Map<String, dynamic> _request = {
-    'id': 'request_001',
-    'title': 'Surgery Meds & Treatment',
-    'beneficiary': 'Jacob Vasquez',
-    'category': 'Health\n(Support & Supply)',
-    'location': 'DBP Village, Almanza Dos',
-    'timeRemaining': '7 Days Left',
-    'description':
-        'Your generous contribution can provide life-saving '
-        'surgery and essential post-operative care for a Filipino '
-        'patient in urgent need. Your kindness provides more '
-        'than just medical treatment. It offers a path toward '
-        'health and stability, allowing my son to live a healthy '
-        'and fulfilling life. He has so much left to live for...',
-    'goalPercent': 20,
-    'goalAmount': '₱5,000',
-    'donors': 5,
-    'fundsDonated': '₱1,000',
-    'itemsDonated': 3,
-    // Deep-link for sharing
-    'shareLink': 'https://feast.app/requests/request_001',
-  };
-
-  // ── Bookmark toggle ────────────────────────────────────────────────────────
-
-  void _toggleBookmark() {
-    setState(() => _isBookmarked = !_isBookmarked);
-
-    if (_isBookmarked) {
-      // Add to BookmarksScreen's global list
-      BookmarksRegistry.add(
-        BookmarkListItem(
-          id: _request['id'] as String,
-          type: BookmarkType.request,
-          title: _request['title'] as String,
-          author: 'By: ${_request['beneficiary']}',
-          category: 'Category: ${(_request['category'] as String).replaceAll('\n', ' ')}',
-          description: _request['description'] as String,
-          shareLink: _request['shareLink'] as String?,
-          onRemove: () {
-            // Sync removal back to this screen if still mounted
-            if (mounted) setState(() => _isBookmarked = false);
-          },
-        ),
-      );
-      _showSnackbar('Saved To Bookmarks.');
-    } else {
-      BookmarksRegistry.remove(_request['id'] as String);
-      _showSnackbar('Removed from Bookmarks.');
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final arg = ModalRoute.of(context)?.settings.arguments;
+    if (arg is String && _docId == null) {
+      _docId = arg;
+      _loadRequest();
+      _checkBookmark();
     }
   }
 
-  // ── Share ──────────────────────────────────────────────────────────────────
+  Future<void> _loadRequest() async {
+    final snap = await FirebaseFirestore.instance
+        .collection(FirestorePaths.aidRequests)
+        .doc(_docId)
+        .get();
+    if (!mounted) return;
+    setState(() {
+      _data = snap.data();
+      _isLoading = false;
+    });
+  }
+
+  Future<void> _checkBookmark() async {
+    final isBookmarked =
+        await FirestoreService.instance.isBookmarked(_docId!);
+    if (mounted) setState(() => _isBookmarked = isBookmarked);
+  }
+
+  Future<void> _toggleBookmark() async {
+    if (_docId == null || _data == null) return;
+    if (_isBookmarked) {
+      await FirestoreService.instance.removeBookmark(_docId!);
+      FeastToast.showSuccess(context, 'Removed from Bookmarks.');
+    } else {
+      await FirestoreService.instance.addBookmark(
+        itemId: _docId!,
+        itemType: 'request',
+        title: _data!['title'] as String? ?? '',
+      );
+      FeastToast.showSuccess(context, 'Saved to Bookmarks.');
+    }
+    setState(() => _isBookmarked = !_isBookmarked);
+  }
 
   Future<void> _handleShare() async {
-    final link = _request['shareLink'] as String? ??
-        'https://feast.app/requests/${_request['id']}';
+    final link = 'https://feast.app/requests/$_docId';
     await Clipboard.setData(ClipboardData(text: link));
     if (!mounted) return;
-    _showSnackbar('Link Copied To Clipboard.');
+    FeastToast.showSuccess(context, 'Link copied to clipboard.');
   }
 
-  // ── Report ─────────────────────────────────────────────────────────────────
-
-  void _showReportDialog() {
+  // FIX: Replaced removed `ReportContentDialog` with `ReportModal`.
+  // - `title` param renamed to `targetTitle`
+  // - `onConfirm` param renamed to `onSubmit`
+  void _showReport() {
+    if (_data == null) return;
     showDialog(
       context: context,
-      builder: (_) => ReportContentDialog(
-        title: _request['title'] as String,
-        onConfirm: (reportTitle, reportDesc) {
-          // TODO: submit report to Firestore
-          _showSnackbar('Report submitted. Thank you.');
+      builder: (_) => ReportModal(
+        targetTitle: _data!['title'] as String? ?? '',
+        targetType: 'request',
+        onSubmit: (title, desc) async {
+          await FirestoreService.instance.submitReport(
+            targetId: _docId!,
+            targetType: 'aid_request',
+            title: title,
+            description: desc,
+          );
+          if (!mounted) return;
+          FeastToast.showSuccess(context, 'Report submitted. Thank you.');
         },
       ),
     );
   }
 
-  // ── Give Items flow ────────────────────────────────────────────────────────
-
-  void _showGiveItemsFlow() {
+  // FIX: Replaced removed `DonateItemsDialog` with `DonateModal` (step-1
+  // intent dialog). Replaced removed `ItemDonationDialog` with
+  // `ItemDonationModal` (step-2 item-entry dialog).
+  void _showGiveItems() {
     showDialog(
       context: context,
-      builder: (_) => DonateItemsDialog(
-        requestTitle: _request['title'] as String,
-        onConfirm: _showItemDonationConfig,
-      ),
-    );
-  }
-
-  void _showItemDonationConfig() {
-    showDialog(
-      context: context,
-      builder: (_) => ItemDonationDialog(
-        onConfirm: (items) {
-          // TODO: submit item donation to Firestore
-          _showSnackbar('Item donation submitted. Thank you!');
-        },
-      ),
-    );
-  }
-
-  // ── Donate Funds flow ──────────────────────────────────────────────────────
-
-  void _showDonateFundsFlow() {
-    showDialog(
-      context: context,
-      builder: (_) => DonateFundsDialog(
-        requestTitle: _request['title'] as String,
-        onConfirm: _showDonateFundsAmount,
-      ),
-    );
-  }
-
-  void _showDonateFundsAmount() {
-    showDialog(
-      context: context,
-      builder: (_) => DonateFundsAmountDialog(
-        requestTitle: _request['title'] as String,
-        onConfirm: (amount) {
-          // TODO: initiate payment via GCash / Maya / Stripe etc.
-          _showSnackbar('₱${amount.toStringAsFixed(2)} donation submitted. Thank you!');
-        },
-      ),
-    );
-  }
-
-  // ── Helpers ────────────────────────────────────────────────────────────────
-
-  void _showSnackbar(String message) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          message,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.w600,
-            fontSize: 13,
+      builder: (_) => DonateModal(
+        title: 'Donate Items',
+        aidRequestName: _data?['title'] as String? ?? '',
+        boldNote:
+            'Note: Items must be physically delivered to the Barangay Hall.',
+        onYes: () => showDialog(
+          context: context,
+          builder: (_) => ItemDonationModal(
+            onConfirm: (items) async {
+              await FirestoreService.instance.donateItems(
+                requestId: _docId!,
+                items: items,
+              );
+              if (!mounted) return;
+              FeastToast.showSuccess(
+                  context, 'Item donation submitted. Thank you!');
+            },
           ),
         ),
-        backgroundColor: Colors.black87,
-        behavior: SnackBarBehavior.floating,
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        duration: const Duration(seconds: 2),
       ),
     );
   }
 
-  // ── Build ──────────────────────────────────────────────────────────────────
+  // FIX: Replaced removed `DonateFundsDialog` with `DonateModal` (step-1
+  // intent dialog). `DonateFundsAmountDialog` is in donate_modal.dart and
+  // is already correct — no change needed there.
+  void _showDonateFunds() {
+    showDialog(
+      context: context,
+      builder: (_) => DonateModal(
+        title: 'Donate Funds',
+        aidRequestName: _data?['title'] as String? ?? '',
+        onYes: () => showDialog(
+          context: context,
+          builder: (_) => DonateFundsAmountDialog(
+            requestTitle: _data?['title'] as String? ?? '',
+            onConfirm: (amount) async {
+              await FirestoreService.instance.donateFunds(
+                requestId: _docId!,
+                amount: amount,
+              );
+              if (!mounted) return;
+              FeastToast.showSuccess(
+                context,
+                '₱${amount.toStringAsFixed(2)} donation pledged. Thank you!',
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator(color: feastGreen)),
+      );
+    }
+    if (_data == null) {
+      return const Scaffold(
+        body: ErrorStateWidget(message: 'Request not found.'),
+      );
+    }
+
+    final images = (_data!['imageUrls'] as List?)?.cast<String>() ?? [];
+    final title = _data!['title'] as String? ?? '';
+    final category = _data!['category'] as String? ?? '';
+    final location = _data!['location'] as String? ?? '';
+    final description = _data!['description'] as String? ?? '';
+    final aidType = _data!['aidType'] as String? ?? '';
+    final goalAmount = (_data!['fundraiserGoal'] as num?)?.toDouble() ?? 0;
+    final fundsDonated = (_data!['fundsDonated'] as num?)?.toDouble() ?? 0;
+    final donorCount = (_data!['donorCount'] as int?) ?? 0;
+    final itemsDonated = (_data!['itemsDonated'] as int?) ?? 0;
+    final goalPercent = goalAmount > 0
+        ? ((fundsDonated / goalAmount) * 100).clamp(0, 100).toInt()
+        : 0;
+
+    final expiresAt =
+        (_data!['expiresAt'] as Timestamp?)?.toDate();
+    final timeRemaining = expiresAt != null
+        ? _formatTimeRemaining(expiresAt)
+        : 'N/A';
+
+    final isFundraiser =
+        aidType.contains('Fundraiser') || aidType.contains('Supply');
+    final isInKind =
+        aidType.contains('In-Kind') || aidType.contains('Supply');
+
     return Scaffold(
-      appBar: const FeastAppBar(title: 'Aid Requests'),
-      drawer: const FeastDrawer(username: 'Juan De La Cruz'),
+      appBar: FeastAppBar(title: title),
+      drawer: const FeastDrawer(username: ''),
       body: FeastBackground(
         child: SafeArea(
           bottom: false,
           child: SingleChildScrollView(
             child: Column(
               children: [
-                _buildHeroImage(),
-                _buildContentCard(),
-                const SizedBox(height: 20),
-                _buildStatsRow(),
-                const SizedBox(height: 24),
-                _buildActionButtons(),
-                const SizedBox(height: 16),
-                if (_isBookmarked) _buildBookmarkBadge(),
+                // ── Image Carousel ────────────────────────────────────
+                _buildImageCarousel(images),
+
+                // ── Detail Card ───────────────────────────────────────
+                Transform.translate(
+                  offset: const Offset(0, -24),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 16),
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withAlpha(20),
+                          blurRadius: 12,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title,
+                            style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'Outfit',
+                                color: feastBlack)),
+                        const SizedBox(height: 12),
+                        _metaRow(Icons.category_outlined,
+                            'Category: ', category),
+                        _metaRow(Icons.location_on_outlined,
+                            'Location: ', location),
+                        _metaRow(Icons.access_time,
+                            'Time Remaining: ', timeRemaining),
+                        _metaRow(Icons.volunteer_activism,
+                            'Aid Type: ', aidType),
+                        const SizedBox(height: 12),
+                        const Text('Description',
+                            style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: feastBlack)),
+                        const SizedBox(height: 4),
+                        Text(description,
+                            style: const TextStyle(
+                                fontFamily: 'Outfit',
+                                fontSize: 12,
+                                color: feastGray,
+                                height: 1.5)),
+
+                        // ── Stats row ─────────────────────────────────
+                        const SizedBox(height: 16),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceAround,
+                          children: [
+                            _statItem(Icons.people_outline,
+                                '$donorCount', 'Donors'),
+                            if (isFundraiser)
+                              _statItem(
+                                  Icons.attach_money,
+                                  '₱${fundsDonated.toStringAsFixed(0)}',
+                                  'Raised'),
+                            if (isInKind)
+                              _statItem(Icons.inventory_2_outlined,
+                                  '$itemsDonated', 'Items'),
+                          ],
+                        ),
+
+                        // ── Fundraiser progress bar ────────────────────
+                        if (isFundraiser && goalAmount > 0) ...[
+                          const SizedBox(height: 14),
+                          Row(
+                            mainAxisAlignment:
+                                MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text('₱${fundsDonated.toStringAsFixed(0)} raised',
+                                  style: const TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 11,
+                                      color: feastGreen,
+                                      fontWeight: FontWeight.w600)),
+                              Text('Goal: ₱${goalAmount.toStringAsFixed(0)}',
+                                  style: const TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontSize: 11,
+                                      color: feastGray)),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: LinearProgressIndicator(
+                              value: goalPercent / 100,
+                              minHeight: 8,
+                              backgroundColor: feastLightGreen.withAlpha(80),
+                              valueColor: const AlwaysStoppedAnimation<Color>(
+                                  feastGreen),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text('$goalPercent% funded',
+                              style: const TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 10,
+                                  color: feastGray)),
+                        ],
+
+                        // ── Donate buttons ────────────────────────────
+                        const SizedBox(height: 20),
+                        if (isFundraiser)
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: _showDonateFunds,
+                              icon: const Icon(Icons.attach_money,
+                                  size: 18),
+                              label: const Text('Donate Funds',
+                                  style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontWeight: FontWeight.bold)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: feastGreen,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius:
+                                        BorderRadius.circular(20)),
+                              ),
+                            ),
+                          ),
+                        if (isFundraiser && isInKind)
+                          const SizedBox(height: 8),
+                        if (isInKind)
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: _showGiveItems,
+                              icon: const Icon(
+                                  Icons.inventory_2_outlined,
+                                  size: 18),
+                              label: const Text('Donate Items',
+                                  style: TextStyle(
+                                      fontFamily: 'Outfit',
+                                      fontWeight: FontWeight.bold)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: feastBlue,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                    borderRadius:
+                                        BorderRadius.circular(20)),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                // ── Bookmark toggle ───────────────────────────────────
+                GestureDetector(
+                  onTap: _toggleBookmark,
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        _isBookmarked
+                            ? Icons.bookmark
+                            : Icons.bookmark_border,
+                        color: _isBookmarked ? feastOrange : feastGreen,
+                        size: 20,
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        _isBookmarked
+                            ? 'Saved to Bookmarks'
+                            : 'Save to Bookmarks',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.w600,
+                          color: _isBookmarked ? feastOrange : feastGreen,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 100),
               ],
             ),
@@ -195,405 +414,116 @@ class _SelectedAidRequestScreenState
     );
   }
 
-  // ═══════════════════════════════════════════════════
-  // ─── HERO IMAGE ───
-  // ═══════════════════════════════════════════════════
-  Widget _buildHeroImage() {
-    return SizedBox(
-      height: 220,
-      width: double.infinity,
-      child: Stack(
-        children: [
-          Positioned.fill(
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    feastLightGreen.withAlpha(180),
-                    feastLighterBlue.withAlpha(150),
-                  ],
+  Widget _buildImageCarousel(List<String> images) {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        SizedBox(
+          height: 240,
+          width: double.infinity,
+          child: images.isEmpty
+              ? Container(
+                  color: feastLightGreen.withAlpha(80),
+                  child: const Icon(Icons.volunteer_activism,
+                      size: 80, color: feastGreen),
+                )
+              : PageView.builder(
+                  controller: _pageController,
+                  itemCount: images.length,
+                  onPageChanged: (i) =>
+                      setState(() => _carouselPage = i),
+                  itemBuilder: (_, i) => Image.network(
+                    images[i],
+                    fit: BoxFit.cover,
+                    loadingBuilder: (_, child, progress) => progress == null
+                        ? child
+                        : const Center(
+                            child: CircularProgressIndicator(
+                                color: feastGreen)),
+                  ),
                 ),
-              ),
-              child: Stack(
+        ),
+        // Action buttons overlay
+        Positioned(
+          top: 8,
+          left: 8,
+          right: 8,
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              _circleBtn(Icons.arrow_back,
+                  () => Navigator.pop(context)),
+              Row(
                 children: [
-                  Positioned(
-                    top: 30,
-                    left: 30,
-                    child: Icon(Icons.medical_services_outlined,
-                        size: 80, color: Colors.white.withAlpha(60)),
-                  ),
-                  Positioned(
-                    bottom: 50,
-                    right: 40,
-                    child: Icon(Icons.favorite_outline,
-                        size: 60, color: Colors.white.withAlpha(50)),
-                  ),
-                  Center(
-                    child: Container(
-                      width: 120,
-                      height: 140,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withAlpha(40),
-                        borderRadius: BorderRadius.circular(16),
-                      ),
-                      child: Icon(Icons.person_outline,
-                          size: 64, color: Colors.white.withAlpha(150)),
-                    ),
+                  _circleBtn(Icons.warning_amber_rounded, _showReport,
+                      color: Colors.red),
+                  const SizedBox(width: 8),
+                  _circleBtn(Icons.share, _handleShare,
+                      color: feastGreen),
+                  const SizedBox(width: 8),
+                  _circleBtn(
+                    _isBookmarked
+                        ? Icons.bookmark
+                        : Icons.bookmark_border,
+                    _toggleBookmark,
+                    color: feastGreen,
                   ),
                 ],
               ),
-            ),
+            ],
           ),
-
-          // ─── Top Action Bar ───
-          Positioned(
-            top: 8,
-            left: 8,
-            right: 8,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                _buildCircleButton(
-                  icon: Icons.arrow_back,
-                  onTap: () => Navigator.pop(context),
-                ),
-                Row(
-                  children: [
-                    _buildCircleButton(
-                      icon: Icons.warning_amber_rounded,
-                      iconColor: Colors.red,
-                      onTap: _showReportDialog,
-                    ),
-                    const SizedBox(width: 8),
-                    // Share button
-                    _buildCircleButton(
-                      icon: Icons.share,
-                      iconColor: feastGreen,
-                      onTap: _handleShare,
-                    ),
-                    const SizedBox(width: 8),
-                    // Bookmark button
-                    _buildCircleButton(
-                      icon: _isBookmarked
-                          ? Icons.bookmark
-                          : Icons.bookmark_border,
-                      iconColor: feastGreen,
-                      onTap: _toggleBookmark,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════
-  // ─── CONTENT CARD ───
-  // ═══════════════════════════════════════════════════
-  Widget _buildContentCard() {
-    return Transform.translate(
-      offset: const Offset(0, -30),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16),
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(20),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _request['title'] as String,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: 'Outfit',
-                          color: feastBlack,
-                          height: 1.2,
-                        ),
-                      ),
-                      const SizedBox(height: 10),
-                      _buildMetaRow(Icons.category_outlined,
-                          'Request Category: ', _request['category'] as String),
-                      _buildMetaRow(Icons.location_on_outlined,
-                          'Location: ', _request['location'] as String),
-                      _buildMetaRow(Icons.access_time,
-                          'Time Remaining: ', _request['timeRemaining'] as String),
-                    ],
+        // Left / Right arrows
+        if (images.length > 1 && _carouselPage > 0)
+          Positioned(
+            left: 8,
+            child: _arrowBtn(Icons.chevron_left, () {
+              _pageController.previousPage(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              );
+            }),
+          ),
+        if (images.length > 1 && _carouselPage < images.length - 1)
+          Positioned(
+            right: 8,
+            child: _arrowBtn(Icons.chevron_right, () {
+              _pageController.nextPage(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+              );
+            }),
+          ),
+        // Dot indicators
+        if (images.length > 1)
+          Positioned(
+            bottom: 8,
+            child: Row(
+              children: List.generate(
+                images.length,
+                (i) => AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: _carouselPage == i ? 16 : 8,
+                  height: 8,
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  decoration: BoxDecoration(
+                    color: _carouselPage == i
+                        ? Colors.white
+                        : Colors.white54,
+                    borderRadius: BorderRadius.circular(4),
                   ),
                 ),
-                const SizedBox(width: 12),
-                Column(
-                  children: [
-                    const SizedBox(height: 4),
-                    Text(
-                      'Beneficiary:',
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w500,
-                        color: feastGray.withAlpha(180),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    CircleAvatar(
-                      radius: 24,
-                      backgroundColor: feastLightGreen,
-                      child: const Icon(Icons.person,
-                          size: 28, color: feastGreen),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _request['beneficiary'] as String,
-                      style: const TextStyle(
-                        fontSize: 10,
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w600,
-                        color: feastBlack,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            Container(height: 1, color: feastLightGreen.withAlpha(100)),
-            const SizedBox(height: 14),
-            Text(
-              _request['description'] as String,
-              style: TextStyle(
-                fontSize: 12,
-                fontFamily: 'Outfit',
-                color: feastGray.withAlpha(220),
-                height: 1.5,
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════
-  // ─── STATS ROW ───
-  // ═══════════════════════════════════════════════════
-  Widget _buildStatsRow() {
-    return Transform.translate(
-      offset: const Offset(0, -20),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-          children: [
-            _buildStatItem(
-              icon: Icons.pie_chart_outline,
-              value: '${_request['goalPercent']}%',
-              label: 'Goal:\n${_request['goalAmount']}',
-              iconColor: feastGreen,
-            ),
-            _buildStatItem(
-              icon: Icons.people_outline,
-              value: '${_request['donors']}',
-              label: 'Donors',
-              iconColor: feastGreen,
-            ),
-            _buildStatItem(
-              icon: Icons.attach_money,
-              value: _request['fundsDonated'] as String,
-              label: 'Donated',
-              iconColor: feastGreen,
-            ),
-            _buildStatItem(
-              icon: Icons.inventory_2_outlined,
-              value: '${_request['itemsDonated']} Items',
-              label: 'Donated',
-              iconColor: feastGreen,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildStatItem({
-    required IconData icon,
-    required String value,
-    required String label,
-    required Color iconColor,
-  }) {
-    return Column(
-      children: [
-        Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: feastLightGreen.withAlpha(80),
-            shape: BoxShape.circle,
           ),
-          child: Icon(icon, size: 24, color: iconColor),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 12,
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.bold,
-            color: feastBlack,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 2),
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            fontFamily: 'Outfit',
-            fontWeight: FontWeight.w500,
-            color: feastGray.withAlpha(180),
-          ),
-          textAlign: TextAlign.center,
-        ),
       ],
     );
   }
 
-  // ═══════════════════════════════════════════════════
-  // ─── ACTION BUTTONS ───
-  // ═══════════════════════════════════════════════════
-  Widget _buildActionButtons() {
+  Widget _metaRow(IconData icon, String label, String value) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
-        children: [
-          Expanded(
-            child: ElevatedButton(
-              onPressed: _showGiveItemsFlow,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: feastGreen,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                elevation: 3,
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25)),
-              ),
-              child: const Text(
-                'GIVE ITEMS',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: OutlinedButton(
-              onPressed: _showDonateFundsFlow,
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                side: const BorderSide(color: feastGreen, width: 2),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25)),
-              ),
-              child: const Text(
-                'DONATE FUNDS',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.bold,
-                  color: feastGreen,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════
-  // ─── BOOKMARK BADGE ───
-  // ═══════════════════════════════════════════════════
-  Widget _buildBookmarkBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
-      decoration: BoxDecoration(
-        color: feastLightYellow,
-        borderRadius: BorderRadius.circular(25),
-        border: Border.all(color: feastOrange.withAlpha(80), width: 1),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.bookmark, color: feastOrange, size: 16),
-          const SizedBox(width: 6),
-          const Text(
-            'Saved To Bookmarks.',
-            style: TextStyle(
-              fontSize: 13,
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w600,
-              color: feastGreen,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ═══════════════════════════════════════════════════
-  // ─── HELPER WIDGETS ───
-  // ═══════════════════════════════════════════════════
-  Widget _buildCircleButton({
-    required IconData icon,
-    Color? iconColor,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 38,
-        height: 38,
-        decoration: BoxDecoration(
-          color: Colors.white.withAlpha(220),
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(color: Colors.black.withAlpha(20), blurRadius: 6),
-          ],
-        ),
-        child: Icon(icon, size: 20, color: iconColor ?? feastBlack),
-      ),
-    );
-  }
-
-  Widget _buildMetaRow(IconData icon, String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Icon(icon, size: 14, color: feastGreen),
           const SizedBox(width: 6),
@@ -601,19 +531,17 @@ class _SelectedAidRequestScreenState
             child: RichText(
               text: TextSpan(
                 style: const TextStyle(
-                  fontSize: 11,
-                  fontFamily: 'Outfit',
-                  color: feastBlack,
-                ),
+                    fontSize: 12,
+                    fontFamily: 'Outfit',
+                    color: feastBlack),
                 children: [
                   TextSpan(
                       text: label,
-                      style:
-                          const TextStyle(fontWeight: FontWeight.w600)),
+                      style: const TextStyle(
+                          fontWeight: FontWeight.w600)),
                   TextSpan(
                       text: value,
                       style: TextStyle(
-                          fontWeight: FontWeight.w400,
                           color: feastGray.withAlpha(220))),
                 ],
               ),
@@ -623,4 +551,77 @@ class _SelectedAidRequestScreenState
       ),
     );
   }
+
+  Widget _statItem(IconData icon, String value, String label) {
+    return Column(
+      children: [
+        Container(
+          width: 48,
+          height: 48,
+          decoration: BoxDecoration(
+            color: feastLightGreen.withAlpha(80),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(icon, size: 24, color: feastGreen),
+        ),
+        const SizedBox(height: 6),
+        Text(value,
+            style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+                color: feastBlack)),
+        Text(label,
+            style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 10,
+                color: feastGray),
+            textAlign: TextAlign.center),
+      ],
+    );
+  }
+
+  Widget _circleBtn(IconData icon, VoidCallback onTap,
+      {Color? color}) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: Colors.white.withAlpha(220),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, size: 18, color: color ?? feastBlack),
+      ),
+    );
+  }
+
+  Widget _arrowBtn(IconData icon, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: Colors.white.withAlpha(180),
+          shape: BoxShape.circle,
+        ),
+        child: Icon(icon, color: feastGreen, size: 22),
+      ),
+    );
+  }
+
+  String _formatTimeRemaining(DateTime expires) {
+    final diff = expires.difference(DateTime.now());
+    if (diff.isNegative) return 'Expired';
+    if (diff.inDays > 0) return '${diff.inDays} Days Left';
+    if (diff.inHours > 0) return '${diff.inHours} Hours Left';
+    return '${diff.inMinutes} Minutes Left';
+  }
 }
+
+// ■■ REACT.JS INTEGRATION NOTE ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+// getDoc(doc(db, 'aid_requests', docId))
+// Sub-collection donations: collection('aid_requests/{id}/donations')
+// Bookmark: setDoc(doc(db,'users',uid,'bookmarks',docId), {...})
+// ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■

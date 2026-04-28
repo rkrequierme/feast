@@ -1,5 +1,10 @@
+// lib/features/auth/screens/forgot_password_screen.dart
+//
+// Allows a registered user to request a password-reset email.
+// Updated to use the refactored LabeledTextField direct-parameter API
+// (LabeledFieldType enum) instead of the old LabeledTextFieldConfig class.
+
 import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart';
 import 'package:feast/core/core.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -10,8 +15,11 @@ class ForgotPasswordScreen extends StatefulWidget {
 }
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
-  final TextEditingController _emailController = TextEditingController();
+  final _formKey        = GlobalKey<FormState>();
+  final _emailController = TextEditingController();
+
   bool _agreedToTerms = false;
+  bool _isLoading     = false;
 
   @override
   void dispose() {
@@ -19,211 +27,146 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     super.dispose();
   }
 
+  // ── Request reset ─────────────────────────────────────────────────────────
+
+  Future<void> _requestReset() async {
+    if (!_formKey.currentState!.validate()) return;
+    if (!_agreedToTerms) {
+      FeastToast.showError(context, 'Please accept the terms first.');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    try {
+      await AuthService.instance.sendPasswordReset(_emailController.text);
+      if (!mounted) return;
+      FeastToast.showSuccess(
+        context,
+        'If that email is registered, a reset link has been sent.',
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: feastLighterYellow,
       body: FeastBackground(
-        child: SafeArea(
-          bottom: false,
-          child: Column(
-            children: [
-              // ─── Logo and Tagline ───
-              Expanded(
-                flex: 4,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Logo
-                    FeastLogo(),
-                    // Tagline
-                    FeastTagline(
-                      "Welcome To The F.E.A.S.T.\nCharity Management System!",
-                    ),
-                  ],
-                ),
-              ),
-              // ─── Bottom Form ───
-              Expanded(
-                flex: 6,
-                child: BottomFormBackground(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 40,
-                      vertical: 40,
-                    ),
-                    child: Column(
-                      children: [
-                        // ─── Title ───
-                        FeastTagline("Reset Your Password"),
-                        const SizedBox(height: 24),
-
-                        // ─── Email Field ───
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // ── Logo & tagline ────────────────────────────────
+                      Padding(
+                        padding: const EdgeInsets.only(top: 72),
+                        child: Column(
                           children: [
-                            FieldLabel(text: "Email"),
-                            const SizedBox(height: 8),
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(4),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withAlpha(13),
-                                    blurRadius: 4,
-                                    offset: const Offset(0, 2),
-                                  ),
-                                ],
+                            FeastLogo(height: 110),
+                            const SizedBox(height: 14),
+                            const FeastTagline(
+                              'Welcome To The F.E.A.S.T.\nCharity Management System!',
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      // ── Form card ─────────────────────────────────────
+                      BottomFormBackground(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(28, 32, 28, 80),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const FeastTagline(
+                                'Reset Your Password',
+                                fontSize: 26,
                               ),
-                              child: TextField(
-                                controller: _emailController,
+                              const SizedBox(height: 28),
+
+                              // ── Email ─────────────────────────────────
+                              // type defaults to LabeledFieldType.text,
+                              // which shows the clear (×) button automatically.
+                              LabeledTextField(
+                                label:       'Email',
+                                hintText:    'name@email.com',
+                                prefixIcon:  Icons.mail_outline,
+                                controller:  _emailController,
                                 keyboardType: TextInputType.emailAddress,
-                                decoration: InputDecoration(
-                                  hintText: 'name@email.com',
-                                  hintStyle: const TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 14,
-                                    fontFamily: "Outfit",
-                                  ),
-                                  prefixIcon: const Icon(
-                                    Icons.mail_outline,
-                                    color: Colors.black54,
-                                  ),
-                                  suffixIcon: IconButton(
-                                    icon: const Icon(
-                                      Icons.close,
-                                      color: Colors.black54,
-                                      size: 20,
-                                    ),
-                                    onPressed: () {
-                                      _emailController.clear();
-                                    },
-                                  ),
-                                  border: InputBorder.none,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    vertical: 16,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 20),
-
-                        // ─── Terms Checkbox ───
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            SizedBox(
-                              height: 24,
-                              width: 24,
-                              child: Checkbox(
-                                value: _agreedToTerms,
-                                onChanged: (value) {
-                                  setState(() {
-                                    _agreedToTerms = value ?? false;
-                                  });
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty) {
+                                    return 'Email is required';
+                                  }
+                                  if (!RegExp(r'^[^@]+@[^@]+\.[^@]+')
+                                      .hasMatch(v.trim())) {
+                                    return 'Enter a valid email';
+                                  }
+                                  return null;
                                 },
-                                activeColor: feastGreen,
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            Expanded(
-                              child: RichText(
-                                text: TextSpan(
-                                  text: "Yes, I've read the ",
-                                  style: const TextStyle(
-                                    color: Colors.black87,
-                                    fontFamily: "Outfit",
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 13,
-                                  ),
-                                  children: [
-                                    TextSpan(
-                                      text: 'terms',
-                                      style: const TextStyle(
-                                        color: Colors.green,
-                                        fontFamily: "Outfit",
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 13,
-                                        decoration: TextDecoration.underline,
-                                      ),
-                                      recognizer: TapGestureRecognizer()
-                                        ..onTap = () {
-                                          // Open terms
-                                        },
+                              const SizedBox(height: 20),
+
+                              // ── Terms checkbox ────────────────────────
+                              FeastCheckbox(
+                                text:      "Yes, I've read the terms. Send the link.",
+                                value:     _agreedToTerms,
+                                linkText:  'terms',
+                                linkColor: feastLink,
+                                onChanged: (val) =>
+                                    setState(() => _agreedToTerms = val ?? false),
+                                onLinkTap: () => Navigator.pushNamed(
+                                    context, AppRoutes.legal),
+                              ),
+                              const SizedBox(height: 24),
+
+                              // ── Submit button ─────────────────────────
+                              _isLoading
+                                  ? const Center(
+                                      child: CircularProgressIndicator(
+                                          color: feastGreen),
+                                    )
+                                  : FeastButton(
+                                      text:      'Request Password Change',
+                                      onPressed: _requestReset,
                                     ),
-                                    const TextSpan(text: '. Send the link.'),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 30),
+                              const SizedBox(height: 18),
 
-                        // ─── Send Link Button ───
-                        SizedBox(
-                          width: double.infinity,
-                          child: ElevatedButton(
-                            onPressed: () {
-                              Navigator.pushNamed(
-                                context,
-                                AppRoutes.resetPassword,
-                              );
-                            },
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: feastGreen,
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(25),
+                              // ── Return to login link ──────────────────
+                              FeastLink(
+                                text:      'Return To Login',
+                                alignment: Alignment.center,
+                                onPressed: () => Navigator.pushReplacementNamed(
+                                    context, AppRoutes.login),
                               ),
-                              elevation: 4,
-                            ),
-                            child: const Text(
-                              'Request Password Change',
-                              style: TextStyle(
-                                fontSize: 16,
-                                fontFamily: "Outfit",
-                                fontWeight: FontWeight.bold,
-                                color: Colors.white,
-                              ),
-                            ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: 20),
-
-                        // ─── Back to Login ───
-                        TextButton(
-                          onPressed: () {
-                            Navigator.pushReplacementNamed(
-                              context,
-                              AppRoutes.login,
-                            );
-                          },
-                          child: const Text(
-                            'Return To Login',
-                            style: TextStyle(
-                              color: feastLink,
-                              fontFamily: "Outfit",
-                              fontWeight: FontWeight.bold,
-                              fontSize: 14,
-                              decoration: TextDecoration.underline,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
   }
 }
+
+// ── REACT.JS INTEGRATION NOTE ─────────────────────────────────────────────────
+// Auth method : sendPasswordResetEmail(auth, email)
+// Only one outstanding reset per account at a time; link expires after 5 min
+// (configure in Firebase Console → Authentication → Templates).
+// Show a generic success message regardless of whether the email exists
+// to prevent account enumeration.
+// ─────────────────────────────────────────────────────────────────────────────

@@ -1,9 +1,8 @@
-// selected_chat_screen.dart
-
-import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:intl/intl.dart';
 import 'package:feast/core/core.dart';
-import 'selected_group_screen.dart';
 
 class SelectedChatScreen extends StatefulWidget {
   final String chatId;
@@ -14,567 +13,244 @@ class SelectedChatScreen extends StatefulWidget {
 }
 
 class _SelectedChatScreenState extends State<SelectedChatScreen> {
-  final TextEditingController _messageController = TextEditingController();
-  final ScrollController _scrollController = ScrollController();
-  final FocusNode _focusNode = FocusNode();
+  final _messageController = TextEditingController();
+  final _scrollController = ScrollController();
+  final _uid = FirebaseAuth.instance.currentUser?.uid ?? '';
 
-  // Simulates other users typing
-  bool _othersTyping = false;
-  String _typingLabel = '';
-  Timer? _typingTimer;
-  Timer? _simulatedReplyTimer;
+  List<QueryDocumentSnapshot> _messages = [];
+  DocumentSnapshot? _lastDoc;
+  bool _isLoadingMore = false;
+  bool _hasMore = true;
 
-  ChatItem get _chat => ChatStore.findById(widget.chatId)!;
-  bool get _isGroup => _chat.type != ChatType.personal;
+  @override
+  void initState() {
+    super.initState();
+    _loadInitial();
+    _scrollController.addListener(_onScroll);
+  }
+
+  Future<void> _loadInitial() async {
+    final snap = await FirestoreService.instance
+        .messagesQuery(widget.chatId, limit: 30)
+        .get();
+    if (!mounted) return;
+    setState(() {
+      _messages = snap.docs.reversed.toList();
+      if (snap.docs.isNotEmpty) _lastDoc = snap.docs.last;
+      _hasMore = snap.docs.length == 30;
+    });
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels <=
+        _scrollController.position.minScrollExtent + 100) {
+      _loadMore();
+    }
+  }
+
+  Future<void> _loadMore() async {
+    if (_isLoadingMore || !_hasMore || _lastDoc == null) return;
+    setState(() => _isLoadingMore = true);
+    final snap = await FirestoreService.instance
+        .messagesQuery(widget.chatId, startAfter: _lastDoc, limit: 30)
+        .get();
+    if (!mounted) return;
+    setState(() {
+      _messages.insertAll(0, snap.docs.reversed.toList());
+      if (snap.docs.isNotEmpty) _lastDoc = snap.docs.last;
+      _hasMore = snap.docs.length == 30;
+      _isLoadingMore = false;
+    });
+  }
+
+  Future<void> _sendMessage() async {
+    final text = _messageController.text.trim();
+    if (text.isEmpty) return;
+    _messageController.clear();
+    await FirestoreService.instance.sendMessage(
+      chatId: widget.chatId,
+      text: text,
+    );
+    await _loadInitial();
+    _scrollController.animateTo(
+      _scrollController.position.maxScrollExtent,
+      duration: const Duration(milliseconds: 200),
+      curve: Curves.easeOut,
+    );
+  }
 
   @override
   void dispose() {
     _messageController.dispose();
     _scrollController.dispose();
-    _focusNode.dispose();
-    _typingTimer?.cancel();
-    _simulatedReplyTimer?.cancel();
     super.dispose();
-  }
-
-  void _scrollToBottom() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeOut,
-        );
-      }
-    });
-  }
-
-  void _sendMessage() {
-    final text = _messageController.text.trim();
-    if (text.isEmpty) return;
-
-    final msg = ChatMessage(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      senderUid: 'me',
-      senderName: 'Juan De La Cruz',
-      text: text,
-      time: _currentTime(),
-      isMe: true,
-    );
-
-    setState(() {
-      ChatStore.addMessage(widget.chatId, msg);
-      _messageController.clear();
-    });
-
-    _scrollToBottom();
-
-    // Simulate typing + reply in group chats
-    if (_isGroup) {
-      _simulatedReplyTimer?.cancel();
-      _simulatedReplyTimer = Timer(const Duration(milliseconds: 900), () {
-        if (!mounted) return;
-        setState(() {
-          _othersTyping = true;
-          _typingLabel = '+2 others are typing';
-        });
-        _simulatedReplyTimer = Timer(const Duration(seconds: 2), () {
-          if (!mounted) return;
-          final reply = ChatMessage(
-            id: DateTime.now().millisecondsSinceEpoch.toString(),
-            senderUid: 'u_jose',
-            senderName: _chat.members.firstWhere(
-              (m) => !m.isCurrentUser,
-              orElse: () => _chat.members.first,
-            ).displayName,
-            senderRole: null,
-            text: 'Thanks for the update! Let\'s coordinate further on this.',
-            time: _currentTime(),
-            isMe: false,
-          );
-          setState(() {
-            _othersTyping = false;
-            ChatStore.addMessage(widget.chatId, reply);
-          });
-          _scrollToBottom();
-        });
-      });
-    }
-  }
-
-  String _currentTime() {
-    final now = DateTime.now();
-    final h = now.hour % 12 == 0 ? 12 : now.hour % 12;
-    final m = now.minute.toString().padLeft(2, '0');
-    final period = now.hour < 12 ? 'AM' : 'PM';
-    return '$h:$m $period';
-  }
-
-  void _showAttachModal() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => AttachFilesModal(
-        chatId: widget.chatId,
-        onAttached: (media) {
-          setState(() {
-            _chat.sharedMedia.addAll(media);
-          });
-        },
-      ),
-    );
-  }
-
-  void _showPinModal(ChatMessage message) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      builder: (_) => PinMessageModal(
-        message: message,
-        chatId: widget.chatId,
-        onPinned: () => setState(() {}),
-      ),
-    );
-  }
-
-  void _openChatDetail() {
-    if (_isGroup) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => SelectedGroupScreen(chatId: widget.chatId),
-        ),
-      ).then((_) => setState(() {}));
-    } else {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => DmDetailScreen(chatId: widget.chatId),
-        ),
-      ).then((_) => setState(() {}));
-    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final chat = _chat;
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _buildAppBar(chat),
-            Expanded(child: _buildMessagesList(chat)),
-            if (_othersTyping) _buildTypingIndicator(),
-            _buildInputBar(),
+      appBar: AppBar(
+        backgroundColor: feastGreen,
+        foregroundColor: Colors.white,
+        title: StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection(FirestorePaths.chats)
+              .doc(widget.chatId)
+              .snapshots(),
+          builder: (_, snap) {
+            final data = snap.data?.data() as Map<String, dynamic>? ?? {};
+            final name = data['groupName'] as String? ?? 'Chat';
+            return Text(name,
+                style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16));
+          },
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.more_vert),
+            onPressed: () => Navigator.pushNamed(
+              context,
+              AppRoutes.groupDetail,
+              arguments: widget.chatId,
+            ),
+          ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: _messages.isEmpty
+                ? const Center(
+                    child: Text('No messages yet.',
+                        style: TextStyle(fontFamily: 'Outfit', color: feastGray)))
+                : ListView.builder(
+                    controller: _scrollController,
+                    padding: const EdgeInsets.all(16),
+                    itemCount: _messages.length + (_isLoadingMore ? 1 : 0),
+                    itemBuilder: (context, i) {
+                      if (i == 0 && _isLoadingMore) {
+                        return const Center(
+                            child: CircularProgressIndicator(color: feastGreen));
+                      }
+                      final msg = _messages[_isLoadingMore ? i - 1 : i]
+                          .data() as Map<String, dynamic>;
+                      final isMine = msg['senderId'] == _uid;
+                      return _buildMessageBubble(msg, isMine);
+                    },
+                  ),
+          ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              border: Border(top: BorderSide(color: feastLightGreen.withAlpha(120))),
+            ),
+            child: Row(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.attach_file, color: feastGray, size: 22),
+                  onPressed: () => showDialog(
+                    context: context,
+                    builder: (_) => FilePickerModal(
+                      mode: FilePickerMode.allFiles,
+                      onConfirm: (files) async {
+                        for (final file in files) {
+                          final url = await StorageService.instance
+                              .uploadChatAttachment(file, widget.chatId);
+                          await FirestoreService.instance.sendMessage(
+                            chatId: widget.chatId,
+                            text: '',
+                            attachmentUrl: url,
+                          );
+                        }
+                        await _loadInitial();
+                      },
+                    ),
+                  ),
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: _messageController,
+                    style: const TextStyle(fontFamily: 'Outfit', fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'Write a message...',
+                      hintStyle: TextStyle(color: feastGray.withAlpha(150)),
+                      border: InputBorder.none,
+                    ),
+                    onSubmitted: (_) => _sendMessage(),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.send, color: feastGreen),
+                  onPressed: _sendMessage,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageBubble(Map<String, dynamic> msg, bool isMine) {
+    final text = msg['text'] as String? ?? '';
+    final attachmentUrl = msg['attachmentUrl'] as String? ?? '';
+    final timestamp = (msg['sentAt'] as Timestamp?)?.toDate();
+    final timeStr =
+        timestamp != null ? DateFormat('h:mm a').format(timestamp) : '';
+
+    return Align(
+      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.72,
+        ),
+        decoration: BoxDecoration(
+          color: isMine ? feastGreen : Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: const Radius.circular(16),
+            topRight: const Radius.circular(16),
+            bottomLeft: Radius.circular(isMine ? 16 : 4),
+            bottomRight: Radius.circular(isMine ? 4 : 16),
+          ),
+          boxShadow: [
+            BoxShadow(
+                color: Colors.black.withAlpha(10),
+                blurRadius: 4,
+                offset: const Offset(0, 2)),
           ],
         ),
-      ),
-      bottomNavigationBar: FeastBottomNav(currentIndex: 3),
-    );
-  }
-
-  // ─── APP BAR ──────────────────────────────────────
-  Widget _buildAppBar(ChatItem chat) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-      decoration: BoxDecoration(
-        color: feastLightGreen,
-        boxShadow: [
-          BoxShadow(color: Colors.black.withAlpha(15), blurRadius: 4, offset: const Offset(0, 2)),
-        ],
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back, color: feastBlack),
-            onPressed: () => Navigator.pop(context),
-          ),
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: Colors.white,
-            child: Text(chat.groupEmoji, style: const TextStyle(fontSize: 18)),
-          ),
-          const SizedBox(width: 10),
-          Expanded(
-            child: GestureDetector(
-              onTap: _openChatDetail,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    chat.name,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.bold,
-                      fontFamily: 'Outfit',
-                      color: feastBlack,
-                    ),
-                  ),
-                  Text(
-                    _isGroup
-                        ? '${chat.onlineCount} / ${chat.totalCount} Online'
-                        : chat.isOnline
-                            ? 'Online'
-                            : 'Offline',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontFamily: 'Outfit',
-                      color: feastGray.withAlpha(200),
-                    ),
-                  ),
-                ],
+        child: Column(
+          crossAxisAlignment:
+              isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            if (attachmentUrl.isNotEmpty)
+              Image.network(attachmentUrl,
+                  height: 120, width: double.infinity, fit: BoxFit.cover),
+            if (text.isNotEmpty)
+              Text(
+                text,
+                style: TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 14,
+                    color: isMine ? Colors.white : feastBlack),
               ),
+            const SizedBox(height: 4),
+            Text(
+              timeStr,
+              style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 10,
+                  color: isMine
+                      ? Colors.white.withAlpha(180)
+                      : feastGray.withAlpha(180)),
             ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.more_vert, color: feastBlack),
-            onPressed: _openChatDetail,
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─── MESSAGES LIST ────────────────────────────────
-  Widget _buildMessagesList(ChatItem chat) {
-    return ListView.builder(
-      controller: _scrollController,
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      itemCount: chat.messages.length,
-      itemBuilder: (context, index) {
-        final msg = chat.messages[index];
-        return GestureDetector(
-          onLongPress: () => _showPinModal(msg),
-          child: _buildMessageBubble(msg, chat),
-        );
-      },
-    );
-  }
-
-  Widget _buildMessageBubble(ChatMessage msg, ChatItem chat) {
-    final isMe = msg.isMe;
-    String? roleLabel;
-    if (msg.senderRole == MemberRole.leader) roleLabel = 'Leader';
-    if (msg.senderRole == MemberRole.coLeader) roleLabel = 'Co-Leader';
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 14),
-      child: Column(
-        crossAxisAlignment: isMe ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-        children: [
-          // Sender name (group only, others only)
-          if (!isMe && _isGroup)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4, left: 36),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    msg.senderName,
-                    style: const TextStyle(
-                      fontSize: 12,
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.w600,
-                      color: feastBlack,
-                    ),
-                  ),
-                  if (roleLabel != null) ...[
-                    const SizedBox(width: 6),
-                    Text(
-                      roleLabel,
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.w600,
-                        color: feastGreen,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-
-          Row(
-            mainAxisAlignment: isMe ? MainAxisAlignment.end : MainAxisAlignment.start,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              // Left avatar (others)
-              if (!isMe) ...[
-                CircleAvatar(
-                  radius: 14,
-                  backgroundColor: feastLightGreen.withAlpha(150),
-                  child: Text(chat.groupEmoji, style: const TextStyle(fontSize: 13)),
-                ),
-                const SizedBox(width: 6),
-              ],
-
-              // Bubble
-              Flexible(
-                child: Container(
-                  constraints: BoxConstraints(
-                    maxWidth: MediaQuery.of(context).size.width * 0.68,
-                  ),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isMe ? feastGreen : Colors.white,
-                    borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(16),
-                      topRight: const Radius.circular(16),
-                      bottomLeft: Radius.circular(isMe ? 16 : 4),
-                      bottomRight: Radius.circular(isMe ? 4 : 16),
-                    ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withAlpha(isMe ? 20 : 12),
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        msg.text,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontFamily: 'Outfit',
-                          color: isMe ? Colors.white : feastBlack,
-                          height: 1.4,
-                        ),
-                      ),
-                      if (msg.hasImages) ...[
-                        const SizedBox(height: 8),
-                        _buildImageGrid(msg.imageEmojis),
-                      ],
-                      const SizedBox(height: 4),
-                      Row(
-                        mainAxisSize: MainAxisSize.min,
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          const Spacer(),
-                          Text(
-                            msg.time,
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontFamily: 'Outfit',
-                              color: isMe
-                                  ? Colors.white.withAlpha(200)
-                                  : feastGray.withAlpha(150),
-                            ),
-                          ),
-                          if (isMe) ...[
-                            const SizedBox(width: 4),
-                            Icon(Icons.done_all, size: 13, color: Colors.white.withAlpha(200)),
-                          ],
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // Right avatar (me)
-              if (isMe) ...[
-                const SizedBox(width: 6),
-                const CircleAvatar(
-                  radius: 14,
-                  backgroundColor: feastLightGreen,
-                  child: Icon(Icons.person, size: 16, color: feastGreen),
-                ),
-              ],
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildImageGrid(List<String> emojis) {
-    if (emojis.isEmpty) {
-      emojis = ['🏝️', '🏫', '🌿'];
-    }
-    return SizedBox(
-      height: 100,
-      child: Row(
-        children: [
-          Expanded(
-            flex: 2,
-            child: Container(
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(8),
-                color: feastLightGreen.withAlpha(120),
-              ),
-              child: Center(
-                child: Text(emojis.isNotEmpty ? emojis[0] : '🖼️',
-                    style: const TextStyle(fontSize: 36)),
-              ),
-            ),
-          ),
-          const SizedBox(width: 4),
-          Expanded(
-            flex: 1,
-            child: Column(
-              children: [
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      color: feastLighterBlue.withAlpha(120),
-                    ),
-                    child: Center(
-                      child: Text(
-                          emojis.length > 1 ? emojis[1] : '🏞️',
-                          style: const TextStyle(fontSize: 22)),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(8),
-                      color: feastLightGreen.withAlpha(100),
-                    ),
-                    child: Center(
-                      child: Text(
-                          emojis.length > 2 ? emojis[2] : '🌿',
-                          style: const TextStyle(fontSize: 22)),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─── TYPING INDICATOR ─────────────────────────────
-  Widget _buildTypingIndicator() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 44,
-            height: 22,
-            child: Stack(
-              children: [
-                Positioned(
-                  left: 0,
-                  child: CircleAvatar(
-                    radius: 11,
-                    backgroundColor: feastLightGreen,
-                    child: const Icon(Icons.person, size: 13, color: feastGreen),
-                  ),
-                ),
-                Positioned(
-                  left: 13,
-                  child: CircleAvatar(
-                    radius: 11,
-                    backgroundColor: feastLighterBlue,
-                    child: Icon(Icons.person, size: 13, color: feastBlue),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 6),
-          Text(
-            _typingLabel,
-            style: TextStyle(
-              fontSize: 12,
-              fontFamily: 'Outfit',
-              color: feastGray.withAlpha(170),
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─── INPUT BAR ────────────────────────────────────
-  Widget _buildInputBar() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(10),
-            blurRadius: 8,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          // Text field
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(24),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      controller: _messageController,
-                      focusNode: _focusNode,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontFamily: 'Outfit',
-                        color: feastBlack,
-                      ),
-                      decoration: InputDecoration(
-                        hintText: 'Write a message...',
-                        hintStyle: TextStyle(
-                          fontSize: 14,
-                          fontFamily: 'Outfit',
-                          color: feastGray.withAlpha(130),
-                        ),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                      ),
-                      onSubmitted: (_) => _sendMessage(),
-                    ),
-                  ),
-                  // Attach button
-                  GestureDetector(
-                    onTap: _showAttachModal,
-                    child: Icon(
-                      Icons.attach_file,
-                      size: 22,
-                      color: feastGray.withAlpha(160),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          // Send button
-          GestureDetector(
-            onTap: _sendMessage,
-            child: Container(
-              width: 42,
-              height: 42,
-              decoration: const BoxDecoration(
-                color: feastGreen,
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.send, color: Colors.white, size: 20),
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

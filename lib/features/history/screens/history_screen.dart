@@ -1,27 +1,17 @@
+// lib/features/history/screens/history_screen.dart
+//
+// Real-time activity log pulled from Firestore.
+// Split into Recent (today) and Past (older) sections.
+// Sort modal: Newest | Oldest | In Progress | Log Type.
+// Logs are read-only — no delete action exposed to users.
+
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import 'package:feast/core/core.dart';
 
-// ---------------------------------------------------------------------------
-// HistoryScreen
-// ---------------------------------------------------------------------------
-// Displays the user's full activity log, split into "Recent" and "Past"
-// sections. Sort order is controlled by the FAB inside HistoryListView.
-//
-// FIREBASE INTEGRATION:
-//   1. Replace the placeholder lists in initState with real Firestore streams:
-//        StreamBuilder on `users/{uid}/activity_logs`
-//          .orderBy('timestamp', descending: true)
-//   2. Map each DocumentSnapshot to a HistoryLogListItem, providing:
-//        - sortableDate: (snapshot['timestamp'] as Timestamp).toDate()
-//   3. Split into recentItems / pastItems by comparing timestamp to:
-//        DateTime.now().subtract(const Duration(days: 30))
-//   4. When sort mode is Firestore-backed, pass the selected _SortOption
-//      back up from HistoryListView via a callback and re-query accordingly:
-//        Newest      → orderBy('timestamp', descending: true)
-//        Oldest      → orderBy('timestamp', descending: false)
-//        In Progress → where('status', isEqualTo: 'In Progress')
-//        Log Type    → orderBy('actionType').orderBy('timestamp', desc: true)
-// ---------------------------------------------------------------------------
+// Sort options
+enum _SortOption { newest, oldest, inProgress, logType }
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -31,96 +21,328 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
-  // ── Placeholder data ──────────────────────────────────────────────────────
-  // Replace with data mapped from Firestore DocumentSnapshots.
+  _SortOption _sortOption = _SortOption.newest;
 
-  late final List<HistoryLogListItem> _recentItems;
-  late final List<HistoryLogListItem> _pastItems;
-
-  @override
-  void initState() {
-    super.initState();
-
-    // TODO: replace with Firestore stream subscription.
-    _recentItems = [
-      HistoryLogListItem(
-        id: 'r1',
-        actionType: 'Post Handling',
-        description: 'Remove Charity Event.',
-        formattedDate: '02-08-2026 | 3:00 PM',
-        status: LogStatus.rejected,
-        sortableDate: DateTime(2026, 8, 2, 15, 0),
-      ),
-      HistoryLogListItem(
-        id: 'r2',
-        actionType: 'Post Handling',
-        description: 'Edit Event Details.',
-        formattedDate: '02-08-2026 | 11:30 AM',
-        status: LogStatus.pending,
-        sortableDate: DateTime(2026, 8, 2, 11, 30),
-      ),
-      HistoryLogListItem(
-        id: 'r3',
-        actionType: 'Post Handling',
-        description: 'Create Charity Event.',
-        formattedDate: '02-08-2026 | 11:00 AM',
-        status: LogStatus.approved,
-        sortableDate: DateTime(2026, 8, 2, 11, 0),
-      ),
-      HistoryLogListItem(
-        id: 'r4',
-        actionType: 'User Authentication',
-        description: 'You Logged In.',
-        formattedDate: '02-08-2026 | 11:05 AM',
-        status: LogStatus.success,
-        sortableDate: DateTime(2026, 8, 2, 11, 5),
-      ),
-      HistoryLogListItem(
-        id: 'r5',
-        actionType: 'Credential Changes',
-        description: 'Set New Password.',
-        formattedDate: '02-08-2026 | 11:00 AM',
-        status: LogStatus.success,
-        sortableDate: DateTime(2026, 8, 2, 11, 0),
-      ),
-    ];
-
-    _pastItems = [
-      HistoryLogListItem(
-        id: 'p1',
-        actionType: 'User Authentication',
-        description: 'You Logged Out.',
-        formattedDate: '02-01-2026 | 1:00 PM',
-        status: LogStatus.success,
-        sortableDate: DateTime(2026, 1, 2, 13, 0),
-      ),
-      HistoryLogListItem(
-        id: 'p2',
-        actionType: 'Post Handling',
-        description: 'Remove Aid Request.',
-        formattedDate: '02-01-2026 | 12:00 PM',
-        status: LogStatus.approved,
-        sortableDate: DateTime(2026, 1, 2, 12, 0),
-      ),
-    ];
+  // Status colour helpers
+  Color _statusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+        return feastSuccess;
+      case 'success':
+        return feastSuccess;
+      case 'pending':
+        return feastOrange;
+      case 'rejected':
+      case 'denied':
+        return feastError;
+      case 'warning':
+        return feastWarning;
+      default:
+        return feastBlue;
+    }
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
+  IconData _typeIcon(String type) {
+    switch (type) {
+      case 'User Authentication':
+        return Icons.person_outline;
+      case 'Credential Changes':
+        return Icons.lock_reset_outlined;
+      case 'Post Handling':
+        return Icons.edit_note_outlined;
+      case 'Donation':
+        return Icons.volunteer_activism_outlined;
+      case 'Event Participation':
+        return Icons.event_outlined;
+      case 'Report':
+        return Icons.flag_outlined;
+      case 'Profile Update':
+        return Icons.manage_accounts_outlined;
+      default:
+        return Icons.history_outlined;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: const FeastAppBar(title: 'Your History'),
-      drawer: const FeastDrawer(username: 'Juan De La Cruz'),
-      bottomNavigationBar: const FeastBottomNav(currentIndex: -1),
+      drawer: const FeastDrawer(username: ''),
       body: FeastBackground(
         child: SafeArea(
-          child: HistoryListView(
-            recentItems: _recentItems,
-            pastItems: _pastItems,
+          bottom: false,
+          child: StreamBuilder<QuerySnapshot>(
+            stream: FirestoreService.instance.activityLogsStream(),
+            builder: (context, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(
+                    child: CircularProgressIndicator(color: feastGreen));
+              }
+
+              var docs = snap.data?.docs ?? [];
+
+              // Apply sort
+              switch (_sortOption) {
+                case _SortOption.newest:
+                  docs.sort((a, b) {
+                    final aTs = (a.data() as Map)['timestamp'] as Timestamp?;
+                    final bTs = (b.data() as Map)['timestamp'] as Timestamp?;
+                    return (bTs?.seconds ?? 0).compareTo(aTs?.seconds ?? 0);
+                  });
+                  break;
+                case _SortOption.oldest:
+                  docs.sort((a, b) {
+                    final aTs = (a.data() as Map)['timestamp'] as Timestamp?;
+                    final bTs = (b.data() as Map)['timestamp'] as Timestamp?;
+                    return (aTs?.seconds ?? 0).compareTo(bTs?.seconds ?? 0);
+                  });
+                  break;
+                case _SortOption.inProgress:
+                  docs = docs
+                      .where((d) =>
+                          ((d.data() as Map)['status'] as String? ?? '')
+                              .toLowerCase() ==
+                          'pending')
+                      .toList();
+                  break;
+                case _SortOption.logType:
+                  docs.sort((a, b) {
+                    final aType =
+                        (a.data() as Map)['type'] as String? ?? '';
+                    final bType =
+                        (b.data() as Map)['type'] as String? ?? '';
+                    return aType.compareTo(bType);
+                  });
+                  break;
+              }
+
+              if (docs.isEmpty) {
+                return const EmptyStateWidget(
+                    message: 'No activity recorded yet.');
+              }
+
+              // Split into today vs past
+              final todayStart = DateTime(
+                  DateTime.now().year,
+                  DateTime.now().month,
+                  DateTime.now().day);
+
+              final recent = docs.where((d) {
+                final ts = ((d.data() as Map)['timestamp'] as Timestamp?)
+                    ?.toDate();
+                return ts != null && ts.isAfter(todayStart);
+              }).toList();
+
+              final past = docs.where((d) {
+                final ts = ((d.data() as Map)['timestamp'] as Timestamp?)
+                    ?.toDate();
+                return ts == null || !ts.isAfter(todayStart);
+              }).toList();
+
+              return ListView(
+                padding: const EdgeInsets.only(bottom: 100),
+                children: [
+                  if (recent.isNotEmpty) ...[
+                    _sectionHeader('Recent Activity Logs'),
+                    ...recent.map((d) => _logTile(d)).toList(),
+                  ],
+                  if (past.isNotEmpty) ...[
+                    _sectionHeader('Past Activity Logs'),
+                    ...past.map((d) => _logTile(d)).toList(),
+                  ],
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+      bottomNavigationBar: const FeastBottomNav(currentIndex: -1),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: feastGreen,
+        mini: true,
+        tooltip: 'Sort Logs',
+        onPressed: _showSortModal,
+        child: const Icon(Icons.sort, color: Colors.white),
+      ),
+    );
+  }
+
+  Widget _sectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
+      child: Text(
+        title,
+        style: const TextStyle(
+          fontFamily: 'Outfit',
+          fontWeight: FontWeight.bold,
+          fontSize: 13,
+          color: feastGray,
+        ),
+      ),
+    );
+  }
+
+  Widget _logTile(QueryDocumentSnapshot doc) {
+    final data = doc.data() as Map<String, dynamic>;
+    final type = data['type'] as String? ?? 'Activity';
+    final description = data['description'] as String? ?? '';
+    final status = data['status'] as String? ?? '';
+    final timestamp = (data['timestamp'] as Timestamp?)?.toDate();
+    final timeStr = timestamp != null
+        ? DateFormat('MM-dd-yyyy | h:mm a').format(timestamp)
+        : 'N/A';
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+              color: Colors.black.withAlpha(12),
+              blurRadius: 6,
+              offset: const Offset(0, 2)),
+        ],
+      ),
+      child: ListTile(
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        leading: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: _statusColor(status).withAlpha(25),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(_typeIcon(type),
+              color: _statusColor(status), size: 20),
+        ),
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              type,
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: feastGray,
+              ),
+            ),
+            Text(
+              description,
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: feastBlack,
+              ),
+            ),
+            Text(
+              timeStr,
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 10,
+                color: feastGray,
+              ),
+            ),
+          ],
+        ),
+        trailing: Container(
+          padding:
+              const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: _statusColor(status).withAlpha(20),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            status,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 11,
+              fontWeight: FontWeight.bold,
+              color: _statusColor(status),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showSortModal() {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Sort Logs By:',
+                      style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15)),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    onPressed: () => Navigator.pop(context),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              ...[
+                ('Newest', _SortOption.newest),
+                ('Oldest', _SortOption.oldest),
+                ('In Progress', _SortOption.inProgress),
+                ('Log Type', _SortOption.logType),
+              ].map((pair) {
+                final isSelected = _sortOption == pair.$2;
+                return RadioListTile<_SortOption>(
+                  value: pair.$2,
+                  groupValue: _sortOption,
+                  activeColor: feastGreen,
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(
+                    pair.$1,
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 14,
+                      fontWeight: isSelected
+                          ? FontWeight.bold
+                          : FontWeight.normal,
+                      color: isSelected ? feastGreen : feastBlack,
+                    ),
+                  ),
+                  onChanged: (val) {
+                    if (val != null) {
+                      setState(() => _sortOption = val);
+                      Navigator.pop(context);
+                    }
+                  },
+                );
+              }).toList(),
+            ],
           ),
         ),
       ),
     );
   }
 }
+
+// ■■ REACT.JS INTEGRATION NOTE ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+// Collection : users/{uid}/activity_logs
+// Fields    : type, description, status, timestamp
+// React     : onSnapshot(collection(db,'users',uid,'activity_logs'),
+//               orderBy('timestamp','desc'))
+// Filtering : where('status','==','pending') for In Progress tab
+// Sorting   : orderBy('type') for Log Type sort
+// Logs are READ-ONLY — no delete exposed to users in Flutter or React.
+// ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■

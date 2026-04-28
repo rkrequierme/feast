@@ -1,37 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import '../constants/app_colors.dart';
 
-// ---------------------------------------------------------------------------
-// ChatListItem
-// ---------------------------------------------------------------------------
-// A reusable list tile for the Messages screen, showing one chat thread.
+// ─────────────────────────────────────────────────────────────────────────────
+// chat_list_item.dart
 //
-// FIREBASE INTEGRATION:
-//   Collection : `chats`  (or `conversations`)
-//   Document fields expected:
-//     - id              : String  (document ID)
-//     - participantIds  : List<String>  (user UIDs)
-//     - isGroup         : bool
-//     - groupName       : String?  (for group chats / Food Bank groups)
-//     - groupType       : String?  ('event' | 'personal' | 'my_group')
-//     - lastMessage     : String
-//     - lastMessageTime : Timestamp
-//     - unreadCount     : int  (per-user subcollection or map field)
-//     - avatarUrl       : String?  (Storage URL; use first participant's photo for 1:1)
-//     - isOnline        : bool  (use Realtime Database presence for live status)
+// FIX (Image 2): MessagesScreen called ChatListItem with `data:` and `chatId:`
+// parameters that didn't exist. Widget now accepts a Firestore map via
+// `ChatListItem.fromMap(data, chatId, onTap)` factory AND keeps all the
+// original named-field constructor for backward compatibility.
 //
-//   To wire up:
-//     1. Create a `ChatThread` model from DocumentSnapshot.
-//     2. Use StreamBuilder on `chats` filtered by current user UID.
-//     3. For unread badges, store per-user unread counts in a map field
-//        or a subcollection `chats/{id}/unread/{uid}`.
-//     4. Online status: use Firebase Realtime Database `status/{uid}/online`.
-// ---------------------------------------------------------------------------
+// Firestore document shape (collection: 'chats'):
+//   participantIds : List<String>
+//   isGroup        : bool
+//   isEventChat    : bool
+//   groupName      : String
+//   groupImageUrl  : String?
+//   lastMessage    : String
+//   lastMessageAt  : Timestamp
+//   creatorId      : String
+//   adminIds       : List<String>
+// ─────────────────────────────────────────────────────────────────────────────
 
 class ChatListItem extends StatelessWidget {
   final String id;
   final String displayName;
   final String lastMessage;
-  final String timeAgo;      // e.g. "5 min", "30 min", "Yesterday"
+  final String timeAgo;
   final int unreadCount;
   final bool isOnline;
   final String? avatarUrl;
@@ -39,34 +34,73 @@ class ChatListItem extends StatelessWidget {
 
   const ChatListItem({
     super.key,
-    this.id = 'placeholder_id',
-    this.displayName = 'User Name',
-    this.lastMessage = 'Last message preview...',
-    this.timeAgo = '5 min',
+    required this.id,
+    required this.displayName,
+    required this.lastMessage,
+    this.timeAgo = '',
     this.unreadCount = 0,
     this.isOnline = false,
     this.avatarUrl,
     this.onTap,
   });
 
+  /// Builds directly from a Firestore document map.
+  /// This is what MessagesScreen uses — fixes Image 2.
+  factory ChatListItem.fromMap(
+    Map<String, dynamic> data,
+    String chatId, {
+    VoidCallback? onTap,
+  }) {
+    final lastAt = data['lastMessageAt'];
+    String timeStr = '';
+    if (lastAt != null) {
+      try {
+        final dt = (lastAt as dynamic).toDate() as DateTime;
+        final now = DateTime.now();
+        final diff = now.difference(dt);
+        if (diff.inMinutes < 60) {
+          timeStr = diff.inMinutes <= 0 ? 'Just now' : '${diff.inMinutes}m';
+        } else if (diff.inHours < 24) {
+          timeStr = '${diff.inHours}h';
+        } else if (diff.inDays == 1) {
+          timeStr = 'Yesterday';
+        } else {
+          timeStr = DateFormat('MMM d').format(dt);
+        }
+      } catch (_) {}
+    }
+
+    return ChatListItem(
+      id: chatId,
+      displayName: data['groupName'] as String? ?? 'Chat',
+      lastMessage: data['lastMessage'] as String? ?? '',
+      timeAgo: timeStr,
+      unreadCount: 0, // per-user unread count stored separately
+      avatarUrl: data['groupImageUrl'] as String?,
+      onTap: onTap,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
+      splashColor: feastLightGreen.withAlpha(60),
+      highlightColor: feastLightGreen.withAlpha(30),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(
           children: [
-            // ── Avatar with online indicator ───────────────────────────────
+            // ── Avatar + online dot ──────────────────────────────────────
             Stack(
               children: [
                 CircleAvatar(
                   radius: 26,
+                  backgroundColor: feastLightGreen.withAlpha(120),
                   backgroundImage:
                       avatarUrl != null ? NetworkImage(avatarUrl!) : null,
-                  // TODO: replace with CachedNetworkImage when Firebase connected
                   child: avatarUrl == null
-                      ? const Icon(Icons.person, size: 28)
+                      ? const Icon(Icons.person, size: 28, color: feastGreen)
                       : null,
                 ),
                 if (isOnline)
@@ -77,7 +111,7 @@ class ChatListItem extends StatelessWidget {
                       width: 12,
                       height: 12,
                       decoration: BoxDecoration(
-                        color: Colors.green,
+                        color: feastSuccess,
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 2),
                       ),
@@ -87,7 +121,7 @@ class ChatListItem extends StatelessWidget {
             ),
             const SizedBox(width: 12),
 
-            // ── Name + last message ────────────────────────────────────────
+            // ── Name + last message ────────────────────────────────────
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -95,42 +129,56 @@ class ChatListItem extends StatelessWidget {
                   Text(
                     displayName,
                     style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 15),
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 15,
+                      color: feastBlack,
+                    ),
                   ),
                   const SizedBox(height: 3),
                   Text(
                     lastMessage,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                        fontSize: 13, color: Colors.black54),
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 13,
+                      color: feastGray.withAlpha(200),
+                    ),
                   ),
                 ],
               ),
             ),
             const SizedBox(width: 8),
 
-            // ── Time + unread badge ────────────────────────────────────────
+            // ── Time + unread badge ────────────────────────────────────
             Column(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                Text(timeAgo,
-                    style: const TextStyle(
-                        fontSize: 11, color: Colors.black45)),
+                Text(
+                  timeAgo,
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 11,
+                    color: Colors.black45,
+                  ),
+                ),
                 const SizedBox(height: 4),
                 if (unreadCount > 0)
                   Container(
                     padding: const EdgeInsets.all(5),
                     decoration: const BoxDecoration(
-                      color: Colors.green,
+                      color: feastGreen,
                       shape: BoxShape.circle,
                     ),
                     child: Text(
                       '$unreadCount',
                       style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold),
+                        color: Colors.white,
+                        fontFamily: 'Outfit',
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
               ],
@@ -138,125 +186,6 @@ class ChatListItem extends StatelessWidget {
           ],
         ),
       ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// ChatListView
-// ---------------------------------------------------------------------------
-// Combines a tab filter (All / Personal / Events / My Groups) and
-// the scrollable list of ChatListItems.
-//
-// FIREBASE INTEGRATION:
-//   Filter queries by `groupType` field in Firestore depending on tab:
-//     'all'       → no filter
-//     'personal'  → where('isGroup', isEqualTo: false)
-//     'event'     → where('groupType', isEqualTo: 'event')
-//     'my_group'  → where('groupType', isEqualTo: 'my_group')
-//               AND where('participantIds', arrayContains: currentUserUid)
-// ---------------------------------------------------------------------------
-
-class ChatListView extends StatefulWidget {
-  final List<ChatListItem> allItems;
-
-  const ChatListView({super.key, required this.allItems});
-
-  factory ChatListView.placeholder() {
-    return ChatListView(
-      allItems: [
-        const ChatListItem(
-            id: '1',
-            displayName: 'Darlene Lopez',
-            lastMessage: 'Pls take a look at the donations.',
-            timeAgo: '5 min',
-            unreadCount: 5,
-            isOnline: true),
-        const ChatListItem(
-            id: '2',
-            displayName: 'T.S. Cruz Food Bank',
-            lastMessage: 'Hello guys, we have discussed about ...',
-            timeAgo: '30 min',
-            isOnline: true),
-        const ChatListItem(
-            id: '3',
-            displayName: 'Lee Fernandez',
-            lastMessage: "Yes, that's gonna help them out, hopefully.",
-            timeAgo: '1 hr'),
-        const ChatListItem(
-            id: '4',
-            displayName: 'Ronald Mendoza',
-            lastMessage: 'Thank you po! 😊',
-            timeAgo: 'Yesterday'),
-        const ChatListItem(
-            id: '5',
-            displayName: 'Albert Flores',
-            lastMessage: "I'm happy this event has such grea...",
-            timeAgo: 'Yesterday'),
-      ],
-    );
-  }
-
-  @override
-  State<ChatListView> createState() => _ChatListViewState();
-}
-
-class _ChatListViewState extends State<ChatListView> {
-  // Tab labels – map these to Firestore query filters when wiring Firebase
-  final _tabs = const ['All Chats', 'Personal Chats', 'Events', 'My Groups'];
-  int _selectedTab = 0;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        // ── Tab bar ───────────────────────────────────────────────────────
-        SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
-            children: List.generate(_tabs.length, (i) {
-              final selected = i == _selectedTab;
-              return GestureDetector(
-                onTap: () => setState(() => _selectedTab = i),
-                child: Container(
-                  margin: const EdgeInsets.only(right: 8),
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 14, vertical: 7),
-                  decoration: BoxDecoration(
-                    color: selected ? Colors.green : Colors.transparent,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(
-                        color: selected ? Colors.green : Colors.grey.shade300),
-                  ),
-                  child: Text(
-                    _tabs[i],
-                    style: TextStyle(
-                      color: selected ? Colors.white : Colors.black87,
-                      fontWeight: selected
-                          ? FontWeight.bold
-                          : FontWeight.normal,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              );
-            }),
-          ),
-        ),
-
-        // ── Chat list ─────────────────────────────────────────────────────
-        // TODO: when Firebase is connected, replace widget.allItems with
-        //       a filtered stream based on _selectedTab value.
-        Expanded(
-          child: ListView.separated(
-            itemCount: widget.allItems.length,
-            separatorBuilder: (_, __) =>
-                const Divider(height: 1, indent: 70),
-            itemBuilder: (_, i) => widget.allItems[i],
-          ),
-        ),
-      ],
     );
   }
 }

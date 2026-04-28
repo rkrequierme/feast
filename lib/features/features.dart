@@ -28,3 +28,7 @@ export 'legal/screens/terms_conditions_screen.dart';
 export 'notifications/screens/notifications_screen.dart';
 export 'support/screens/help_faq_screen.dart';
 export 'splash_screen.dart';
+
+// Admin Features
+export 'admin/admin_dashboard_screen.dart';
+

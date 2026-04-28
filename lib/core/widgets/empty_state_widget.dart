@@ -2,10 +2,9 @@ import 'package:flutter/material.dart';
 import '../core.dart';
 
 /// A reusable widget displayed when a list or content area has no data.
-/// Shows an icon, a title, an optional description, and an optional action button.
 class EmptyStateWidget extends StatelessWidget {
   final IconData icon;
-  final String title;
+  final String message; // Changed from title to message
   final String? description;
   final String? buttonLabel;
   final VoidCallback? onButtonPressed;
@@ -13,7 +12,7 @@ class EmptyStateWidget extends StatelessWidget {
   const EmptyStateWidget({
     super.key,
     this.icon = Icons.inbox_outlined,
-    this.title = 'Nothing here yet',
+    this.message = 'Nothing here yet', // Default value updated
     this.description,
     this.buttonLabel,
     this.onButtonPressed,
@@ -39,9 +38,9 @@ class EmptyStateWidget extends StatelessWidget {
             ),
             const SizedBox(height: 20),
 
-            // ── Title ───────────────────────────────────────────────────
+            // ── Primary Message (Title) ─────────────────────────────────
             Text(
-              title,
+              message, // Now using the message property
               textAlign: TextAlign.center,
               style: const TextStyle(
                 fontFamily: 'Outfit',
