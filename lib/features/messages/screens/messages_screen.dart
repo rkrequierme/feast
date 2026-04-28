@@ -141,12 +141,19 @@ class _MessagesScreenState extends State<MessagesScreen>
           context: context,
           builder: (_) => CreateChatModal(
             onCreated: (chatId, isGroup) {
-              debugPrint('Chat created: $chatId, isGroup: $isGroup');
-              Navigator.pushNamed(
-                context,
-                isGroup ? AppRoutes.groupDetail : AppRoutes.chatDetail,
-                arguments: chatId,
-              );
+              if (isGroup) {
+                Navigator.pushNamed(
+                  context,
+                  AppRoutes.groupChat,
+                  arguments: chatId,
+                );
+              } else {
+                Navigator.pushNamed(
+                  context,
+                  AppRoutes.chatDetail,
+                  arguments: chatId,
+                );
+              }
             },
           ),
         ),
@@ -197,7 +204,6 @@ class _ChatList extends StatelessWidget {
         }
 
         if (userChatsSnap.hasError) {
-          debugPrint('User chats error: ${userChatsSnap.error}');
           return const Center(
             child: Text('Error loading chats. Please try again.'),
           );
@@ -208,14 +214,8 @@ class _ChatList extends StatelessWidget {
           return const EmptyStateWidget(message: 'No chats yet. Start a conversation!');
         }
 
-        // Get all chat IDs
         final chatIds = chatDocs.map((doc) => doc.id).toList();
         
-        if (chatIds.isEmpty) {
-          return const EmptyStateWidget(message: 'No chats yet. Start a conversation!');
-        }
-
-        // Now fetch the actual chat documents
         return StreamBuilder<QuerySnapshot>(
           stream: FirebaseFirestore.instance
               .collection(FirestorePaths.chats)
@@ -229,16 +229,14 @@ class _ChatList extends StatelessWidget {
             }
 
             if (chatsSnap.hasError) {
-              debugPrint('Chats error: ${chatsSnap.error}');
               return const Center(
                 child: Text('Error loading chats. Please try again.'),
               );
             }
 
             var docs = chatsSnap.data?.docs ?? [];
-            debugPrint('Found ${docs.length} chats for user $currentUserId');
 
-            // Sort by lastMessageAt (manual sort since whereIn doesn't support orderBy)
+            // Sort by lastMessageAt
             docs.sort((a, b) {
               final aData = a.data() as Map<String, dynamic>;
               final bData = b.data() as Map<String, dynamic>;
@@ -287,7 +285,6 @@ class _ChatList extends StatelessWidget {
                 final data = doc.data() as Map<String, dynamic>;
                 final isGroup = data['isGroup'] as bool? ?? false;
                 
-                // For DMs, we need to fetch the other user's name
                 if (!isGroup) {
                   return FutureBuilder<DocumentSnapshot>(
                     future: _getOtherUser(data, currentUserId),
@@ -325,7 +322,6 @@ class _ChatList extends StatelessWidget {
                   );
                 }
                 
-                // For groups
                 final name = data['groupName'] as String? ?? 'Group Chat';
                 final imageUrl = data['groupImageUrl'] as String?;
                 final lastMessage = data['lastMessage'] as String? ?? 'No messages yet';
@@ -340,7 +336,7 @@ class _ChatList extends StatelessWidget {
                   avatarUrl: imageUrl,
                   onTap: () => Navigator.pushNamed(
                     context,
-                    isGroup ? AppRoutes.groupDetail : AppRoutes.chatDetail,
+                    AppRoutes.groupChat,
                     arguments: doc.id,
                   ),
                 );

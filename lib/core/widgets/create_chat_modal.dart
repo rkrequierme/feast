@@ -4,19 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../constants/app_colors.dart';
 import '../constants/firestore_paths.dart';
 
-/// Represents a person added to the chat before Firestore creation.
-class ChatParticipant {
-  final String uid;
-  final String name;
-  final String? avatarUrl;
-
-  const ChatParticipant({
-    required this.uid,
-    required this.name,
-    this.avatarUrl,
-  });
-}
-
 class CreateChatModal extends StatefulWidget {
   final void Function(String chatId, bool isGroup)? onCreated;
 
@@ -80,13 +67,13 @@ class _CreateChatModalState extends State<CreateChatModal> {
   }
 
   String _getDisplayName(Map<String, dynamic> user) {
+    final displayName = user['displayName'] as String?;
+    if (displayName != null && displayName.isNotEmpty) return displayName;
     final firstName = user['firstName'] as String? ?? '';
     final lastName = user['lastName'] as String? ?? '';
     if (firstName.isNotEmpty || lastName.isNotEmpty) {
       return '$firstName $lastName'.trim();
     }
-    final displayName = user['displayName'] as String?;
-    if (displayName != null && displayName.isNotEmpty) return displayName;
     final email = user['email'] as String? ?? '';
     return email.isNotEmpty ? email.split('@').first : 'Unknown User';
   }
@@ -188,8 +175,7 @@ class _CreateChatModalState extends State<CreateChatModal> {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
-      // IMPORTANT: Add chat reference to each participant's userChats sub-collection
-      // This is what the Messages screen uses to display chats
+      // Add chat reference to each participant's userChats sub-collection
       for (final uid in allParticipants) {
         await _db
             .collection(FirestorePaths.users)
@@ -204,8 +190,6 @@ class _CreateChatModalState extends State<CreateChatModal> {
       }
 
       debugPrint('✅ Chat created successfully: $chatId');
-      debugPrint('   Participants: $allParticipants');
-      debugPrint('   Chat reference added to each user\'s chats subcollection');
 
       if (!mounted) return;
       Navigator.of(context).pop();
@@ -234,7 +218,6 @@ class _CreateChatModalState extends State<CreateChatModal> {
       for (final doc in snapshot.docs) {
         final participants = List<String>.from(doc['participantIds'] as List? ?? []);
         if (participants.contains(otherUid)) {
-          debugPrint('Found existing DM: ${doc.id}');
           return doc.id;
         }
       }
@@ -410,6 +393,7 @@ class _CreateChatModalState extends State<CreateChatModal> {
                       final uid = u['uid'] as String;
                       final name = _getDisplayName(u);
                       final email = u['email'] as String? ?? '';
+                      final avatarUrl = u['profilePictureUrl'] as String?;
                       final isSelected = _selected.any((s) => s['uid'] == uid);
 
                       return ListTile(
@@ -417,14 +401,12 @@ class _CreateChatModalState extends State<CreateChatModal> {
                         leading: CircleAvatar(
                           radius: 22,
                           backgroundColor: feastLightGreen,
-                          backgroundImage: u['profilePictureUrl'] != null &&
-                                  (u['profilePictureUrl'] as String).isNotEmpty
-                              ? NetworkImage(u['profilePictureUrl'] as String)
+                          backgroundImage: avatarUrl != null && avatarUrl.isNotEmpty
+                              ? NetworkImage(avatarUrl)
                               : null,
-                          child: u['profilePictureUrl'] == null ||
-                                  (u['profilePictureUrl'] as String).isEmpty
+                          child: (avatarUrl == null || avatarUrl.isEmpty) && name.isNotEmpty
                               ? Text(
-                                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                  name[0].toUpperCase(),
                                   style: const TextStyle(
                                       color: feastGreen,
                                       fontWeight: FontWeight.bold,

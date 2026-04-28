@@ -15,6 +15,7 @@ export 'charity_events/screens/selected_charity_event_screen.dart';
 export 'charity_events/screens/create_charity_event_screen.dart';
 export 'messages/screens/messages_screen.dart';
 export 'messages/screens/selected_chat_screen.dart';
+export 'messages/screens/group_chat_screen.dart';           // NEW
 export 'messages/screens/selected_group_screen.dart';
 export 'settings/screens/settings_screen.dart';
 
@@ -31,4 +32,3 @@ export 'splash_screen.dart';
 
 // Admin Features
 export 'admin/admin_dashboard_screen.dart';
-

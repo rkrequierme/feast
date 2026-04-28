@@ -29,7 +29,6 @@ class AppRouter {
     AppRoutes.createEvent:    (_) => const CreateCharityEventScreen(),
     AppRoutes.messages:       (_) => const MessagesScreen(),
     AppRoutes.settings:       (_) => const SettingsScreen(),
-    // AppRoutes.editProfile:    (_) => const EditProfileScreen(),
 
     // Side menu
     AppRoutes.about:          (_) => const AboutUsScreen(),
@@ -41,34 +40,35 @@ class AppRouter {
     AppRoutes.notifications:  (_) => const NotificationsScreen(),
     AppRoutes.support:        (_) => const HelpFaqScreen(),
 
-    // Admin (temporary — remove once React.js dashboard is live)
+    // Admin (temporary)
     AppRoutes.adminDashboard: (_) => const AdminDashboardScreen(),
   };
 
   // ── Dynamic routes that need arguments ────────────────────────────────────
   static Route<dynamic> onGenerateRoute(RouteSettings settings) {
     switch (settings.name) {
-      // Aid request detail  — args: String docId
-      // FIX: SelectedAidRequestScreen has no named constructor params.
-      // It reads the docId via ModalRoute.of(context)?.settings.arguments
-      // inside didChangeDependencies. Pass RouteSettings through _slide so
-      // the argument is available to the screen.
+      // Aid request detail — args: String docId
       case AppRoutes.aidRequestDetail:
         return _slide(const SelectedAidRequestScreen(), settings: settings);
 
       // Charity event detail — args: String docId
-      // FIX: Same pattern — no eventId constructor param; arg forwarded via
-      // RouteSettings instead.
       case AppRoutes.eventDetail:
         return _slide(const SelectedCharityEventScreen(), settings: settings);
 
-      // DM / personal chat  — args: String chatId
+      // DM / personal chat — args: String chatId
       case AppRoutes.chatDetail:
-        return _slide(SelectedChatScreen(chatId: settings.arguments as String));
+        final chatId = settings.arguments as String;
+        return _slide(SelectedChatScreen(chatId: chatId), settings: settings);
 
-      // Group chat detail   — args: String chatId
+      // Group chat (actual messaging) — args: String chatId
+      case AppRoutes.groupChat:
+        final chatId = settings.arguments as String;
+        return _slide(GroupChatScreen(chatId: chatId), settings: settings);
+
+      // Group info/details screen — args: String chatId
       case AppRoutes.groupDetail:
-        return _slide(SelectedGroupScreen(chatId: settings.arguments as String));
+        final chatId = settings.arguments as String;
+        return _slide(SelectedGroupScreen(chatId: chatId), settings: settings);
 
       default:
         return _slide(
@@ -85,9 +85,6 @@ class AppRouter {
   }
 
   // ── Slide-from-right transition ───────────────────────────────────────────
-  // FIX: Added optional `settings` parameter so that PageRouteBuilder carries
-  // the route name + arguments, making them accessible to screens via
-  // ModalRoute.of(context)?.settings.arguments.
   static PageRouteBuilder _slide(Widget page, {RouteSettings? settings}) {
     return PageRouteBuilder(
       settings: settings,

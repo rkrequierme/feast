@@ -23,7 +23,8 @@ class AppRoutes {
   static const createEvent       = '/charity_events/create';
   static const messages          = '/messages';
   static const chatDetail        = '/messages/chat';
-  static const groupDetail       = '/messages/group';
+  static const groupChat         = '/messages/group/chat';      // Actual group chat messaging
+  static const groupDetail       = '/messages/group';           // Group info/details screen
   static const settings          = '/settings';
   static const editProfile       = '/settings/edit_profile';
 

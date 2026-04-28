@@ -1,5 +1,8 @@
 // lib/features/messages/screens/selected_chat_screen.dart
+//
+// Direct Message (1-on-1) chat screen with file attachments support.
 
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -18,11 +21,46 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
   final _uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+  String _otherUserName = 'Chat';
+  String _otherUserAvatar = '';
+  bool _isSending = false;
 
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_onScroll);
+    _loadOtherUserInfo();
+  }
+
+  Future<void> _loadOtherUserInfo() async {
+    final chatDoc = await FirebaseFirestore.instance
+        .collection(FirestorePaths.chats)
+        .doc(widget.chatId)
+        .get();
+    
+    if (!chatDoc.exists) return;
+    
+    final data = chatDoc.data()!;
+    final participants = List<String>.from(data['participantIds'] as List? ?? []);
+    final otherId = participants.firstWhere((id) => id != _uid, orElse: () => '');
+    
+    if (otherId.isEmpty) return;
+    
+    final userDoc = await FirebaseFirestore.instance
+        .collection(FirestorePaths.users)
+        .doc(otherId)
+        .get();
+    
+    if (userDoc.exists) {
+      final userData = userDoc.data()!;
+      final displayName = userData['displayName'] as String?;
+      final firstName = userData['firstName'] as String? ?? '';
+      final lastName = userData['lastName'] as String? ?? '';
+      setState(() {
+        _otherUserName = displayName ?? '$firstName $lastName'.trim();
+        if (_otherUserName.isEmpty) _otherUserName = 'User';
+        _otherUserAvatar = userData['profilePictureUrl'] as String? ?? '';
+      });
+    }
   }
 
   void _scrollToBottom() {
@@ -30,34 +68,59 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(
           _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 200),
+          duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
       }
     });
   }
 
-  void _onScroll() {
-    // For future pagination implementation
-  }
-
-  Future<void> _sendMessage() async {
-    final text = _messageController.text.trim();
-    if (text.isEmpty) return;
-    _messageController.clear();
+  Future<void> _sendMessage({String? text, File? attachmentFile, String? attachmentUrl}) async {
+    if (_isSending) return;
+    
+    setState(() => _isSending = true);
     
     try {
-      await FirestoreService.instance.sendMessage(
-        chatId: widget.chatId,
-        text: text,
-      );
+      if (attachmentFile != null) {
+        // Upload and send file attachment
+        final url = await StorageService.instance
+            .uploadChatAttachment(attachmentFile, widget.chatId);
+        await FirestoreService.instance.sendMessage(
+          chatId: widget.chatId,
+          text: '',
+          attachmentUrl: url,
+        );
+      } else if (text != null && text.isNotEmpty) {
+        // Send text message
+        await FirestoreService.instance.sendMessage(
+          chatId: widget.chatId,
+          text: text,
+        );
+      }
+      
+      _messageController.clear();
       _scrollToBottom();
     } catch (e) {
-      debugPrint('Send message error: $e');
       if (mounted) {
-        FeastToast.showError(context, 'Failed to send message. Please try again.');
+        FeastToast.showError(context, 'Failed to send message.');
       }
+    } finally {
+      if (mounted) setState(() => _isSending = false);
     }
+  }
+
+  Future<void> _pickAndSendFile() async {
+    await showDialog(
+      context: context,
+      builder: (_) => FilePickerModal(
+        mode: FilePickerMode.allFiles,
+        onConfirm: (files) async {
+          if (files.isNotEmpty) {
+            await _sendMessage(attachmentFile: files.first);
+          }
+        },
+      ),
+    );
   }
 
   @override
@@ -73,57 +136,28 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
       appBar: AppBar(
         backgroundColor: feastGreen,
         foregroundColor: Colors.white,
-        title: StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection(FirestorePaths.chats)
-              .doc(widget.chatId)
-              .snapshots(),
-          builder: (_, snap) {
-            if (!snap.hasData || snap.data == null) {
-              return const Text('Chat', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16));
-            }
-            final data = snap.data!.data() as Map<String, dynamic>? ?? {};
-            final isGroup = data['isGroup'] as bool? ?? false;
-            
-            if (isGroup) {
-              final name = data['groupName'] as String? ?? 'Group Chat';
-              return Text(name, style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16));
-            }
-            
-            // For DM, fetch other user's name
-            final participants = List<String>.from(data['participantIds'] as List? ?? []);
-            final otherId = participants.firstWhere((id) => id != _uid, orElse: () => '');
-            if (otherId.isEmpty) {
-              return const Text('Chat', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16));
-            }
-            
-            return FutureBuilder<DocumentSnapshot>(
-              future: FirebaseFirestore.instance.collection(FirestorePaths.users).doc(otherId).get(),
-              builder: (_, userSnap) {
-                if (!userSnap.hasData) {
-                  return const Text('Chat', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16));
-                }
-                final userData = userSnap.data!.data() as Map<String, dynamic>?;
-                final displayName = userData?['displayName'] as String?;
-                final firstName = userData?['firstName'] as String? ?? '';
-                final lastName = userData?['lastName'] as String? ?? '';
-                final name = displayName ?? '$firstName $lastName'.trim();
-                return Text(name.isEmpty ? 'Chat' : name, 
-                  style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16));
-              },
-            );
-          },
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.more_vert),
-            onPressed: () => Navigator.pushNamed(
-              context,
-              AppRoutes.groupDetail,
-              arguments: widget.chatId,
+        title: Row(
+          children: [
+            CircleAvatar(
+              radius: 16,
+              backgroundColor: Colors.white,
+              backgroundImage: _otherUserAvatar.isNotEmpty ? NetworkImage(_otherUserAvatar) : null,
+              child: _otherUserAvatar.isEmpty
+                  ? Text(_otherUserName.isNotEmpty ? _otherUserName[0].toUpperCase() : '?',
+                      style: const TextStyle(fontSize: 12, color: feastGreen))
+                  : null,
             ),
-          ),
-        ],
+            const SizedBox(width: 8),
+            Text(
+              _otherUserName,
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
+          ],
+        ),
       ),
       body: Column(
         children: [
@@ -143,7 +177,6 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
                 }
 
                 if (snap.hasError) {
-                  debugPrint('Messages error: ${snap.error}');
                   return const Center(
                     child: Text('Error loading messages.'),
                   );
@@ -160,14 +193,9 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
                   );
                 }
 
-                // Auto-scroll to bottom on new messages
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (_scrollController.hasClients) {
-                    _scrollController.animateTo(
-                      _scrollController.position.maxScrollExtent,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOut,
-                    );
+                    _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
                   }
                 });
 
@@ -200,24 +228,8 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
       child: Row(
         children: [
           IconButton(
-            icon: const Icon(Icons.attach_file, color: feastGray, size: 22),
-            onPressed: () => showDialog(
-              context: context,
-              builder: (_) => FilePickerModal(
-                mode: FilePickerMode.allFiles,
-                onConfirm: (files) async {
-                  for (final file in files) {
-                    final url = await StorageService.instance
-                        .uploadChatAttachment(file, widget.chatId);
-                    await FirestoreService.instance.sendMessage(
-                      chatId: widget.chatId,
-                      text: '',
-                      attachmentUrl: url,
-                    );
-                  }
-                },
-              ),
-            ),
+            icon: const Icon(Icons.attach_file, color: feastGray, size: 24),
+            onPressed: _isSending ? null : _pickAndSendFile,
           ),
           Expanded(
             child: TextField(
@@ -228,13 +240,20 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
                 hintStyle: TextStyle(color: feastGray.withAlpha(150)),
                 border: InputBorder.none,
               ),
-              onSubmitted: (_) => _sendMessage(),
+              onSubmitted: (text) => _sendMessage(text: text),
             ),
           ),
-          IconButton(
-            icon: const Icon(Icons.send, color: feastGreen),
-            onPressed: _sendMessage,
-          ),
+          if (_isSending)
+            const SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(strokeWidth: 2, color: feastGreen),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.send, color: feastGreen),
+              onPressed: () => _sendMessage(text: _messageController.text.trim()),
+            ),
         ],
       ),
     );
@@ -243,6 +262,7 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
   Widget _buildMessageBubble(Map<String, dynamic> msg, bool isMine) {
     final text = msg['text'] as String? ?? '';
     final attachmentUrl = msg['attachmentUrl'] as String? ?? '';
+    final isAttachment = attachmentUrl.isNotEmpty;
     final timestamp = (msg['sentAt'] as Timestamp?)?.toDate();
     final timeStr = timestamp != null ? DateFormat('h:mm a').format(timestamp) : '';
 
@@ -252,7 +272,7 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.72,
+          maxWidth: MediaQuery.of(context).size.width * 0.75,
         ),
         decoration: BoxDecoration(
           color: isMine ? feastGreen : Colors.white,
@@ -273,13 +293,40 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
         child: Column(
           crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
-            if (attachmentUrl.isNotEmpty)
-              Image.network(
-                attachmentUrl,
-                height: 120,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 40),
+            if (isAttachment)
+              GestureDetector(
+                onTap: () => _showAttachmentPreview(attachmentUrl),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: _isImageFile(attachmentUrl)
+                      ? Image.network(
+                          attachmentUrl,
+                          height: 150,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 50),
+                        )
+                      : Container(
+                          height: 80,
+                          width: double.infinity,
+                          color: feastLightGreen.withAlpha(80),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                _getFileIcon(attachmentUrl),
+                                size: 40,
+                                color: feastGreen,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                _getFileName(attachmentUrl),
+                                style: const TextStyle(fontFamily: 'Outfit', fontSize: 12),
+                              ),
+                            ],
+                          ),
+                        ),
+                ),
               ),
             if (text.isNotEmpty)
               Text(
@@ -305,5 +352,55 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
         ),
       ),
     );
+  }
+
+  void _showAttachmentPreview(String url) {
+    if (_isImageFile(url)) {
+      showDialog(
+        context: context,
+        builder: (_) => Dialog(
+          backgroundColor: Colors.black87,
+          child: InteractiveViewer(
+            child: Image.network(url, fit: BoxFit.contain),
+          ),
+        ),
+      );
+    } else {
+      // Open URL externally for non-image files
+      _launchUrl(url);
+    }
+  }
+
+  Future<void> _launchUrl(String url) async {
+    final uri = Uri.parse(url);
+    // Use url_launcher to open files
+  }
+
+  bool _isImageFile(String url) {
+    final lowerUrl = url.toLowerCase();
+    return lowerUrl.endsWith('.jpg') ||
+           lowerUrl.endsWith('.jpeg') ||
+           lowerUrl.endsWith('.png') ||
+           lowerUrl.endsWith('.gif') ||
+           lowerUrl.endsWith('.webp');
+  }
+
+  IconData _getFileIcon(String url) {
+    final lowerUrl = url.toLowerCase();
+    if (lowerUrl.endsWith('.pdf')) return Icons.picture_as_pdf;
+    if (lowerUrl.endsWith('.doc') || lowerUrl.endsWith('.docx')) return Icons.description;
+    if (lowerUrl.endsWith('.xls') || lowerUrl.endsWith('.xlsx')) return Icons.table_chart;
+    if (lowerUrl.endsWith('.mp4') || lowerUrl.endsWith('.mov')) return Icons.video_library;
+    if (lowerUrl.endsWith('.mp3') || lowerUrl.endsWith('.wav')) return Icons.audiotrack;
+    return Icons.insert_drive_file;
+  }
+
+  String _getFileName(String url) {
+    final parts = url.split('/');
+    final fileName = parts.last;
+    if (fileName.contains('?')) {
+      return fileName.split('?').first;
+    }
+    return fileName;
   }
 }
