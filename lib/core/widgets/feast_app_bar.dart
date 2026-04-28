@@ -4,12 +4,14 @@ import '../core.dart';
 class FeastAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final String? username;
+  final bool showWelcomeMessage;  // <-- NEW: controls whether to show welcome message
   final VoidCallback? onProfileTap;
 
   const FeastAppBar({
     super.key,
     required this.title,
     this.username,
+    this.showWelcomeMessage = false,  // <-- DEFAULT: false (no welcome message)
     this.onProfileTap,
   });
 
@@ -40,11 +42,12 @@ class FeastAppBar extends StatelessWidget implements PreferredSizeWidget {
               color: feastBlack,
             ),
           ),
-          if (username != null && username!.isNotEmpty)
+          // Only show welcome message if showWelcomeMessage is true AND username exists
+          if (showWelcomeMessage && username != null && username!.isNotEmpty)
             Text(
               'Welcome To F.E.A.S.T., $username!',
               style: TextStyle(
-                fontSize: 10, // Slightly smaller for better fit
+                fontSize: 10,
                 fontWeight: FontWeight.w500,
                 fontFamily: 'Outfit',
                 color: feastBlack.withAlpha(179),

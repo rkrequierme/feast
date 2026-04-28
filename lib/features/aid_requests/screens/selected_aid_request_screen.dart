@@ -30,6 +30,18 @@ class _SelectedAidRequestScreenState
   bool _isLoading = true;
   int _carouselPage = 0;
   final PageController _pageController = PageController();
+  String _username = 'User';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsername();
+  }
+
+  Future<void> _loadUsername() async {
+    final name = await FirestoreService.instance.getCurrentUserName();
+    if (mounted) setState(() => _username = name);
+  }
 
   @override
   void didChangeDependencies() {
@@ -203,7 +215,7 @@ class _SelectedAidRequestScreenState
         aidType.contains('In-Kind') || aidType.contains('Supply');
 
     return Scaffold(
-      appBar: FeastAppBar(title: title),
+      appBar: FeastAppBar(title: title, username: _username),
       drawer: const FeastDrawer(username: ''),
       body: FeastBackground(
         child: SafeArea(

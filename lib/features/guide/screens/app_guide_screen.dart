@@ -17,8 +17,15 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:feast/core/core.dart';
 
-class AppGuideScreen extends StatelessWidget {
+class AppGuideScreen extends StatefulWidget {
   const AppGuideScreen({super.key});
+
+  @override
+  State<AppGuideScreen> createState() => _AppGuideScreenState();
+}
+
+class _AppGuideScreenState extends State<AppGuideScreen> {
+  String _username = 'User';
 
   static const _defaultGuides = [
     {
@@ -49,10 +56,21 @@ class AppGuideScreen extends StatelessWidget {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadUsername();
+  }
+
+  Future<void> _loadUsername() async {
+    final name = await FirestoreService.instance.getCurrentUserName();
+    if (mounted) setState(() => _username = name);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const FeastAppBar(title: 'App Guide'),
-      drawer: const FeastDrawer(username: ''),
+      appBar: FeastAppBar(title: 'App Guide', username: _username),
+      drawer: FeastDrawer(username: _username),
       bottomNavigationBar: const FeastBottomNav(currentIndex: -1),
       body: FeastBackground(
         child: StreamBuilder<DocumentSnapshot>(
@@ -76,73 +94,87 @@ class AppGuideScreen extends StatelessWidget {
               }
             }
 
-            return SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  FeastWhiteSection(
+            return CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
                     child: Column(
-                      children: const [
-                        Text(
-                          'Welcome to the F.E.A.S.T. Guide',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                            color: feastBlack,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        FeastWhiteSection(
+                          child: Column(
+                            children: const [
+                              Text(
+                                'Welcome to the F.E.A.S.T. Guide',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                  color: feastBlack,
+                                ),
+                              ),
+                              SizedBox(height: 4),
+                              Text(
+                                'Empowering the Almanza Dos Community',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 13,
+                                  color: feastGray,
+                                ),
+                              ),
+                              Divider(height: 24),
+                              Text(
+                                'Explore the sections below to learn how to make the most of our features.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 13,
+                                  color: feastGray,
+                                  height: 1.5,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        SizedBox(height: 4),
-                        Text(
-                          'Empowering the Almanza Dos Community',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 13,
-                            color: feastGray,
-                          ),
-                        ),
-                        Divider(height: 24),
-                        Text(
-                          'Explore the sections below to learn how to make the most of our features.',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 13,
-                            color: feastGray,
-                            height: 1.5,
-                          ),
-                        ),
+                        const SizedBox(height: 20),
+                        const FeastYellowSection(title: 'Guides & Tutorials'),
+                        const SizedBox(height: 12),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  const FeastYellowSection(title: 'Guides & Tutorials'),
-                  const SizedBox(height: 12),
-                  ...guides.asMap().entries.map((entry) {
-                    final guide = entry.value;
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: FeastExpandableItem(
-                        title: guide['title'] ?? '',
-                        initiallyExpanded: entry.key == 0,
-                        content: Text(
-                          guide['body'] ?? '',
-                          style: const TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 13,
-                            color: feastGray,
-                            height: 1.5,
+                ),
+                // Use SliverList for expandable items to avoid extra space
+                SliverList(
+                  delegate: SliverChildBuilderDelegate(
+                    (context, index) {
+                      final guide = guides[index];
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        child: FeastExpandableItem(
+                          title: guide['title'] ?? '',
+                          initiallyExpanded: index == 0,
+                          content: Text(
+                            guide['body'] ?? '',
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 13,
+                              color: feastGray,
+                              height: 1.5,
+                            ),
                           ),
                         ),
-                      ),
-                    );
-                  }).toList(),
-                  const SizedBox(height: 24),
-                ],
-              ),
+                      );
+                    },
+                    childCount: guides.length,
+                  ),
+                ),
+                SliverToBoxAdapter(
+                  child: const SizedBox(height: 80),
+                ),
+              ],
             );
           },
         ),

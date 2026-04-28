@@ -35,6 +35,18 @@ class HistoryScreen extends StatefulWidget {
 
 class _HistoryScreenState extends State<HistoryScreen> {
   _SortOption _sortOption = _SortOption.newest;
+  String _username = 'User';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsername();
+  }
+
+  Future<void> _loadUsername() async {
+    final name = await FirestoreService.instance.getCurrentUserName();
+    if (mounted) setState(() => _username = name);
+  }
 
   Color _statusColor(String status) {
     switch (status.toLowerCase()) {
@@ -77,8 +89,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const FeastAppBar(title: 'Your History'),
-      drawer: const FeastDrawer(username: ''),
+      appBar: FeastAppBar(title: 'Your History', username: _username),
+      drawer: FeastDrawer(username: _username),
       body: FeastBackground(
         child: SafeArea(
           bottom: false,

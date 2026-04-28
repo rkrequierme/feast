@@ -3,21 +3,6 @@
 // Real-time notifications from Firestore.
 // Three tabs: All | User (social) | System (approvals/rejections).
 // Swipe-to-delete with confirmation; marks items read on open.
-//
-// REACT.JS INTEGRATION NOTE:
-// =========================
-// Collection: users/{uid}/notifications
-// Fields: title, body, type ('system'|'user'|'announcement'),
-//         status ('approved'|'pending'|'rejected'|'warning'|'info'),
-//         read, createdAt
-// React query:
-//   const q = query(
-//     collection(db, 'users', uid, 'notifications'),
-//     orderBy('createdAt', 'desc')
-//   );
-//   const snapshot = await getDocs(q);
-// Mark read: await updateDoc(doc.ref, { read: true })
-// Delete: await deleteDoc(doc.ref)
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -34,12 +19,19 @@ class NotificationsScreen extends StatefulWidget {
 class _NotificationsScreenState extends State<NotificationsScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  String _username = 'User';
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _loadUsername();
     _markAllRead();
+  }
+
+  Future<void> _loadUsername() async {
+    final name = await FirestoreService.instance.getCurrentUserName();
+    if (mounted) setState(() => _username = name);
   }
 
   @override
@@ -55,26 +47,35 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const FeastAppBar(title: 'Notifications'),
-      drawer: const FeastDrawer(username: ''),
+      appBar: FeastAppBar(title: 'Notifications', username: _username),
+      drawer: FeastDrawer(username: _username),
       body: FeastBackground(
         child: Column(
           children: [
-            TabBar(
-              controller: _tabController,
-              labelColor: feastGreen,
-              unselectedLabelColor: feastGray,
-              indicatorColor: feastGreen,
-              labelStyle: const TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
+            Container(
+              color: Colors.white,
+              child: TabBar(
+                controller: _tabController,
+                labelColor: feastGreen,
+                unselectedLabelColor: feastGray,
+                indicatorColor: feastGreen,
+                indicatorWeight: 3,
+                labelStyle: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+                unselectedLabelStyle: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
+                ),
+                tabs: const [
+                  Tab(text: 'All'),
+                  Tab(text: 'Users'),
+                  Tab(text: 'System'),
+                ],
               ),
-              tabs: const [
-                Tab(text: 'All'),
-                Tab(text: 'Users'),
-                Tab(text: 'System'),
-              ],
             ),
             Expanded(
               child: TabBarView(
@@ -161,14 +162,12 @@ class _NotifList extends StatelessWidget {
 
         var docs = snap.data?.docs ?? [];
 
-        // Filter by tab type
         if (typeFilter != null) {
           docs = docs
               .where((d) => (d.data() as Map<String, dynamic>)['type'] == typeFilter)
               .toList();
         }
 
-        // Separate announcements pinned at top
         final announcements = docs
             .where((d) => (d.data() as Map<String, dynamic>)['type'] == 'announcement')
             .toList();

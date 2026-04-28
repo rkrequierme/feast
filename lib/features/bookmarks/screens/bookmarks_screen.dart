@@ -4,19 +4,6 @@
 // Three tabs: All | Requests | Events.
 // Left swipe: copy shareable link.
 // Right swipe: remove bookmark (with confirmation).
-//
-// REACT.JS INTEGRATION NOTE:
-// =========================
-// Collection: users/{uid}/bookmarks
-// Fields: itemId, itemType ('request'|'event'), title, savedAt
-// React query:
-//   const q = query(
-//     collection(db, 'users', uid, 'bookmarks'),
-//     orderBy('savedAt', 'desc')
-//   );
-//   const snapshot = await getDocs(q);
-// Add: await setDoc(doc(db, 'users', uid, 'bookmarks', itemId), { ... })
-// Remove: await deleteDoc(doc(db, 'users', uid, 'bookmarks', itemId))
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -33,11 +20,18 @@ class BookmarksScreen extends StatefulWidget {
 class _BookmarksScreenState extends State<BookmarksScreen>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  String _username = 'User';
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 3, vsync: this);
+    _loadUsername();
+  }
+
+  Future<void> _loadUsername() async {
+    final name = await FirestoreService.instance.getCurrentUserName();
+    if (mounted) setState(() => _username = name);
   }
 
   @override
@@ -49,26 +43,35 @@ class _BookmarksScreenState extends State<BookmarksScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const FeastAppBar(title: 'Bookmarks'),
-      drawer: const FeastDrawer(username: ''),
+      appBar: FeastAppBar(title: 'Bookmarks', username: _username),
+      drawer: FeastDrawer(username: _username),
       body: FeastBackground(
         child: Column(
           children: [
-            TabBar(
-              controller: _tabController,
-              labelColor: feastGreen,
-              unselectedLabelColor: feastGray,
-              indicatorColor: feastGreen,
-              labelStyle: const TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.bold,
-                fontSize: 13,
+            Container(
+              color: Colors.white,
+              child: TabBar(
+                controller: _tabController,
+                labelColor: feastGreen,
+                unselectedLabelColor: feastGray,
+                indicatorColor: feastGreen,
+                indicatorWeight: 3,
+                labelStyle: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
+                unselectedLabelStyle: const TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w500,
+                  fontSize: 14,
+                ),
+                tabs: const [
+                  Tab(text: 'All'),
+                  Tab(text: 'Requests'),
+                  Tab(text: 'Events'),
+                ],
               ),
-              tabs: const [
-                Tab(text: 'All'),
-                Tab(text: 'Requests'),
-                Tab(text: 'Events'),
-              ],
             ),
             Expanded(
               child: TabBarView(
@@ -156,14 +159,12 @@ class _BookmarkTile extends StatelessWidget {
 
     return Dismissible(
       key: Key(doc.id),
-      // Left swipe (startToEnd) = copy link
       background: Container(
         alignment: Alignment.centerLeft,
         padding: const EdgeInsets.only(left: 24),
         color: feastBlue,
         child: const Icon(Icons.copy, color: Colors.white, size: 28),
       ),
-      // Right swipe (endToStart) = remove
       secondaryBackground: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 24),
@@ -172,7 +173,6 @@ class _BookmarkTile extends StatelessWidget {
       ),
       confirmDismiss: (direction) async {
         if (direction == DismissDirection.startToEnd) {
-          // Copy link — do NOT dismiss tile
           await Clipboard.setData(ClipboardData(text: shareLink));
           if (context.mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -190,7 +190,6 @@ class _BookmarkTile extends StatelessWidget {
           }
           return false;
         }
-        // Swipe right → confirm remove
         return await showDialog<bool>(
           context: context,
           builder: (_) => AlertDialog(

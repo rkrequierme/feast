@@ -17,8 +17,15 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:feast/core/core.dart';
 
-class TermsConditionsScreen extends StatelessWidget {
+class TermsConditionsScreen extends StatefulWidget {
   const TermsConditionsScreen({super.key});
+
+  @override
+  State<TermsConditionsScreen> createState() => _TermsConditionsScreenState();
+}
+
+class _TermsConditionsScreenState extends State<TermsConditionsScreen> {
+  String _username = 'User';
 
   static const _defaultSections = [
     {
@@ -49,10 +56,21 @@ class TermsConditionsScreen extends StatelessWidget {
   ];
 
   @override
+  void initState() {
+    super.initState();
+    _loadUsername();
+  }
+
+  Future<void> _loadUsername() async {
+    final name = await FirestoreService.instance.getCurrentUserName();
+    if (mounted) setState(() => _username = name);
+  }
+
+  @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const FeastAppBar(title: 'Terms & Conditions'),
-      drawer: const FeastDrawer(username: ''),
+      appBar: FeastAppBar(title: 'Terms & Conditions', username: _username),
+      drawer: FeastDrawer(username: _username),
       bottomNavigationBar: const FeastBottomNav(currentIndex: -1),
       body: FeastBackground(
         child: StreamBuilder<DocumentSnapshot>(

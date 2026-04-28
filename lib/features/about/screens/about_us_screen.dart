@@ -17,14 +17,32 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:feast/core/core.dart';
 
-class AboutUsScreen extends StatelessWidget {
+class AboutUsScreen extends StatefulWidget {
   const AboutUsScreen({super.key});
+
+  @override
+  State<AboutUsScreen> createState() => _AboutUsScreenState();
+}
+
+class _AboutUsScreenState extends State<AboutUsScreen> {
+  String _username = 'User';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsername();
+  }
+
+  Future<void> _loadUsername() async {
+    final name = await FirestoreService.instance.getCurrentUserName();
+    if (mounted) setState(() => _username = name);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const FeastAppBar(title: 'About Us'),
-      drawer: const FeastDrawer(username: ''),
+      appBar: FeastAppBar(title: 'About Us', username: _username),
+      drawer: FeastDrawer(username: _username),
       bottomNavigationBar: const FeastBottomNav(currentIndex: -1),
       body: FeastBackground(
         child: StreamBuilder<DocumentSnapshot>(

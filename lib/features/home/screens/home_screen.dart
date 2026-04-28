@@ -67,7 +67,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: FeastAppBar(title: 'Home', username: _username),
+      appBar: FeastAppBar(
+        title: 'Home',
+        username: _username,
+        showWelcomeMessage: true,  // <-- ONLY Home Screen shows welcome message
+      ),
       drawer: FeastDrawer(username: _username),
       body: FeastBackground(
         child: SafeArea(

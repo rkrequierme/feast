@@ -31,6 +31,7 @@ class _CreateCharityEventScreenState extends State<CreateCharityEventScreen> {
   bool _isSubmitting = false;
   bool _isDirty = false;
   bool _hasDraft = false;
+  String _username = 'User';
 
   final List<File> _selectedImages = [];
   final List<String> _coOrganiserIds = [];
@@ -52,12 +53,18 @@ class _CreateCharityEventScreenState extends State<CreateCharityEventScreen> {
   @override
   void initState() {
     super.initState();
+    _loadUsername();
     _loadDraft();
     for (final c in [_titleController, _descriptionController]) {
       c.addListener(() {
         if (!_isDirty) setState(() => _isDirty = true);
       });
     }
+  }
+
+  Future<void> _loadUsername() async {
+    final name = await FirestoreService.instance.getCurrentUserName();
+    if (mounted) setState(() => _username = name);
   }
 
   @override
@@ -320,7 +327,7 @@ class _CreateCharityEventScreenState extends State<CreateCharityEventScreen> {
         }
       },
       child: Scaffold(
-        appBar: const FeastAppBar(title: 'Organise Charity Event'),
+        appBar: FeastAppBar(title: 'Organise Charity Event', username: _username),
         body: FeastBackground(
           child: SafeArea(
             child: Form(

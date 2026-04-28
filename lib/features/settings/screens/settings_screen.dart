@@ -120,63 +120,80 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const FeastAppBar(title: 'Settings'),
+      appBar: FeastAppBar(title: 'Settings', username: _displayName),
       drawer: FeastDrawer(username: _displayName),
       body: FeastBackground(
         child: _isLoadingUser
             ? const Center(child: CircularProgressIndicator(color: feastGreen))
-            : SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
-                child: Column(
-                  children: [
-                    _buildProfileCard(),
-                    const SizedBox(height: 24),
-                    _menuItem(
-                      icon: Icons.edit_outlined,
-                      label: 'Edit Profile',
-                      onTap: _showEditProfile,
+            : LayoutBuilder(
+                builder: (context, constraints) {
+                  return SingleChildScrollView(
+                    physics: const BouncingScrollPhysics(),
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
+                      ),
+                      child: IntrinsicHeight(
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              _buildProfileCard(),
+                              const SizedBox(height: 24),
+                              _menuItem(
+                                icon: Icons.edit_outlined,
+                                label: 'Edit Profile',
+                                onTap: _showEditProfile,
+                              ),
+                              const SizedBox(height: 12),
+                              _menuItem(
+                                icon: _notificationsEnabled
+                                    ? Icons.notifications_active_outlined
+                                    : Icons.notifications_off_outlined,
+                                label: _notificationsEnabled
+                                    ? 'Turn Off App Notifications'
+                                    : 'Turn On App Notifications',
+                                onTap: _handleNotificationsToggle,
+                              ),
+                              const SizedBox(height: 12),
+                              _menuItem(
+                                icon: Icons.star_outline,
+                                label: 'Rate Our App',
+                                onTap: () {
+                                  FeastToast.showInfo(context, 'Rate app feature coming soon.');
+                                },
+                              ),
+                              const SizedBox(height: 12),
+                              _menuItem(
+                                icon: Icons.info_outline,
+                                label: 'About The App',
+                                onTap: () => Navigator.pushNamed(context, AppRoutes.about),
+                              ),
+                              const SizedBox(height: 12),
+                              _menuItem(
+                                icon: Icons.help_outline,
+                                label: 'Help & FAQ',
+                                onTap: () => Navigator.pushNamed(context, AppRoutes.support),
+                              ),
+                              const SizedBox(height: 12),
+                              _menuItem(
+                                icon: Icons.description_outlined,
+                                label: 'Terms & Conditions',
+                                onTap: () => Navigator.pushNamed(context, AppRoutes.legal),
+                              ),
+                              const SizedBox(height: 12),
+                              _logoutItem(),
+                              // Spacer pushes content to top, leaving bottom space only if needed
+                              const Spacer(),
+                            ],
+                          ),
+                        ),
+                      ),
                     ),
-                    const SizedBox(height: 12),
-                    _menuItem(
-                      icon: _notificationsEnabled
-                          ? Icons.notifications_active_outlined
-                          : Icons.notifications_off_outlined,
-                      label: _notificationsEnabled
-                          ? 'Turn Off App Notifications'
-                          : 'Turn On App Notifications',
-                      onTap: _handleNotificationsToggle,
-                    ),
-                    const SizedBox(height: 12),
-                    _menuItem(
-                      icon: Icons.star_outline,
-                      label: 'Rate Our App',
-                      onTap: () {
-                        // TODO: Implement rate app functionality
-                        FeastToast.showInfo(context, 'Rate app feature coming soon.');
-                      },
-                    ),
-                    const SizedBox(height: 12),
-                    _menuItem(
-                      icon: Icons.info_outline,
-                      label: 'About The App',
-                      onTap: () => Navigator.pushNamed(context, AppRoutes.about),
-                    ),
-                    const SizedBox(height: 12),
-                    _menuItem(
-                      icon: Icons.help_outline,
-                      label: 'Help & FAQ',
-                      onTap: () => Navigator.pushNamed(context, AppRoutes.support),
-                    ),
-                    const SizedBox(height: 12),
-                    _menuItem(
-                      icon: Icons.description_outlined,
-                      label: 'Terms & Conditions',
-                      onTap: () => Navigator.pushNamed(context, AppRoutes.legal),
-                    ),
-                    const SizedBox(height: 12),
-                    _logoutItem(),
-                  ],
-                ),
+                  );
+                },
               ),
       ),
       bottomNavigationBar: const FeastBottomNav(currentIndex: 4),

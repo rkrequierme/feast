@@ -27,6 +27,7 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
   String? _selectedCategory;
   String _searchQuery = '';
   bool _isResident = false;
+  String _username = 'User';
 
   // Pagination
   final List<QueryDocumentSnapshot> _docs = [];
@@ -49,9 +50,15 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
   @override
   void initState() {
     super.initState();
+    _loadUsername();
     _loadUser();
     _fetchNextPage();
     _searchController.addListener(() => setState(() => _searchQuery = _searchController.text.toLowerCase()));
+  }
+
+  Future<void> _loadUsername() async {
+    final name = await FirestoreService.instance.getCurrentUserName();
+    if (mounted) setState(() => _username = name);
   }
 
   Future<void> _loadUser() async {
@@ -125,8 +132,8 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const FeastAppBar(title: 'Aid Requests'),
-      drawer: FeastDrawer(username: ''),
+      appBar: FeastAppBar(title: 'Aid Requests', username: _username),
+      drawer: FeastDrawer(username: _username),
       body: FeastBackground(
         child: SafeArea(
           bottom: false,

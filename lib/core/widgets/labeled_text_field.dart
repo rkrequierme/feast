@@ -14,11 +14,21 @@
 //
 // Quick usage examples
 // ────────────────────
-//  // Plain text
+//  // Plain text with no auto-capitalization
+//  LabeledTextField(
+//    label: 'Email', hintText: 'name@email.com',
+//    prefixIcon: Icons.mail_outline,
+//    controller: _emailController,
+//    textCapitalization: TextCapitalization.none,  // <-- ADD THIS FOR EMAIL
+//    validator: (v) => v!.trim().isEmpty ? 'Required' : null,
+//  )
+//
+//  // Plain text with sentence capitalization (default for names)
 //  LabeledTextField(
 //    label: 'First Name', hintText: 'Juan',
 //    prefixIcon: Icons.person_outline,
 //    controller: _firstNameController,
+//    textCapitalization: TextCapitalization.words,  // <-- Capitalizes first letter of each word
 //    validator: (v) => v!.trim().isEmpty ? 'Required' : null,
 //  )
 //
@@ -36,7 +46,7 @@
 //  LabeledTextField(
 //    label: 'Gender', hintText: '-- Select --',
 //    prefixIcon: Icons.favorite_border,
-//    controller: _genderController,   // updated automatically on selection
+//    controller: _genderController,
 //    type: LabeledFieldType.dropdown,
 //    items: const ['Male', 'Female', 'Other'],
 //    onDropdownChanged: (v) => setState(() => _selectedGender = v),
@@ -81,6 +91,7 @@ class LabeledTextField extends StatefulWidget {
   // ── Field behaviour ────────────────────────────────────────────────────
   final LabeledFieldType type;
   final TextInputType keyboardType;
+  final TextCapitalization textCapitalization;  // <-- NEW PROPERTY
 
   // ── Validation & change callbacks ─────────────────────────────────────
   final String? Function(String?)? validator;
@@ -111,6 +122,7 @@ class LabeledTextField extends StatefulWidget {
     required this.controller,
     this.type = LabeledFieldType.text,
     this.keyboardType = TextInputType.text,
+    this.textCapitalization = TextCapitalization.sentences,  // <-- DEFAULT (capitalizes first letter of sentences)
     this.validator,
     this.onChanged,
     this.items,
@@ -320,6 +332,7 @@ class _LabeledTextFieldState extends State<LabeledTextField> {
               focusNode: _focusNode,
               controller: widget.controller,
               keyboardType: widget.keyboardType,
+              textCapitalization: widget.textCapitalization,  // <-- APPLY TEXT CAPITALIZATION
               // Password fields are obscured until the eye icon is tapped.
               obscureText:
                   widget.type == LabeledFieldType.password && _obscureText,

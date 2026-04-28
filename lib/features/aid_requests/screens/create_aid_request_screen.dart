@@ -22,6 +22,7 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
   bool _isSubmitting = false;
   bool _isDirty = false;
   bool _hasDraft = false;
+  String _username = 'User';
 
   // ── Controllers ──────────────────────────────────────────────────────────
   final _titleController = TextEditingController();
@@ -60,6 +61,7 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
   @override
   void initState() {
     super.initState();
+    _loadUsername();
     _loadDraft();
     for (final c in [
       _titleController,
@@ -71,6 +73,11 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
         if (!_isDirty) setState(() => _isDirty = true);
       });
     }
+  }
+
+  Future<void> _loadUsername() async {
+    final name = await FirestoreService.instance.getCurrentUserName();
+    if (mounted) setState(() => _username = name);
   }
 
   @override
@@ -280,7 +287,7 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
         }
       },
       child: Scaffold(
-        appBar: const FeastAppBar(title: 'Create Aid Request'),
+        appBar: FeastAppBar(title: 'Create Aid Request', username: _username),
         body: FeastBackground(
           child: SafeArea(
             child: Form(

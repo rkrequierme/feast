@@ -124,6 +124,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     hintText: 'Juan',
                     prefixIcon: Icons.person_outline,
                     controller: _firstNameController,
+                    textCapitalization: TextCapitalization.words, 
                     validator: (v) =>
                         (v == null || v.trim().isEmpty) ? 'First name is required' : null,
                   ),
@@ -135,6 +136,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     hintText: 'Santos',
                     prefixIcon: Icons.person_outline,
                     controller: _middleNameController,
+                    textCapitalization: TextCapitalization.words, 
                   ),
                   const SizedBox(height: 16),
 
@@ -144,6 +146,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     hintText: 'De La Cruz',
                     prefixIcon: Icons.person_outline,
                     controller: _lastNameController,
+                    textCapitalization: TextCapitalization.words, 
                     validator: (v) =>
                         (v == null || v.trim().isEmpty) ? 'Last name is required' : null,
                   ),
@@ -213,6 +216,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     prefixIcon: Icons.mail_outline,
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
+                    textCapitalization: TextCapitalization.none,
                     validator: (v) {
                       if (v == null || v.trim().isEmpty) return 'Email is required';
                       if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v.trim())) {

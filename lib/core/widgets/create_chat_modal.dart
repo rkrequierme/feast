@@ -4,23 +4,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../constants/app_colors.dart';
 import '../constants/firestore_paths.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// create_chat_modal.dart
-//
-// FIX (Image 1): MessagesScreen called CreateChatModal with:
-//   onCreated: (chatId, isGroup) => Navigator.pushNamed(...)
-// But the old widget had:
-//   onCreate: (name, participants) => ...
-//
-// SOLUTION: Widget now exposes `onCreated(String chatId, bool isGroup)`
-// which is the signature MessagesScreen expects. The widget handles the
-// Firestore chat creation internally via FirestoreService and then
-// calls onCreated with the new doc ID and group flag.
-//
-// Also supports the older `onCreate(name, participants)` pathway for
-// screens that still use the local ChatParticipant model.
-// ─────────────────────────────────────────────────────────────────────────────
-
 /// Represents a person added to the chat before Firestore creation.
 class ChatParticipant {
   final String uid;
@@ -35,10 +18,6 @@ class ChatParticipant {
 }
 
 class CreateChatModal extends StatefulWidget {
-  /// Called after a chat is created in Firestore.
-  /// [chatId] is the new document ID; [isGroup] tells the caller which route.
-  ///
-  /// This is the callback MessagesScreen uses — fixes Image 1.
   final void Function(String chatId, bool isGroup)? onCreated;
 
   const CreateChatModal({
@@ -54,16 +33,21 @@ class _CreateChatModalState extends State<CreateChatModal> {
   final _nameCtrl = TextEditingController();
   final _searchCtrl = TextEditingController();
 
-  // Users found via Firestore search
-  List<Map<String, dynamic>> _searchResults = [];
+  List<Map<String, dynamic>> _allUsers = [];
+  List<Map<String, dynamic>> _filteredUsers = [];
   final List<Map<String, dynamic>> _selected = [];
 
-  bool _isSearching = false;
+  bool _isLoading = true;
   bool _isCreating = false;
-  String _searchQuery = '';
 
   final _db = FirebaseFirestore.instance;
   final _myUid = FirebaseAuth.instance.currentUser?.uid ?? '';
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAllUsers();
+  }
 
   @override
   void dispose() {
@@ -72,38 +56,68 @@ class _CreateChatModalState extends State<CreateChatModal> {
     super.dispose();
   }
 
-  // ── Search Firestore users by name ───────────────────────────────────────
-
-  Future<void> _search(String query) async {
-    final q = query.trim().toLowerCase();
-    if (q.isEmpty) {
-      setState(() => _searchResults = []);
-      return;
-    }
-
-    setState(() => _isSearching = true);
-
+  Future<void> _loadAllUsers() async {
+    setState(() => _isLoading = true);
     try {
-      // Search by fullName (case-insensitive prefix — requires Firestore index)
       final snap = await _db
           .collection(FirestorePaths.users)
           .where('status', isEqualTo: 'active')
-          .orderBy('fullName')
-          .startAt([q]).endAt(['$q\uf8ff'])
-          .limit(10)
           .get();
 
       if (!mounted) return;
-      setState(() {
-        _searchResults = snap.docs
-            .where((d) => d.id != _myUid) // exclude self
-            .map((d) => {'uid': d.id, ...d.data()})
-            .toList();
-        _isSearching = false;
-      });
-    } catch (_) {
-      if (mounted) setState(() => _isSearching = false);
+      
+      _allUsers = snap.docs
+          .where((d) => d.id != _myUid)
+          .map((d) => {'uid': d.id, ...d.data()})
+          .toList();
+      
+      _filteredUsers = List.from(_allUsers);
+      setState(() => _isLoading = false);
+    } catch (e) {
+      debugPrint('Error loading users: $e');
+      if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  String _getDisplayName(Map<String, dynamic> user) {
+    final firstName = user['firstName'] as String? ?? '';
+    final lastName = user['lastName'] as String? ?? '';
+    if (firstName.isNotEmpty || lastName.isNotEmpty) {
+      return '$firstName $lastName'.trim();
+    }
+    final displayName = user['displayName'] as String?;
+    if (displayName != null && displayName.isNotEmpty) return displayName;
+    final email = user['email'] as String? ?? '';
+    return email.isNotEmpty ? email.split('@').first : 'Unknown User';
+  }
+
+  void _filterUsers(String query) {
+    final q = query.trim().toLowerCase();
+    
+    if (q.isEmpty) {
+      setState(() {
+        _filteredUsers = List.from(_allUsers);
+      });
+      return;
+    }
+
+    final filtered = _allUsers.where((user) {
+      final firstName = (user['firstName'] as String? ?? '').toLowerCase();
+      final lastName = (user['lastName'] as String? ?? '').toLowerCase();
+      final fullName = '$firstName $lastName'.trim();
+      final email = (user['email'] as String? ?? '').toLowerCase();
+      final displayName = (user['displayName'] as String? ?? '').toLowerCase();
+      
+      return firstName.contains(q) ||
+             lastName.contains(q) ||
+             fullName.contains(q) ||
+             email.contains(q) ||
+             displayName.contains(q);
+    }).toList();
+
+    setState(() {
+      _filteredUsers = filtered;
+    });
   }
 
   void _toggleSelect(Map<String, dynamic> user) {
@@ -114,24 +128,19 @@ class _CreateChatModalState extends State<CreateChatModal> {
       } else {
         _selected.add(user);
       }
-      // Auto-fill chat name for DM
       if (_selected.length == 1) {
-        _nameCtrl.text =
-            '${_selected.first['firstName'] ?? ''} ${_selected.first['lastName'] ?? ''}'
-                .trim();
+        _nameCtrl.text = _getDisplayName(_selected.first);
       } else if (_selected.isEmpty) {
         _nameCtrl.clear();
       }
     });
   }
 
-  // ── Create chat ───────────────────────────────────────────────────────────
-
   Future<void> _create() async {
     if (_selected.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please add at least one person.'),
+          content: Text('Please select at least one person to chat with.'),
           backgroundColor: feastError,
         ),
       );
@@ -143,13 +152,29 @@ class _CreateChatModalState extends State<CreateChatModal> {
     final participantIds = _selected.map((u) => u['uid'] as String).toList();
     final isGroup = _selected.length > 1;
     final name = _nameCtrl.text.trim().isEmpty
-        ? (isGroup ? 'Group Chat' : _selected.first['fullName'] ?? 'Chat')
+        ? (isGroup ? 'Group Chat' : _getDisplayName(_selected.first))
         : _nameCtrl.text.trim();
 
     try {
       final allParticipants = [_myUid, ...participantIds];
 
-      final ref = await _db.collection(FirestorePaths.chats).add({
+      // Check if a DM already exists between these two users
+      if (!isGroup && participantIds.length == 1) {
+        final existingChat = await _checkExistingDM(participantIds.first);
+        if (existingChat != null) {
+          if (!mounted) return;
+          Navigator.of(context).pop();
+          widget.onCreated?.call(existingChat, false);
+          return;
+        }
+      }
+
+      // Create the chat document
+      final chatRef = _db.collection(FirestorePaths.chats).doc();
+      final chatId = chatRef.id;
+
+      await chatRef.set({
+        'id': chatId,
         'participantIds': allParticipants,
         'isGroup': isGroup,
         'isEventChat': false,
@@ -163,22 +188,62 @@ class _CreateChatModalState extends State<CreateChatModal> {
         'createdAt': FieldValue.serverTimestamp(),
       });
 
+      // IMPORTANT: Add chat reference to each participant's userChats sub-collection
+      // This is what the Messages screen uses to display chats
+      for (final uid in allParticipants) {
+        await _db
+            .collection(FirestorePaths.users)
+            .doc(uid)
+            .collection('chats')
+            .doc(chatId)
+            .set({
+              'chatId': chatId,
+              'unreadCount': 0,
+              'lastActivity': FieldValue.serverTimestamp(),
+            });
+      }
+
+      debugPrint('✅ Chat created successfully: $chatId');
+      debugPrint('   Participants: $allParticipants');
+      debugPrint('   Chat reference added to each user\'s chats subcollection');
+
       if (!mounted) return;
       Navigator.of(context).pop();
-      widget.onCreated?.call(ref.id, isGroup);
+      widget.onCreated?.call(chatId, isGroup);
     } catch (e) {
+      debugPrint('❌ Create chat error: $e');
       if (!mounted) return;
       setState(() => _isCreating = false);
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to create chat. Please try again.'),
+        SnackBar(
+          content: Text('Failed to create chat: $e'),
           backgroundColor: feastError,
         ),
       );
     }
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
+  Future<String?> _checkExistingDM(String otherUid) async {
+    try {
+      final snapshot = await _db
+          .collection(FirestorePaths.chats)
+          .where('participantIds', arrayContains: _myUid)
+          .where('isGroup', isEqualTo: false)
+          .get();
+      
+      for (final doc in snapshot.docs) {
+        final participants = List<String>.from(doc['participantIds'] as List? ?? []);
+        if (participants.contains(otherUid)) {
+          debugPrint('Found existing DM: ${doc.id}');
+          return doc.id;
+        }
+      }
+      return null;
+    } catch (e) {
+      debugPrint('Check existing DM error: $e');
+      return null;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -188,241 +253,237 @@ class _CreateChatModalState extends State<CreateChatModal> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       backgroundColor: Colors.white,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ── Header ──────────────────────────────────────────────────
-            Row(
-              children: [
-                const Expanded(
-                  child: Text(
-                    'Create New Chat',
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: feastBlack,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 20),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: () => Navigator.of(context).pop(),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-
-            // ── Chat name + Create ───────────────────────────────────────
-            Row(
-              children: [
-                Expanded(
-                  child: TextField(
-                    controller: _nameCtrl,
-                    style: const TextStyle(fontFamily: 'Outfit', fontSize: 14),
-                    decoration: InputDecoration(
-                      hintText: isGroup ? 'Group Name' : "Person's Name",
-                      hintStyle: const TextStyle(
-                          fontFamily: 'Outfit', color: Colors.grey),
-                      enabledBorder: UnderlineInputBorder(
-                        borderSide:
-                            BorderSide(color: feastGreen.withAlpha(180), width: 2),
-                      ),
-                      focusedBorder: const UnderlineInputBorder(
-                        borderSide: BorderSide(color: feastGreen, width: 2),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                ElevatedButton(
-                  onPressed: _isCreating ? null : _create,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: feastGreen,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-                  ),
-                  child: _isCreating
-                      ? const SizedBox(
-                          height: 18,
-                          width: 18,
-                          child: CircularProgressIndicator(
-                              strokeWidth: 2, color: Colors.white),
-                        )
-                      : const Text(
-                          'Create',
-                          style: TextStyle(
-                              fontFamily: 'Outfit', fontWeight: FontWeight.bold),
-                        ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 14),
-
-            // ── Search bar ───────────────────────────────────────────────
-            Row(
-              children: [
-                const Text(
-                  'Included People',
-                  style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    color: feastBlack,
-                  ),
-                ),
-                if (_selected.isNotEmpty)
-                  Text(
-                    ' (${_selected.length})',
-                    style: const TextStyle(
-                        fontFamily: 'Outfit', fontSize: 13, color: feastGray),
-                  ),
-                const Spacer(),
-                GestureDetector(
-                  onTap: () {
-                    // Focus the search field
-                    FocusScope.of(context).requestFocus(FocusNode());
-                  },
-                  child: const Text(
-                    '+ Add Person',
-                    style: TextStyle(
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.9,
+        constraints: const BoxConstraints(maxWidth: 500),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Create New Chat',
+                      style: TextStyle(
                         fontFamily: 'Outfit',
-                        fontSize: 13,
-                        color: feastGreen,
-                        fontWeight: FontWeight.w600),
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: feastBlack,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, size: 20),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(),
+                    onPressed: () => Navigator.of(context).pop(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _nameCtrl,
+                      style: const TextStyle(fontFamily: 'Outfit', fontSize: 14),
+                      decoration: InputDecoration(
+                        hintText: isGroup ? 'Group Name' : "Person's Name",
+                        hintStyle: const TextStyle(
+                            fontFamily: 'Outfit', color: Colors.grey),
+                        enabledBorder: UnderlineInputBorder(
+                          borderSide:
+                              BorderSide(color: feastGreen.withAlpha(180), width: 2),
+                        ),
+                        focusedBorder: const UnderlineInputBorder(
+                          borderSide: BorderSide(color: feastGreen, width: 2),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  ElevatedButton(
+                    onPressed: _isCreating ? null : _create,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: feastGreen,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
+                      padding:
+                          const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                    ),
+                    child: _isCreating
+                        ? const SizedBox(
+                            height: 18,
+                            width: 18,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Text(
+                            'Create',
+                            style: TextStyle(
+                                fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+                          ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+
+              const Text(
+                'Select People',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: feastBlack,
+                ),
+              ),
+              const SizedBox(height: 8),
+
+              TextField(
+                controller: _searchCtrl,
+                style: const TextStyle(fontFamily: 'Outfit', fontSize: 13),
+                decoration: InputDecoration(
+                  hintText: 'Search by name or email...',
+                  hintStyle:
+                      const TextStyle(fontFamily: 'Outfit', color: Colors.grey),
+                  prefixIcon:
+                      const Icon(Icons.search, size: 20, color: Colors.grey),
+                  suffixIcon: _searchCtrl.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, size: 18),
+                          onPressed: () {
+                            _searchCtrl.clear();
+                            _filterUsers('');
+                          },
+                        )
+                      : null,
+                  filled: true,
+                  fillColor: feastLightGreen.withAlpha(60),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                ),
+                onChanged: _filterUsers,
+              ),
+              const SizedBox(height: 12),
+
+              if (_isLoading)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: CircularProgressIndicator(color: feastGreen),
+                  ),
+                )
+              else if (_filteredUsers.isEmpty)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(32),
+                    child: Column(
+                      children: [
+                        Icon(Icons.people_outline, size: 48, color: feastGray),
+                        SizedBox(height: 8),
+                        Text(
+                          'No users found.',
+                          style: TextStyle(fontFamily: 'Outfit', color: feastGray),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 300),
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: _filteredUsers.length,
+                    itemBuilder: (_, i) {
+                      final u = _filteredUsers[i];
+                      final uid = u['uid'] as String;
+                      final name = _getDisplayName(u);
+                      final email = u['email'] as String? ?? '';
+                      final isSelected = _selected.any((s) => s['uid'] == uid);
+
+                      return ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: CircleAvatar(
+                          radius: 22,
+                          backgroundColor: feastLightGreen,
+                          backgroundImage: u['profilePictureUrl'] != null &&
+                                  (u['profilePictureUrl'] as String).isNotEmpty
+                              ? NetworkImage(u['profilePictureUrl'] as String)
+                              : null,
+                          child: u['profilePictureUrl'] == null ||
+                                  (u['profilePictureUrl'] as String).isEmpty
+                              ? Text(
+                                  name.isNotEmpty ? name[0].toUpperCase() : '?',
+                                  style: const TextStyle(
+                                      color: feastGreen,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16),
+                                )
+                              : null,
+                        ),
+                        title: Text(
+                          name,
+                          style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500),
+                        ),
+                        subtitle: email.isNotEmpty
+                            ? Text(
+                                email,
+                                style: const TextStyle(
+                                    fontFamily: 'Outfit',
+                                    fontSize: 11,
+                                    color: feastGray),
+                              )
+                            : null,
+                        trailing: isSelected
+                            ? const Icon(Icons.check_circle, color: feastGreen, size: 24)
+                            : const Icon(Icons.add_circle_outline, color: feastGray, size: 24),
+                        onTap: () => _toggleSelect(u),
+                      );
+                    },
                   ),
                 ),
-              ],
-            ),
-            const SizedBox(height: 8),
 
-            // Search input
-            TextField(
-              controller: _searchCtrl,
-              style: const TextStyle(fontFamily: 'Outfit', fontSize: 13),
-              decoration: InputDecoration(
-                hintText: 'Search by name...',
-                hintStyle:
-                    const TextStyle(fontFamily: 'Outfit', color: Colors.grey),
-                prefixIcon:
-                    const Icon(Icons.search, size: 20, color: Colors.grey),
-                filled: true,
-                fillColor: feastLightGreen.withAlpha(60),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
+              if (_selected.isNotEmpty)
+                Container(
+                  height: 50,
+                  margin: const EdgeInsets.only(top: 8),
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: _selected.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 8),
+                    itemBuilder: (_, i) {
+                      final u = _selected[i];
+                      final name = _getDisplayName(u);
+                      return Chip(
+                        label: Text(
+                          name,
+                          style: const TextStyle(fontFamily: 'Outfit', fontSize: 12),
+                        ),
+                        onDeleted: () => _toggleSelect(u),
+                        deleteIcon: const Icon(Icons.close, size: 16),
+                        backgroundColor: feastLightGreen.withAlpha(80),
+                      );
+                    },
+                  ),
                 ),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-              ),
-              onChanged: (v) {
-                setState(() => _searchQuery = v);
-                _search(v);
-              },
-            ),
-            const SizedBox(height: 8),
-
-            // ── Search results or selected list ──────────────────────────
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 220),
-              child: _isSearching
-                  ? const Center(
-                      child: CircularProgressIndicator(color: feastGreen))
-                  : _searchQuery.isNotEmpty
-                      ? _buildSearchResults()
-                      : _buildSelectedList(),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    );
-  }
-
-  Widget _buildSearchResults() {
-    if (_searchResults.isEmpty) {
-      return const Center(
-        child: Text('No users found.',
-            style: TextStyle(fontFamily: 'Outfit', color: Colors.grey)),
-      );
-    }
-    return ListView.builder(
-      shrinkWrap: true,
-      itemCount: _searchResults.length,
-      itemBuilder: (_, i) {
-        final u = _searchResults[i];
-        final uid = u['uid'] as String;
-        final name = u['fullName'] as String? ??
-            '${u['firstName'] ?? ''} ${u['lastName'] ?? ''}'.trim();
-        final isSelected = _selected.any((s) => s['uid'] == uid);
-
-        return ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: CircleAvatar(
-            radius: 20,
-            backgroundColor: feastLightGreen,
-            backgroundImage: u['profileImageUrl'] != null &&
-                    (u['profileImageUrl'] as String).isNotEmpty
-                ? NetworkImage(u['profileImageUrl'] as String)
-                : null,
-            child: u['profileImageUrl'] == null ||
-                    (u['profileImageUrl'] as String).isEmpty
-                ? const Icon(Icons.person, size: 20, color: feastGreen)
-                : null,
-          ),
-          title: Text(name,
-              style: const TextStyle(fontFamily: 'Outfit', fontSize: 14)),
-          trailing: isSelected
-              ? const Icon(Icons.check_circle, color: feastGreen)
-              : const Icon(Icons.add_circle_outline, color: Colors.grey),
-          onTap: () => _toggleSelect(u),
-        );
-      },
-    );
-  }
-
-  Widget _buildSelectedList() {
-    if (_selected.isEmpty) {
-      return const Center(
-        child: Text(
-          'Search for people to add.',
-          style: TextStyle(
-              fontFamily: 'Outfit', color: Colors.grey, fontSize: 13),
-        ),
-      );
-    }
-    return ListView.builder(
-      shrinkWrap: true,
-      itemCount: _selected.length,
-      itemBuilder: (_, i) {
-        final u = _selected[i];
-        final name = u['fullName'] as String? ??
-            '${u['firstName'] ?? ''} ${u['lastName'] ?? ''}'.trim();
-        return ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: CircleAvatar(
-            radius: 20,
-            backgroundColor: feastLightGreen,
-            child: Text(name.isNotEmpty ? name[0] : '?',
-                style: const TextStyle(color: feastGreen)),
-          ),
-          title: Text(name,
-              style: const TextStyle(fontFamily: 'Outfit', fontSize: 14)),
-          trailing: GestureDetector(
-            onTap: () => _toggleSelect(u),
-            child:
-                const Icon(Icons.remove_circle_outline, color: Colors.red),
-          ),
-        );
-      },
     );
   }
 }

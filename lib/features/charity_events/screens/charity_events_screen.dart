@@ -33,6 +33,7 @@ class _CharityEventsScreenState extends State<CharityEventsScreen> {
   final _searchController = TextEditingController();
   String _searchQuery = '';
   String? _selectedCategory;
+  String _username = 'User';
 
   final List<Map<String, dynamic>> _filterOptions = [
     {'label': 'All', 'category': null},
@@ -53,8 +54,14 @@ class _CharityEventsScreenState extends State<CharityEventsScreen> {
   @override
   void initState() {
     super.initState();
+    _loadUsername();
     _fetchNextPage();
     _searchController.addListener(() => setState(() => _searchQuery = _searchController.text.toLowerCase()));
+  }
+
+  Future<void> _loadUsername() async {
+    final name = await FirestoreService.instance.getCurrentUserName();
+    if (mounted) setState(() => _username = name);
   }
 
   @override
@@ -126,8 +133,8 @@ class _CharityEventsScreenState extends State<CharityEventsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const FeastAppBar(title: 'Charity Events'),
-      drawer: const FeastDrawer(username: ''),
+      appBar: FeastAppBar(title: 'Charity Events', username: _username),
+      drawer: FeastDrawer(username: _username),
       body: FeastBackground(
         child: SafeArea(
           bottom: false,

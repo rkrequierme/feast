@@ -1,23 +1,8 @@
 // lib/features/messages/screens/messages_screen.dart
-//
-// Real-time chat list from Firestore.
-// No placeholder data — all chats come from the database.
-//
-// REACT.JS INTEGRATION NOTE:
-// =========================
-// Collection: chats
-// Fields: participantIds[], isGroup, groupName, groupImageUrl,
-//         lastMessage, lastMessageAt, creatorId, adminIds[]
-// React query:
-//   const q = query(
-//     collection(db, 'chats'),
-//     where('participantIds', 'array-contains', uid),
-//     orderBy('lastMessageAt', 'desc')
-//   );
-//   const snapshot = await getDocs(q);
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:feast/core/core.dart';
 import 'package:feast/features/features.dart';
@@ -34,14 +19,21 @@ class _MessagesScreenState extends State<MessagesScreen>
   late TabController _tabController;
   final _searchController = TextEditingController();
   String _searchQuery = '';
+  String _username = 'User';
 
   @override
   void initState() {
     super.initState();
+    _loadUsername();
     _tabController = TabController(length: 4, vsync: this);
     _searchController.addListener(
       () => setState(() => _searchQuery = _searchController.text.toLowerCase()),
     );
+  }
+
+  Future<void> _loadUsername() async {
+    final name = await FirestoreService.instance.getCurrentUserName();
+    if (mounted) setState(() => _username = name);
   }
 
   @override
@@ -54,11 +46,10 @@ class _MessagesScreenState extends State<MessagesScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const FeastAppBar(title: 'Messages'),
-      drawer: const FeastDrawer(username: ''),
+      appBar: FeastAppBar(title: 'Messages', username: _username),
+      drawer: FeastDrawer(username: _username),
       body: Column(
         children: [
-          // Search bar
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: Container(
@@ -110,7 +101,6 @@ class _MessagesScreenState extends State<MessagesScreen>
             ),
           ),
 
-          // Tab bar
           TabBar(
             controller: _tabController,
             labelColor: feastGreen,
@@ -129,7 +119,6 @@ class _MessagesScreenState extends State<MessagesScreen>
             ],
           ),
 
-          // Tab views
           Expanded(
             child: TabBarView(
               controller: _tabController,
@@ -151,11 +140,14 @@ class _MessagesScreenState extends State<MessagesScreen>
         onPressed: () => showDialog(
           context: context,
           builder: (_) => CreateChatModal(
-            onCreated: (chatId, isGroup) => Navigator.pushNamed(
-              context,
-              isGroup ? AppRoutes.groupDetail : AppRoutes.chatDetail,
-              arguments: chatId,
-            ),
+            onCreated: (chatId, isGroup) {
+              debugPrint('Chat created: $chatId, isGroup: $isGroup');
+              Navigator.pushNamed(
+                context,
+                isGroup ? AppRoutes.groupDetail : AppRoutes.chatDetail,
+                arguments: chatId,
+              );
+            },
           ),
         ),
       ),
@@ -188,76 +180,182 @@ class _ChatList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final currentUserId = FirebaseAuth.instance.currentUser?.uid ?? '';
+    
+    // First, get the user's chat IDs from their chats subcollection
     return StreamBuilder<QuerySnapshot>(
-      stream: FirestoreService.instance.chatsStream(),
-      builder: (context, snap) {
-        if (snap.connectionState == ConnectionState.waiting) {
+      stream: FirebaseFirestore.instance
+          .collection(FirestorePaths.users)
+          .doc(currentUserId)
+          .collection('chats')
+          .snapshots(),
+      builder: (context, userChatsSnap) {
+        if (userChatsSnap.connectionState == ConnectionState.waiting) {
           return const Center(
             child: CircularProgressIndicator(color: feastGreen),
           );
         }
 
-        var docs = snap.data?.docs ?? [];
-
-        // Filter by tab
-        docs = docs.where((doc) {
-          final data = doc.data() as Map<String, dynamic>;
-          final isGroup = data['isGroup'] as bool? ?? false;
-          final isEvent = data['isEventChat'] as bool? ?? false;
-          switch (filter) {
-            case 'personal':
-              return !isGroup && !isEvent;
-            case 'event':
-              return isEvent;
-            case 'group':
-              return isGroup && !isEvent;
-            default:
-              return true;
-          }
-        }).toList();
-
-        // Filter by search query
-        if (searchQuery.isNotEmpty) {
-          docs = docs.where((doc) {
-            final data = doc.data() as Map<String, dynamic>;
-            final name = (data['groupName'] as String? ?? '').toLowerCase();
-            return name.contains(searchQuery);
-          }).toList();
+        if (userChatsSnap.hasError) {
+          debugPrint('User chats error: ${userChatsSnap.error}');
+          return const Center(
+            child: Text('Error loading chats. Please try again.'),
+          );
         }
 
-        if (docs.isEmpty) {
+        final chatDocs = userChatsSnap.data?.docs ?? [];
+        if (chatDocs.isEmpty) {
           return const EmptyStateWidget(message: 'No chats yet. Start a conversation!');
         }
 
-        return ListView.builder(
-          itemCount: docs.length,
-          itemBuilder: (context, i) {
-            final doc = docs[i];
-            final data = doc.data() as Map<String, dynamic>;
-            final isGroup = data['isGroup'] as bool? ?? false;
-            final name = data['groupName'] as String? ?? 
-                (isGroup ? 'Group Chat' : 'Chat');
-            final lastMessage = data['lastMessage'] as String? ?? '';
-            final lastMessageAt = data['lastMessageAt'] as Timestamp?;
-            final imageUrl = data['groupImageUrl'] as String?;
-            final unreadCount = 0; // Implement unread count logic if needed
+        // Get all chat IDs
+        final chatIds = chatDocs.map((doc) => doc.id).toList();
+        
+        if (chatIds.isEmpty) {
+          return const EmptyStateWidget(message: 'No chats yet. Start a conversation!');
+        }
 
-            return ChatListItem(
-              id: doc.id,
-              displayName: name,
-              lastMessage: lastMessage.isEmpty ? 'No messages yet' : lastMessage,
-              timeAgo: _formatTimeAgo(lastMessageAt),
-              unreadCount: unreadCount,
-              avatarUrl: imageUrl,
-              onTap: () => Navigator.pushNamed(
-                context,
-                isGroup ? AppRoutes.groupDetail : AppRoutes.chatDetail,
-                arguments: doc.id,
-              ),
+        // Now fetch the actual chat documents
+        return StreamBuilder<QuerySnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection(FirestorePaths.chats)
+              .where(FieldPath.documentId, whereIn: chatIds)
+              .snapshots(),
+          builder: (context, chatsSnap) {
+            if (chatsSnap.connectionState == ConnectionState.waiting) {
+              return const Center(
+                child: CircularProgressIndicator(color: feastGreen),
+              );
+            }
+
+            if (chatsSnap.hasError) {
+              debugPrint('Chats error: ${chatsSnap.error}');
+              return const Center(
+                child: Text('Error loading chats. Please try again.'),
+              );
+            }
+
+            var docs = chatsSnap.data?.docs ?? [];
+            debugPrint('Found ${docs.length} chats for user $currentUserId');
+
+            // Sort by lastMessageAt (manual sort since whereIn doesn't support orderBy)
+            docs.sort((a, b) {
+              final aData = a.data() as Map<String, dynamic>;
+              final bData = b.data() as Map<String, dynamic>;
+              final aTime = aData['lastMessageAt'] as Timestamp?;
+              final bTime = bData['lastMessageAt'] as Timestamp?;
+              if (aTime == null && bTime == null) return 0;
+              if (aTime == null) return 1;
+              if (bTime == null) return -1;
+              return bTime.compareTo(aTime);
+            });
+
+            // Filter by tab
+            docs = docs.where((doc) {
+              final data = doc.data() as Map<String, dynamic>;
+              final isGroup = data['isGroup'] as bool? ?? false;
+              final isEvent = data['isEventChat'] as bool? ?? false;
+              switch (filter) {
+                case 'personal':
+                  return !isGroup && !isEvent;
+                case 'event':
+                  return isEvent;
+                case 'group':
+                  return isGroup && !isEvent;
+                default:
+                  return true;
+              }
+            }).toList();
+
+            // Filter by search query
+            if (searchQuery.isNotEmpty) {
+              docs = docs.where((doc) {
+                final data = doc.data() as Map<String, dynamic>;
+                final name = (data['groupName'] as String? ?? '').toLowerCase();
+                return name.contains(searchQuery);
+              }).toList();
+            }
+
+            if (docs.isEmpty) {
+              return const EmptyStateWidget(message: 'No chats yet. Start a conversation!');
+            }
+
+            return ListView.builder(
+              itemCount: docs.length,
+              itemBuilder: (context, i) {
+                final doc = docs[i];
+                final data = doc.data() as Map<String, dynamic>;
+                final isGroup = data['isGroup'] as bool? ?? false;
+                
+                // For DMs, we need to fetch the other user's name
+                if (!isGroup) {
+                  return FutureBuilder<DocumentSnapshot>(
+                    future: _getOtherUser(data, currentUserId),
+                    builder: (context, userSnap) {
+                      if (userSnap.connectionState == ConnectionState.waiting) {
+                        return const ListTile(
+                          leading: CircleAvatar(child: Icon(Icons.person)),
+                          title: Text('Loading...'),
+                        );
+                      }
+                      
+                      final userData = userSnap.data?.data() as Map<String, dynamic>?;
+                      final displayName = userData?['displayName'] as String?;
+                      final firstName = userData?['firstName'] as String? ?? '';
+                      final lastName = userData?['lastName'] as String? ?? '';
+                      final name = displayName ?? '$firstName $lastName'.trim();
+                      final imageUrl = userData?['profilePictureUrl'] as String?;
+                      final lastMessage = data['lastMessage'] as String? ?? 'No messages yet';
+                      final lastMessageAt = data['lastMessageAt'] as Timestamp?;
+                      
+                      return ChatListItem(
+                        id: doc.id,
+                        displayName: name.isEmpty ? 'Chat' : name,
+                        lastMessage: lastMessage,
+                        timeAgo: _formatTimeAgo(lastMessageAt),
+                        unreadCount: 0,
+                        avatarUrl: imageUrl,
+                        onTap: () => Navigator.pushNamed(
+                          context,
+                          AppRoutes.chatDetail,
+                          arguments: doc.id,
+                        ),
+                      );
+                    },
+                  );
+                }
+                
+                // For groups
+                final name = data['groupName'] as String? ?? 'Group Chat';
+                final imageUrl = data['groupImageUrl'] as String?;
+                final lastMessage = data['lastMessage'] as String? ?? 'No messages yet';
+                final lastMessageAt = data['lastMessageAt'] as Timestamp?;
+                
+                return ChatListItem(
+                  id: doc.id,
+                  displayName: name,
+                  lastMessage: lastMessage,
+                  timeAgo: _formatTimeAgo(lastMessageAt),
+                  unreadCount: 0,
+                  avatarUrl: imageUrl,
+                  onTap: () => Navigator.pushNamed(
+                    context,
+                    isGroup ? AppRoutes.groupDetail : AppRoutes.chatDetail,
+                    arguments: doc.id,
+                  ),
+                );
+              },
             );
           },
         );
       },
     );
+  }
+  
+  Future<DocumentSnapshot> _getOtherUser(Map<String, dynamic> chatData, String currentUserId) async {
+    final participants = List<String>.from(chatData['participantIds'] as List? ?? []);
+    final otherId = participants.firstWhere((id) => id != currentUserId, orElse: () => '');
+    if (otherId.isEmpty) return Future.value(null as DocumentSnapshot);
+    return FirebaseFirestore.instance.collection(FirestorePaths.users).doc(otherId).get();
   }
 }

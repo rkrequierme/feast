@@ -126,6 +126,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 prefixIcon:  Icons.mail_outline,
                                 controller:  _emailController,
                                 keyboardType: TextInputType.emailAddress,
+                                textCapitalization: TextCapitalization.none,
                                 validator: (v) {
                                   if (v == null || v.trim().isEmpty) {
                                     return 'Email is required';

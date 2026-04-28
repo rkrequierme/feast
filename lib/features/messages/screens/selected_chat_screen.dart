@@ -1,20 +1,4 @@
 // lib/features/messages/screens/selected_chat_screen.dart
-//
-// Real-time chat detail with Firestore messages.
-// No placeholder data.
-//
-// REACT.JS INTEGRATION NOTE:
-// =========================
-// Subcollection: chats/{chatId}/messages
-// Fields: senderId, text, attachmentUrl, sentAt, readBy[]
-// React query for messages:
-//   const q = query(
-//     collection(db, 'chats', chatId, 'messages'),
-//     orderBy('sentAt', 'desc'),
-//     limit(30)
-//   );
-//   const snapshot = await getDocs(q);
-// CRITICAL: Security Rules must block admins from reading messages.
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -35,29 +19,10 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
   final _scrollController = ScrollController();
   final _uid = FirebaseAuth.instance.currentUser?.uid ?? '';
 
-  List<QueryDocumentSnapshot> _messages = [];
-  DocumentSnapshot? _lastDoc;
-  bool _isLoadingMore = false;
-  bool _hasMore = true;
-
   @override
   void initState() {
     super.initState();
-    _loadInitial();
     _scrollController.addListener(_onScroll);
-  }
-
-  Future<void> _loadInitial() async {
-    final snap = await FirestoreService.instance
-        .messagesQuery(widget.chatId, limit: 30)
-        .get();
-    if (!mounted) return;
-    setState(() {
-      _messages = snap.docs.reversed.toList();
-      if (snap.docs.isNotEmpty) _lastDoc = snap.docs.last;
-      _hasMore = snap.docs.length == 30;
-    });
-    _scrollToBottom();
   }
 
   void _scrollToBottom() {
@@ -73,36 +38,26 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
   }
 
   void _onScroll() {
-    if (_scrollController.position.pixels <=
-        _scrollController.position.minScrollExtent + 100) {
-      _loadMore();
-    }
-  }
-
-  Future<void> _loadMore() async {
-    if (_isLoadingMore || !_hasMore || _lastDoc == null) return;
-    setState(() => _isLoadingMore = true);
-    final snap = await FirestoreService.instance
-        .messagesQuery(widget.chatId, startAfter: _lastDoc, limit: 30)
-        .get();
-    if (!mounted) return;
-    setState(() {
-      _messages.insertAll(0, snap.docs.reversed.toList());
-      if (snap.docs.isNotEmpty) _lastDoc = snap.docs.last;
-      _hasMore = snap.docs.length == 30;
-      _isLoadingMore = false;
-    });
+    // For future pagination implementation
   }
 
   Future<void> _sendMessage() async {
     final text = _messageController.text.trim();
     if (text.isEmpty) return;
     _messageController.clear();
-    await FirestoreService.instance.sendMessage(
-      chatId: widget.chatId,
-      text: text,
-    );
-    await _loadInitial();
+    
+    try {
+      await FirestoreService.instance.sendMessage(
+        chatId: widget.chatId,
+        text: text,
+      );
+      _scrollToBottom();
+    } catch (e) {
+      debugPrint('Send message error: $e');
+      if (mounted) {
+        FeastToast.showError(context, 'Failed to send message. Please try again.');
+      }
+    }
   }
 
   @override
@@ -124,15 +79,38 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
               .doc(widget.chatId)
               .snapshots(),
           builder: (_, snap) {
-            final data = snap.data?.data() as Map<String, dynamic>? ?? {};
-            final name = data['groupName'] as String? ?? 'Chat';
-            return Text(
-              name,
-              style: const TextStyle(
-                fontFamily: 'Outfit',
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-              ),
+            if (!snap.hasData || snap.data == null) {
+              return const Text('Chat', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16));
+            }
+            final data = snap.data!.data() as Map<String, dynamic>? ?? {};
+            final isGroup = data['isGroup'] as bool? ?? false;
+            
+            if (isGroup) {
+              final name = data['groupName'] as String? ?? 'Group Chat';
+              return Text(name, style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16));
+            }
+            
+            // For DM, fetch other user's name
+            final participants = List<String>.from(data['participantIds'] as List? ?? []);
+            final otherId = participants.firstWhere((id) => id != _uid, orElse: () => '');
+            if (otherId.isEmpty) {
+              return const Text('Chat', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16));
+            }
+            
+            return FutureBuilder<DocumentSnapshot>(
+              future: FirebaseFirestore.instance.collection(FirestorePaths.users).doc(otherId).get(),
+              builder: (_, userSnap) {
+                if (!userSnap.hasData) {
+                  return const Text('Chat', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16));
+                }
+                final userData = userSnap.data!.data() as Map<String, dynamic>?;
+                final displayName = userData?['displayName'] as String?;
+                final firstName = userData?['firstName'] as String? ?? '';
+                final lastName = userData?['lastName'] as String? ?? '';
+                final name = displayName ?? '$firstName $lastName'.trim();
+                return Text(name.isEmpty ? 'Chat' : name, 
+                  style: const TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16));
+              },
             );
           },
         ),
@@ -150,25 +128,61 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
       body: Column(
         children: [
           Expanded(
-            child: _messages.isEmpty
-                ? const Center(
+            child: StreamBuilder<QuerySnapshot>(
+              stream: FirebaseFirestore.instance
+                  .collection(FirestorePaths.chats)
+                  .doc(widget.chatId)
+                  .collection('messages')
+                  .orderBy('sentAt', descending: false)
+                  .snapshots(),
+              builder: (context, snap) {
+                if (snap.connectionState == ConnectionState.waiting) {
+                  return const Center(
+                    child: CircularProgressIndicator(color: feastGreen),
+                  );
+                }
+
+                if (snap.hasError) {
+                  debugPrint('Messages error: ${snap.error}');
+                  return const Center(
+                    child: Text('Error loading messages.'),
+                  );
+                }
+
+                final messages = snap.data?.docs ?? [];
+                
+                if (messages.isEmpty) {
+                  return const Center(
                     child: Text(
                       'No messages yet. Say hello!',
                       style: TextStyle(fontFamily: 'Outfit', color: feastGray),
                     ),
-                  )
-                : ListView.builder(
-                    controller: _scrollController,
-                    reverse: true,
-                    padding: const EdgeInsets.all(16),
-                    itemCount: _messages.length,
-                    itemBuilder: (context, i) {
-                      final msg = _messages[_messages.length - 1 - i]
-                          .data() as Map<String, dynamic>;
-                      final isMine = msg['senderId'] == _uid;
-                      return _buildMessageBubble(msg, isMine);
-                    },
-                  ),
+                  );
+                }
+
+                // Auto-scroll to bottom on new messages
+                WidgetsBinding.instance.addPostFrameCallback((_) {
+                  if (_scrollController.hasClients) {
+                    _scrollController.animateTo(
+                      _scrollController.position.maxScrollExtent,
+                      duration: const Duration(milliseconds: 300),
+                      curve: Curves.easeOut,
+                    );
+                  }
+                });
+
+                return ListView.builder(
+                  controller: _scrollController,
+                  padding: const EdgeInsets.all(16),
+                  itemCount: messages.length,
+                  itemBuilder: (context, i) {
+                    final msg = messages[i].data() as Map<String, dynamic>;
+                    final isMine = msg['senderId'] == _uid;
+                    return _buildMessageBubble(msg, isMine);
+                  },
+                );
+              },
+            ),
           ),
           _buildMessageInput(),
         ],
@@ -201,7 +215,6 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
                       attachmentUrl: url,
                     );
                   }
-                  await _loadInitial();
                 },
               ),
             ),

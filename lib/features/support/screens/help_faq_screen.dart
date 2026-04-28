@@ -24,6 +24,8 @@ class HelpFaqScreen extends StatefulWidget {
 }
 
 class _HelpFaqScreenState extends State<HelpFaqScreen> {
+  String _username = 'User';
+
   static const _defaultFaqs = [
     {
       'question': 'What is F.E.A.S.T.?',
@@ -51,6 +53,17 @@ class _HelpFaqScreenState extends State<HelpFaqScreen> {
           'No. Edits are disabled once a post is live. Please review all details carefully before submitting.',
     },
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUsername();
+  }
+
+  Future<void> _loadUsername() async {
+    final name = await FirestoreService.instance.getCurrentUserName();
+    if (mounted) setState(() => _username = name);
+  }
 
   void _showSubmitQuestion() {
     final titleCtrl = TextEditingController();
@@ -166,8 +179,8 @@ class _HelpFaqScreenState extends State<HelpFaqScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: const FeastAppBar(title: 'Help & FAQ'),
-      drawer: const FeastDrawer(username: ''),
+      appBar: FeastAppBar(title: 'Help & FAQ', username: _username),
+      drawer: FeastDrawer(username: _username),
       bottomNavigationBar: const FeastBottomNav(currentIndex: -1),
       floatingActionButton: FeastFloatingButton(
         icon: Icons.chat_bubble_outline,

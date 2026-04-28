@@ -44,6 +44,22 @@ class FirestoreService {
     return doc.data();
   }
 
+  /// Gets the current user's display name for the app bar.
+  /// Returns 'User' as fallback if name not found.
+  Future<String> getCurrentUserName() async {
+    final user = await getCurrentUser();
+    if (user == null) return 'User';
+    
+    // Try displayName first, then firstName, fallback to 'User'
+    final name = user['displayName'] as String?;
+    if (name != null && name.isNotEmpty) return name;
+    
+    final firstName = user['firstName'] as String?;
+    if (firstName != null && firstName.isNotEmpty) return firstName;
+    
+    return 'User';
+  }
+
   Future<void> updateUserProfile(Map<String, dynamic> data) async {
     await _db.collection(FirestorePaths.users).doc(_uid).update({
       ...data,

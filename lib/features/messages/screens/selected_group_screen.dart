@@ -34,12 +34,19 @@ class _SelectedGroupScreenState extends State<SelectedGroupScreen>
   late TabController _tabController;
   Map<String, dynamic>? _chatData;
   final String _uid = FirebaseAuth.instance.currentUser?.uid ?? '';
+  String _username = 'User';
 
   @override
   void initState() {
     super.initState();
+    _loadUsername();
     _tabController = TabController(length: 4, vsync: this);
     _loadChat();
+  }
+
+  Future<void> _loadUsername() async {
+    final name = await FirestoreService.instance.getCurrentUserName();
+    if (mounted) setState(() => _username = name);
   }
 
   Future<void> _loadChat() async {
