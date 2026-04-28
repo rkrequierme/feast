@@ -1,6 +1,15 @@
 // lib/features/aid_requests/screens/aid_requests_screen.dart
 //
 // Paginated list of approved aid requests with real-time search and filtering.
+// FAB enabled only for Barangay residents.
+//
+// REACT.JS INTEGRATION NOTE:
+// =========================
+// Collection: aid_requests
+// Filters: status == 'approved', optional category filter
+// Sort: createdAt descending (default)
+// Pagination: startAfter(lastDoc).limit(10)
+// Resident check: users/{uid}.isResident === true
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -19,7 +28,7 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
   String _searchQuery = '';
   bool _isResident = false;
 
-  // Pagination state
+  // Pagination
   final List<QueryDocumentSnapshot> _docs = [];
   DocumentSnapshot? _lastDoc;
   bool _isLoading = false;
@@ -27,12 +36,14 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
   static const int _pageSize = 10;
 
   final List<Map<String, dynamic>> _filterOptions = [
-    {'label': 'Most Recent', 'field': 'createdAt', 'desc': true},
-    {'label': 'Oldest', 'field': 'createdAt', 'desc': false},
+    {'label': 'All', 'category': null},
+    {'label': 'Most Recent', 'sort': true},
+    {'label': 'Oldest', 'sort': false},
     {'label': 'Health', 'category': 'Health'},
     {'label': 'Education', 'category': 'Education'},
     {'label': 'Disaster Management', 'category': 'Disaster Management'},
     {'label': 'Basic Needs', 'category': 'Basic Needs'},
+    {'label': 'Household', 'category': 'Household'},
   ];
 
   @override
@@ -40,23 +51,15 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
     super.initState();
     _loadUser();
     _fetchNextPage();
-    _searchController.addListener(_onSearchChanged);
+    _searchController.addListener(() => setState(() => _searchQuery = _searchController.text.toLowerCase()));
   }
 
-  // FIX: Removed Kotlin-style `.let()` — not available in Dart.
-  // Simply guard with a null check and call getCurrentUser() directly
-  // (FirestoreService.getCurrentUser() already uses the current user's UID
-  // internally via FirebaseAuth).
   Future<void> _loadUser() async {
     if (AuthService.instance.currentUser == null) return;
     final data = await FirestoreService.instance.getCurrentUser();
     if (data != null && mounted) {
       setState(() => _isResident = data['isResident'] as bool? ?? false);
     }
-  }
-
-  void _onSearchChanged() {
-    setState(() => _searchQuery = _searchController.text.toLowerCase());
   }
 
   Future<void> _fetchNextPage() async {
@@ -137,36 +140,27 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
                   onRefresh: _refresh,
                   color: feastGreen,
                   child: _filteredDocs.isEmpty && !_isLoading
-                      ? const EmptyStateWidget(
-                          message: 'No aid requests found.')
+                      ? const EmptyStateWidget(message: 'No aid requests found.')
                       : NotificationListener<ScrollNotification>(
                           onNotification: (notif) {
-                            if (notif.metrics.pixels >=
-                                notif.metrics.maxScrollExtent - 200) {
+                            if (notif.metrics.pixels >= notif.metrics.maxScrollExtent - 200) {
                               _fetchNextPage();
                             }
                             return false;
                           },
                           child: ListView.builder(
                             padding: const EdgeInsets.only(bottom: 100),
-                            itemCount:
-                                _filteredDocs.length + (_isLoading ? 1 : 0),
+                            itemCount: _filteredDocs.length + (_isLoading ? 1 : 0),
                             itemBuilder: (context, index) {
                               if (index == _filteredDocs.length) {
                                 return const Center(
                                   child: Padding(
                                     padding: EdgeInsets.all(16),
-                                    child: CircularProgressIndicator(
-                                        color: feastGreen),
+                                    child: CircularProgressIndicator(color: feastGreen),
                                   ),
                                 );
                               }
                               final doc = _filteredDocs[index];
-
-                              // FIX: AidRequestListItem no longer accepts
-                              // `data` / `docId` named params. Use the
-                              // factory constructor .fromMap() instead, which
-                              // reads all fields from the Firestore map.
                               return AidRequestListItem.fromMap(
                                 doc.data() as Map<String, dynamic>,
                                 onTap: () => Navigator.pushNamed(
@@ -185,15 +179,11 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
         ),
       ),
       bottomNavigationBar: const FeastBottomNav(currentIndex: 1),
-      // FIX: `enabled` and `disabledTooltip` are now supported by the updated
-      // FeastFloatingButton. `onPressed` is now nullable so passing null when
-      // the user is not a resident compiles correctly.
       floatingActionButton: FeastFloatingButton(
         icon: Icons.add,
         tooltip: 'Create Aid Request',
         enabled: _isResident,
-        disabledTooltip:
-            'Only Barangay residents may post aid requests.',
+        disabledTooltip: 'Only Barangay residents may post aid requests.',
         onPressed: _isResident
             ? () => Navigator.pushNamed(context, AppRoutes.createAidRequest)
             : null,
@@ -213,36 +203,24 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withAlpha(15),
-                    blurRadius: 6,
-                    offset: const Offset(0, 2),
-                  ),
+                  BoxShadow(color: Colors.black.withAlpha(15), blurRadius: 6, offset: const Offset(0, 2)),
                 ],
               ),
               child: Row(
                 children: [
                   const SizedBox(width: 12),
-                  Icon(Icons.search,
-                      color: feastGray.withAlpha(150), size: 22),
+                  Icon(Icons.search, color: feastGray.withAlpha(150), size: 22),
                   const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
                       controller: _searchController,
-                      style: const TextStyle(
-                          fontSize: 14,
-                          fontFamily: 'Outfit',
-                          color: feastBlack),
+                      style: const TextStyle(fontSize: 14, fontFamily: 'Outfit', color: feastBlack),
                       decoration: InputDecoration(
                         hintText: 'Search...',
-                        hintStyle: TextStyle(
-                            fontSize: 14,
-                            fontFamily: 'Outfit',
-                            color: feastGray.withAlpha(150)),
+                        hintStyle: TextStyle(fontSize: 14, fontFamily: 'Outfit', color: feastGray.withAlpha(150)),
                         border: InputBorder.none,
                         isDense: true,
-                        contentPadding:
-                            const EdgeInsets.symmetric(vertical: 10),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 10),
                       ),
                     ),
                   ),
@@ -260,10 +238,7 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
-                  BoxShadow(
-                      color: Colors.black.withAlpha(15),
-                      blurRadius: 6,
-                      offset: const Offset(0, 2)),
+                  BoxShadow(color: Colors.black.withAlpha(15), blurRadius: 6, offset: const Offset(0, 2)),
                 ],
               ),
               child: const Icon(Icons.tune, color: feastGreen, size: 20),
@@ -287,22 +262,12 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Filter / Sort',
-                style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16)),
+            const Text('Filter / Sort', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: [
-                _filterChip('All', null),
-                ..._filterOptions.map((opt) => _filterChip(
-                      opt['label'] as String,
-                      opt['category'] as String?,
-                    )),
-              ],
+              children: _filterOptions.map((opt) => _filterChip(opt['label'] as String, opt['category'] as String?)).toList(),
             ),
           ],
         ),
@@ -318,8 +283,7 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
         _applyFilter(category);
       },
       child: Container(
-        padding:
-            const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         decoration: BoxDecoration(
           color: selected ? feastGreen : Colors.white,
           borderRadius: BorderRadius.circular(20),
@@ -338,12 +302,3 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
     );
   }
 }
-
-// ■■ REACT.JS INTEGRATION NOTE ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-// Collection : aid_requests
-// Filters   : status == 'approved', optional category filter
-// Sort      : createdAt descending (default)
-// Pagination: startAfter(lastDoc).limit(10)
-// Search    : Client-side title filter on fetched page OR
-//             use Algolia/Typesense for full-text search in React.
-// ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■

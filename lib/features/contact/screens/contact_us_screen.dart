@@ -1,3 +1,16 @@
+// lib/features/contact/screens/contact_us_screen.dart
+//
+// Contact Us screen displaying phone, email, Facebook, and location.
+// Uses url_launcher to open external apps.
+//
+// REACT.JS INTEGRATION NOTE:
+// =========================
+// In React, use anchor tags or window.open():
+//   <a href="tel:+63282688338">Call Us</a>
+//   <a href="mailto:pbl.gpc@gmail.com">Email Us</a>
+//   <a href="https://www.facebook.com/BarangayAlmanzaDos" target="_blank">Facebook</a>
+//   <a href="https://maps.google.com/?q=Almanza+Dos,+Las+Pinas+City" target="_blank">Location</a>
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:feast/core/core.dart';
@@ -24,7 +37,7 @@ class ContactUsScreen extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              FeastTagline(
+              const FeastTagline(
                 'Feel Free To\nReach Out',
                 fontSize: 28,
                 textColor: Colors.white,
@@ -36,10 +49,11 @@ class ContactUsScreen extends StatelessWidget {
                 "Don't hesitate to contact us whether you have a suggestion on our improvement, a complaint to discuss, or an issue to solve.",
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 13,
-                    color: feastGray,
-                    height: 1.5),
+                  fontFamily: 'Outfit',
+                  fontSize: 13,
+                  color: feastGray,
+                  height: 1.5,
+                ),
               ),
               const SizedBox(height: 24),
               Row(
@@ -73,8 +87,7 @@ class ContactUsScreen extends StatelessWidget {
                 subtitle: "Barangay's Official Page",
                 actionIcon: Icons.share,
                 actionColor: feastGreen,
-                onActionTap: () =>
-                    _launchUrl('https://www.facebook.com/BarangayAlmanzaDos'),
+                onActionTap: () => _launchUrl('https://www.facebook.com/BarangayAlmanzaDos'),
               ),
               const SizedBox(height: 12),
               _rowCard(
@@ -84,8 +97,7 @@ class ContactUsScreen extends StatelessWidget {
                 subtitle: 'Almanza Dos, Las Piñas City',
                 actionIcon: Icons.location_on,
                 actionColor: const Color(0xFF4285F4),
-                onActionTap: () =>
-                    _launchUrl('https://maps.google.com/?q=Almanza+Dos,+Las+Pinas+City'),
+                onActionTap: () => _launchUrl('https://maps.google.com/?q=Almanza+Dos,+Las+Pinas+City'),
               ),
               const SizedBox(height: 24),
             ],
@@ -111,9 +123,10 @@ class ContactUsScreen extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withAlpha(13),
-                blurRadius: 6,
-                offset: const Offset(0, 2)),
+              color: Colors.black.withAlpha(13),
+              blurRadius: 6,
+              offset: const Offset(0, 2),
+            ),
           ],
         ),
         child: Column(
@@ -129,18 +142,31 @@ class ContactUsScreen extends StatelessWidget {
               child: Icon(icon, color: Colors.white, size: 24),
             ),
             const SizedBox(height: 10),
-            Text(title,
-                style: const TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14)),
+            Text(
+              title,
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
             const SizedBox(height: 4),
-            Text(subtitle,
-                style: const TextStyle(
-                    fontFamily: 'Outfit', fontSize: 12, color: feastBlack)),
-            Text(hours,
-                style: const TextStyle(
-                    fontFamily: 'Outfit', fontSize: 11, color: feastGray)),
+            Text(
+              subtitle,
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 12,
+                color: feastBlack,
+              ),
+            ),
+            Text(
+              hours,
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontSize: 11,
+                color: feastGray,
+              ),
+            ),
           ],
         ),
       ),
@@ -163,9 +189,10 @@ class ContactUsScreen extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withAlpha(13),
-              blurRadius: 6,
-              offset: const Offset(0, 2)),
+            color: Colors.black.withAlpha(13),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
         ],
       ),
       child: Row(
@@ -184,14 +211,22 @@ class ContactUsScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(title,
-                    style: const TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14)),
-                Text(subtitle,
-                    style: const TextStyle(
-                        fontFamily: 'Outfit', fontSize: 12, color: feastGray)),
+                Text(
+                  title,
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
+                Text(
+                  subtitle,
+                  style: const TextStyle(
+                    fontFamily: 'Outfit',
+                    fontSize: 12,
+                    color: feastGray,
+                  ),
+                ),
               ],
             ),
           ),

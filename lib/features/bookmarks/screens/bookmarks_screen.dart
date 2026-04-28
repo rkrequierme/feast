@@ -1,9 +1,22 @@
 // lib/features/bookmarks/screens/bookmarks_screen.dart
 //
 // Real-time bookmarks from Firestore.
-// Three tabs: All | Requests (yellow) | Events (blue).
-// Left swipe → copy shareable link.
-// Right swipe → remove bookmark (with confirmation).
+// Three tabs: All | Requests | Events.
+// Left swipe: copy shareable link.
+// Right swipe: remove bookmark (with confirmation).
+//
+// REACT.JS INTEGRATION NOTE:
+// =========================
+// Collection: users/{uid}/bookmarks
+// Fields: itemId, itemType ('request'|'event'), title, savedAt
+// React query:
+//   const q = query(
+//     collection(db, 'users', uid, 'bookmarks'),
+//     orderBy('savedAt', 'desc')
+//   );
+//   const snapshot = await getDocs(q);
+// Add: await setDoc(doc(db, 'users', uid, 'bookmarks', itemId), { ... })
+// Remove: await deleteDoc(doc(db, 'users', uid, 'bookmarks', itemId))
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -47,9 +60,10 @@ class _BookmarksScreenState extends State<BookmarksScreen>
               unselectedLabelColor: feastGray,
               indicatorColor: feastGreen,
               labelStyle: const TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13),
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
               tabs: const [
                 Tab(text: 'All'),
                 Tab(text: 'Requests'),
@@ -74,7 +88,9 @@ class _BookmarksScreenState extends State<BookmarksScreen>
   }
 }
 
-// ─── Bookmark List widget ─────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────────────────
+// Bookmark List
+// ──────────────────────────────────────────────────────────────────────────
 
 class _BookmarkList extends StatelessWidget {
   final String? typeFilter;
@@ -87,23 +103,19 @@ class _BookmarkList extends StatelessWidget {
       stream: FirestoreService.instance.bookmarksStream(),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(
-              child: CircularProgressIndicator(color: feastGreen));
+          return const Center(child: CircularProgressIndicator(color: feastGreen));
         }
 
         var docs = snap.data?.docs ?? [];
 
         if (typeFilter != null) {
           docs = docs
-              .where((d) =>
-                  (d.data() as Map<String, dynamic>)['itemType'] ==
-                  typeFilter)
+              .where((d) => (d.data() as Map<String, dynamic>)['itemType'] == typeFilter)
               .toList();
         }
 
         if (docs.isEmpty) {
-          return const EmptyStateWidget(
-              message: 'No bookmarks saved yet.');
+          return const EmptyStateWidget(message: 'No bookmarks saved yet.');
         }
 
         return ListView.builder(
@@ -120,7 +132,9 @@ class _BookmarkList extends StatelessWidget {
   }
 }
 
-// ─── Individual Bookmark Tile ─────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────────────────
+// Individual Bookmark Tile
+// ──────────────────────────────────────────────────────────────────────────
 
 class _BookmarkTile extends StatelessWidget {
   final QueryDocumentSnapshot doc;
@@ -135,78 +149,75 @@ class _BookmarkTile extends StatelessWidget {
     final itemId = data['itemId'] as String? ?? doc.id;
     final isRequest = itemType == 'request';
     final accentColor = isRequest ? feastGreen : feastBlue;
-    final route = isRequest
-        ? AppRoutes.aidRequestDetail
-        : AppRoutes.eventDetail;
+    final route = isRequest ? AppRoutes.aidRequestDetail : AppRoutes.eventDetail;
     final shareLink = isRequest
         ? 'https://feast.app/requests/$itemId'
         : 'https://feast.app/events/$itemId';
 
     return Dismissible(
       key: Key(doc.id),
-      // Right swipe → copy link
-      secondaryBackground: Container(
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 24),
-        color: feastError,
-        child: const Icon(Icons.delete_outline,
-            color: Colors.white, size: 28),
-      ),
+      // Left swipe (startToEnd) = copy link
       background: Container(
         alignment: Alignment.centerLeft,
         padding: const EdgeInsets.only(left: 24),
         color: feastBlue,
         child: const Icon(Icons.copy, color: Colors.white, size: 28),
       ),
+      // Right swipe (endToStart) = remove
+      secondaryBackground: Container(
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 24),
+        color: feastError,
+        child: const Icon(Icons.delete_outline, color: Colors.white, size: 28),
+      ),
       confirmDismiss: (direction) async {
         if (direction == DismissDirection.startToEnd) {
           // Copy link — do NOT dismiss tile
           await Clipboard.setData(ClipboardData(text: shareLink));
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: const Text('Link copied to clipboard.',
-                  style: TextStyle(fontFamily: 'Outfit')),
-              backgroundColor: feastBlue,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(20)),
-              duration: const Duration(seconds: 2),
-            ),
-          );
-          return false; // Don't dismiss
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text(
+                  'Link copied to clipboard.',
+                  style: TextStyle(fontFamily: 'Outfit'),
+                ),
+                backgroundColor: feastBlue,
+                behavior: SnackBarBehavior.floating,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+          return false;
         }
-
         // Swipe right → confirm remove
         return await showDialog<bool>(
           context: context,
           builder: (_) => AlertDialog(
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: Row(
               children: [
-                Icon(Icons.delete_forever_outlined,
-                    color: feastError, size: 28),
+                Icon(Icons.delete_forever_outlined, color: feastError, size: 28),
                 const SizedBox(width: 8),
-                const Text('Remove Bookmark',
-                    style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.bold)),
+                const Text(
+                  'Remove Bookmark',
+                  style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+                ),
               ],
             ),
             content: const Text(
-                'Are you sure you want to remove this bookmark?',
-                style: TextStyle(fontFamily: 'Outfit')),
+              'Are you sure you want to remove this bookmark?',
+              style: TextStyle(fontFamily: 'Outfit'),
+            ),
             actions: [
               ElevatedButton(
-                style:
-                    ElevatedButton.styleFrom(backgroundColor: feastError),
+                style: ElevatedButton.styleFrom(backgroundColor: feastError),
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('Remove',
-                    style: TextStyle(color: Colors.white)),
+                child: const Text('Remove', style: TextStyle(color: Colors.white)),
               ),
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                child: const Text('Cancel'),
+                child: const Text('Cancel', style: TextStyle(fontFamily: 'Outfit')),
               ),
             ],
           ),
@@ -215,20 +226,19 @@ class _BookmarkTile extends StatelessWidget {
       onDismissed: (direction) async {
         if (direction == DismissDirection.endToStart) {
           await FirestoreService.instance.removeBookmark(itemId);
-          FeastToast.showSuccess(context, 'Bookmark removed.');
+          if (context.mounted) {
+            FeastToast.showSuccess(context, 'Bookmark removed.');
+          }
         }
       },
       child: GestureDetector(
-        onTap: () =>
-            Navigator.pushNamed(context, route, arguments: itemId),
+        onTap: () => Navigator.pushNamed(context, route, arguments: itemId),
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 5),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
-            border: Border(
-              left: BorderSide(color: accentColor, width: 4),
-            ),
+            border: Border(left: BorderSide(color: accentColor, width: 4)),
             boxShadow: [
               BoxShadow(
                 color: Colors.black.withAlpha(12),
@@ -249,9 +259,7 @@ class _BookmarkTile extends StatelessWidget {
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
-                    isRequest
-                        ? Icons.volunteer_activism_outlined
-                        : Icons.event_outlined,
+                    isRequest ? Icons.volunteer_activism_outlined : Icons.event_outlined,
                     color: accentColor,
                     size: 22,
                   ),
@@ -274,8 +282,7 @@ class _BookmarkTile extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
                           color: accentColor.withAlpha(20),
                           borderRadius: BorderRadius.circular(8),
@@ -302,13 +309,3 @@ class _BookmarkTile extends StatelessWidget {
     );
   }
 }
-
-// ■■ REACT.JS INTEGRATION NOTE ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-// Collection : users/{uid}/bookmarks
-// Fields    : itemId, itemType ('request'|'event'), title, savedAt
-// React     : onSnapshot(collection(db,'users',uid,'bookmarks'),
-//               orderBy('savedAt','desc'))
-// Add       : setDoc(doc(db,'users',uid,'bookmarks',itemId), {...})
-// Remove    : deleteDoc(doc(db,'users',uid,'bookmarks',itemId))
-// Share     : Copy link 'https://feast.app/requests/{itemId}' to clipboard
-// ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■

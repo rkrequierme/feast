@@ -1,12 +1,21 @@
 // lib/core/services/auth_service.dart
+// 
+// CENTRALIZED FIREBASE AUTHENTICATION SERVICE
+// All auth calls pass through here — screens stay clean.
 //
-// Centralised Firebase Authentication service.
-// All auth calls pass through here so screens stay clean.
+// REACT.JS INTEGRATION:
+// Collection: users
+// Document: {uid}
+// React sign-in: await signInWithEmailAndPassword(auth, email, password)
+// React sign-out: await signOut(auth)
+// React password reset: await sendPasswordResetEmail(auth, email)
+// React email verification: await sendEmailVerification(auth.currentUser)
+// Remember Me: setPersistence(auth, browserLocalPersistence)
 
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:feast/core/core.dart';
+import '../constants/firestore_paths.dart';
 
 class AuthService {
   AuthService._();
@@ -15,15 +24,21 @@ class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // ─── Current user helpers ───────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────
+  // CURRENT USER HELPERS
+  // ──────────────────────────────────────────────────────────────────────────
 
   User? get currentUser => _auth.currentUser;
   Stream<User?> get authStateChanges => _auth.authStateChanges();
+  bool get isSignedIn => _auth.currentUser != null;
 
-  // ─── Sign In ────────────────────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────
+  // SIGN IN (WITHOUT ADMIN APPROVAL FOR DEVELOPMENT)
+  // ──────────────────────────────────────────────────────────────────────────
 
   /// Signs in with email + password.
-  /// Throws [AuthException] with a user-friendly message on failure.
+  /// NOTE: Admin approval is temporarily disabled for development.
+  /// Throws [AuthException] with user-friendly message on failure.
   Future<UserCredential> signIn({
     required String email,
     required String password,
@@ -40,32 +55,10 @@ class AuthService {
         password: password,
       );
 
-      // Verify account status before allowing entry
-      final userDoc = await _db
-          .collection(FirestorePaths.users)
-          .doc(cred.user!.uid)
-          .get();
+      // Ensure user document exists (create if missing)
+      await _ensureUserDocument(cred.user!.uid, email.trim());
 
-      if (!userDoc.exists) {
-        await _auth.signOut();
-        throw AuthException('Account not found. Please register first.');
-      }
-
-      final status = userDoc.data()?['status'] as String? ?? 'pending';
-      if (status == 'pending') {
-        await _auth.signOut();
-        throw AuthException(
-          'Your account is awaiting admin approval. Please wait for confirmation.',
-        );
-      }
-      if (status == 'banned') {
-        await _auth.signOut();
-        throw AuthException(
-          'Your account has been banned. Contact the Barangay for assistance.',
-        );
-      }
-
-      // Log the sign-in action to activity_logs
+      // Log the sign-in action
       await _logActivity(
         uid: cred.user!.uid,
         type: 'User Authentication',
@@ -85,13 +78,40 @@ class AuthService {
       return cred;
     } on FirebaseAuthException catch (e) {
       throw AuthException(_mapFirebaseError(e.code));
+    } catch (e) {
+      throw AuthException('Something went wrong. Please try again.');
     }
   }
 
-  // ─── Register ───────────────────────────────────────────────────────────
+  /// Ensures a Firestore user document exists for the given UID.
+  /// Creates one with default values if missing.
+  Future<void> _ensureUserDocument(String uid, String email) async {
+    final docRef = _db.collection(FirestorePaths.users).doc(uid);
+    final doc = await docRef.get();
+    
+    if (!doc.exists) {
+      // Create default user document for new registrations
+      await docRef.set({
+        'uid': uid,
+        'email': email,
+        'displayName': email.split('@').first,
+        'role': 'user',
+        'status': 'active',      // AUTO-APPROVED FOR DEVELOPMENT
+        'isResident': false,
+        'notificationsEnabled': true,
+        'warningCount': 0,
+        'createdAt': FieldValue.serverTimestamp(),
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+    }
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // REGISTER (AUTO-APPROVED FOR DEVELOPMENT)
+  // ──────────────────────────────────────────────────────────────────────────
 
   /// Creates a new Firebase Auth account and writes the user document.
-  /// Status is set to 'pending' until an admin approves it.
+  /// NOTE: Admin approval is temporarily disabled — status is 'active' immediately.
   Future<UserCredential> register({
     required String email,
     required String password,
@@ -102,7 +122,7 @@ class AuthService {
     required String contactNumber,
     required String gender,
     required String dateOfBirth,
-    String? legalIdUrl, // encrypted & uploaded before calling this
+    String? legalIdUrl,
   }) async {
     try {
       final cred = await _auth.createUserWithEmailAndPassword(
@@ -112,21 +132,22 @@ class AuthService {
 
       final uid = cred.user!.uid;
       final isResident = location.toLowerCase().contains('almanza dos');
+      final displayName = '$firstName ${lastName}'.trim();
 
-      // Write user document — status is 'pending' until admin approves
+      // Write user document — AUTO-APPROVED (status: 'active') for development
       await _db.collection(FirestorePaths.users).doc(uid).set({
         'uid': uid,
         'email': email.trim(),
         'firstName': firstName.trim(),
         'middleName': middleName?.trim() ?? '',
         'lastName': lastName.trim(),
-        'displayName': '${firstName.trim()} ${lastName.trim()}',
+        'displayName': displayName,
         'location': location,
         'contactNumber': contactNumber.trim(),
         'gender': gender,
         'dateOfBirth': dateOfBirth,
-        'role': 'user', // 'user' | 'admin'
-        'status': 'pending', // 'pending' | 'active' | 'banned'
+        'role': 'user',
+        'status': 'active',        // AUTO-APPROVED — NO ADMIN NEEDED
         'isResident': isResident,
         'legalIdUrl': legalIdUrl ?? '',
         'profilePictureUrl': '',
@@ -143,11 +164,8 @@ class AuthService {
         uid: uid,
         type: 'User Authentication',
         description: 'You Registered an Account.',
-        status: 'Pending',
+        status: 'Success',
       );
-
-      // Sign out — user must wait for admin approval
-      await _auth.signOut();
 
       return cred;
     } on FirebaseAuthException catch (e) {
@@ -155,7 +173,9 @@ class AuthService {
     }
   }
 
-  // ─── Forgot Password ────────────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────
+  // FORGOT PASSWORD
+  // ──────────────────────────────────────────────────────────────────────────
 
   /// Sends a password reset email.
   /// Always shows success to prevent account enumeration.
@@ -167,7 +187,9 @@ class AuthService {
     }
   }
 
-  // ─── Sign Out ───────────────────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────
+  // SIGN OUT
+  // ──────────────────────────────────────────────────────────────────────────
 
   Future<void> signOut() async {
     final uid = _auth.currentUser?.uid;
@@ -181,10 +203,13 @@ class AuthService {
     }
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove('remember_me');
+    await prefs.remove('cached_email');
     await _auth.signOut();
   }
 
-  // ─── Update Password ────────────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────
+  // UPDATE PASSWORD
+  // ──────────────────────────────────────────────────────────────────────────
 
   Future<void> updatePassword(String newPassword) async {
     try {
@@ -204,7 +229,9 @@ class AuthService {
     }
   }
 
-  // ─── Password Strength Validator ────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────
+  // PASSWORD STRENGTH VALIDATOR
+  // ──────────────────────────────────────────────────────────────────────────
 
   /// Returns a list of failed requirement labels.
   static List<String> checkPasswordStrength(String password) {
@@ -213,19 +240,23 @@ class AuthService {
     if (!password.contains(RegExp(r'[A-Z]'))) missing.add('One uppercase letter');
     if (!password.contains(RegExp(r'[a-z]'))) missing.add('One lowercase letter');
     if (!password.contains(RegExp(r'[0-9]'))) missing.add('One digit');
-    if (!password.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>]')))
+    if (!password.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>]'))) {
       missing.add('One special character');
+    }
     return missing;
   }
 
-  // ─── Phone Validator ────────────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────
+  // PHONE VALIDATOR (Philippine format)
+  // ──────────────────────────────────────────────────────────────────────────
 
-  /// Philippine phone format: +63 XXX XXX XXXX
   static bool isValidPhilippinePhone(String number) {
     return RegExp(r'^\+63\s?\d{3}\s?\d{3}\s?\d{4}$').hasMatch(number.trim());
   }
 
-  // ─── Activity Logger ────────────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────
+  // ACTIVITY LOGGER
+  // ──────────────────────────────────────────────────────────────────────────
 
   Future<void> _logActivity({
     required String uid,
@@ -234,9 +265,7 @@ class AuthService {
     required String status,
   }) async {
     await _db
-        .collection(FirestorePaths.users)
-        .doc(uid)
-        .collection('activity_logs')
+        .collection(FirestorePaths.userHistory(uid))
         .add({
       'type': type,
       'description': description,
@@ -245,7 +274,9 @@ class AuthService {
     });
   }
 
-  // ─── Error Mapper ────────────────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────
+  // ERROR MAPPER
+  // ──────────────────────────────────────────────────────────────────────────
 
   String _mapFirebaseError(String code) {
     switch (code) {
@@ -277,27 +308,3 @@ class AuthException implements Exception {
   @override
   String toString() => message;
 }
-
-// ■■ REACT.JS INTEGRATION NOTE ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-// Collection : users
-// Document  : {uid}
-// Fields    : uid, email, firstName, lastName, displayName, location,
-//             contactNumber, gender, dateOfBirth, role, status,
-//             isResident, legalIdUrl, profilePictureUrl,
-//             notificationsEnabled, warningCount, createdAt, updatedAt
-// Sub-coll  : activity_logs — type, description, status, timestamp
-//
-// React sign-in:
-//   import { signInWithEmailAndPassword, setPersistence,
-//            browserLocalPersistence, browserSessionPersistence } from 'firebase/auth';
-//   await setPersistence(auth, rememberMe
-//     ? browserLocalPersistence : browserSessionPersistence);
-//   const cred = await signInWithEmailAndPassword(auth, email, password);
-//   const snap = await getDoc(doc(db, 'users', cred.user.uid));
-//   if (snap.data().status !== 'active') { await signOut(auth); }
-//
-// React register:
-//   const cred = await createUserWithEmailAndPassword(auth, email, pass);
-//   await setDoc(doc(db, 'users', cred.user.uid), { ...userData, status: 'pending' });
-//   await signOut(auth); // Wait for admin approval
-// ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■

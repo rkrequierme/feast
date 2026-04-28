@@ -1,21 +1,26 @@
+// lib/features/messages/screens/messages_screen.dart
+//
+// Real-time chat list from Firestore.
+// No placeholder data — all chats come from the database.
+//
+// REACT.JS INTEGRATION NOTE:
+// =========================
+// Collection: chats
+// Fields: participantIds[], isGroup, groupName, groupImageUrl,
+//         lastMessage, lastMessageAt, creatorId, adminIds[]
+// React query:
+//   const q = query(
+//     collection(db, 'chats'),
+//     where('participantIds', 'array-contains', uid),
+//     orderBy('lastMessageAt', 'desc')
+//   );
+//   const snapshot = await getDocs(q);
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:intl/intl.dart';
 import 'package:feast/core/core.dart';
-import 'package:feast/core/services/firestore_service.dart';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// messages_screen.dart
-//
-// FIX (Image 1):
-//   The old _ChatList called ChatListItem(data: data, chatId: doc.id, ...)
-//   which doesn't match ChatListItem's required named params
-//   (id, displayName, lastMessage).
-//
-//   Resolution: use the ChatListItem.fromMap() factory constructor that
-//   was added to chat_list_item.dart precisely for this Firestore use-case.
-//   The factory reads 'groupName', 'lastMessage', 'lastMessageAt', and
-//   'groupImageUrl' from the document map and returns a correctly-typed widget.
-// ─────────────────────────────────────────────────────────────────────────────
+import 'package:feast/features/features.dart';
 
 class MessagesScreen extends StatefulWidget {
   const MessagesScreen({super.key});
@@ -35,9 +40,7 @@ class _MessagesScreenState extends State<MessagesScreen>
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
     _searchController.addListener(
-      () => setState(
-        () => _searchQuery = _searchController.text.toLowerCase(),
-      ),
+      () => setState(() => _searchQuery = _searchController.text.toLowerCase()),
     );
   }
 
@@ -55,7 +58,7 @@ class _MessagesScreenState extends State<MessagesScreen>
       drawer: const FeastDrawer(username: ''),
       body: Column(
         children: [
-          // ── Search bar ───────────────────────────────────────────────────
+          // Search bar
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: Container(
@@ -74,8 +77,7 @@ class _MessagesScreenState extends State<MessagesScreen>
               child: Row(
                 children: [
                   const SizedBox(width: 12),
-                  Icon(Icons.search,
-                      color: feastGray.withAlpha(150), size: 22),
+                  Icon(Icons.search, color: feastGray.withAlpha(150), size: 22),
                   const SizedBox(width: 8),
                   Expanded(
                     child: TextField(
@@ -94,8 +96,7 @@ class _MessagesScreenState extends State<MessagesScreen>
                         ),
                         border: InputBorder.none,
                         isDense: true,
-                        contentPadding:
-                            const EdgeInsets.symmetric(vertical: 10),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 10),
                       ),
                     ),
                   ),
@@ -109,7 +110,7 @@ class _MessagesScreenState extends State<MessagesScreen>
             ),
           ),
 
-          // ── Tab bar ──────────────────────────────────────────────────────
+          // Tab bar
           TabBar(
             controller: _tabController,
             labelColor: feastGreen,
@@ -128,7 +129,7 @@ class _MessagesScreenState extends State<MessagesScreen>
             ],
           ),
 
-          // ── Tab views ────────────────────────────────────────────────────
+          // Tab views
           Expanded(
             child: TabBarView(
               controller: _tabController,
@@ -162,25 +163,28 @@ class _MessagesScreenState extends State<MessagesScreen>
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// _ChatList
-//
-// FIX (Image 1):
-//   Changed the itemBuilder from:
-//     return ChatListItem(data: data, chatId: doc.id, onTap: ...)
-//   to:
-//     return ChatListItem.fromMap(data, doc.id, onTap: ...)
-//
-//   ChatListItem.fromMap() is the factory defined in chat_list_item.dart
-//   that converts the raw Firestore map into the widget's required named
-//   fields (id, displayName, lastMessage, timeAgo, avatarUrl).
-// ─────────────────────────────────────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────────────────
+// _ChatList - Real-time Firestore chat list
+// ──────────────────────────────────────────────────────────────────────────
 
 class _ChatList extends StatelessWidget {
-  final String filter; // 'all' | 'personal' | 'event' | 'group'
+  final String filter;
   final String searchQuery;
 
   const _ChatList({required this.filter, required this.searchQuery});
+
+  String _formatTimeAgo(Timestamp? timestamp) {
+    if (timestamp == null) return '';
+    final date = timestamp.toDate();
+    final now = DateTime.now();
+    final diff = now.difference(date);
+
+    if (diff.inMinutes < 1) return 'Just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m';
+    if (diff.inHours < 24) return '${diff.inHours}h';
+    if (diff.inDays == 1) return 'Yesterday';
+    return DateFormat('MMM d').format(date);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -193,10 +197,9 @@ class _ChatList extends StatelessWidget {
           );
         }
 
-        // All chat documents the current user participates in
         var docs = snap.data?.docs ?? [];
 
-        // ── Filter by tab ────────────────────────────────────────────────
+        // Filter by tab
         docs = docs.where((doc) {
           final data = doc.data() as Map<String, dynamic>;
           final isGroup = data['isGroup'] as bool? ?? false;
@@ -208,23 +211,22 @@ class _ChatList extends StatelessWidget {
               return isEvent;
             case 'group':
               return isGroup && !isEvent;
-            default: // 'all'
+            default:
               return true;
           }
         }).toList();
 
-        // ── Filter by search query ───────────────────────────────────────
+        // Filter by search query
         if (searchQuery.isNotEmpty) {
           docs = docs.where((doc) {
             final data = doc.data() as Map<String, dynamic>;
-            final name =
-                (data['groupName'] as String? ?? '').toLowerCase();
+            final name = (data['groupName'] as String? ?? '').toLowerCase();
             return name.contains(searchQuery);
           }).toList();
         }
 
         if (docs.isEmpty) {
-          return const EmptyStateWidget(message: 'No chats yet.');
+          return const EmptyStateWidget(message: 'No chats yet. Start a conversation!');
         }
 
         return ListView.builder(
@@ -233,14 +235,20 @@ class _ChatList extends StatelessWidget {
             final doc = docs[i];
             final data = doc.data() as Map<String, dynamic>;
             final isGroup = data['isGroup'] as bool? ?? false;
+            final name = data['groupName'] as String? ?? 
+                (isGroup ? 'Group Chat' : 'Chat');
+            final lastMessage = data['lastMessage'] as String? ?? '';
+            final lastMessageAt = data['lastMessageAt'] as Timestamp?;
+            final imageUrl = data['groupImageUrl'] as String?;
+            final unreadCount = 0; // Implement unread count logic if needed
 
-            // ── FIX: use the fromMap factory instead of named-field ctor ──
-            // ChatListItem requires id, displayName, and lastMessage.
-            // Passing raw `data:` and `chatId:` caused Image 1 errors.
-            // fromMap() extracts those fields from the Firestore document.
-            return ChatListItem.fromMap(
-              data,
-              doc.id,
+            return ChatListItem(
+              id: doc.id,
+              displayName: name,
+              lastMessage: lastMessage.isEmpty ? 'No messages yet' : lastMessage,
+              timeAgo: _formatTimeAgo(lastMessageAt),
+              unreadCount: unreadCount,
+              avatarUrl: imageUrl,
               onTap: () => Navigator.pushNamed(
                 context,
                 isGroup ? AppRoutes.groupDetail : AppRoutes.chatDetail,
@@ -253,17 +261,3 @@ class _ChatList extends StatelessWidget {
     );
   }
 }
-
-// ■■ REACT.JS INTEGRATION NOTE ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-// Collection : chats
-// Fields    : participantIds[], isGroup, isEventChat, groupName,
-//             groupImageUrl, lastMessage, lastMessageAt,
-//             creatorId, adminIds[]
-// React     : onSnapshot(
-//               query(collection(db,'chats'),
-//               where('participantIds','array-contains', uid),
-//               orderBy('lastMessageAt','desc'))
-//             )
-// Note      : Message content in sub-collection 'messages' is never
-//             readable by admins — Firestore Security Rules enforce this.
-// ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■

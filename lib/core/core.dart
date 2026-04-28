@@ -63,9 +63,6 @@ export 'widgets/notification_list_item.dart';
 // ── Utility & Registry ───────────────────────────────────────────────────────
 // export 'widgets/bookmarks_registry.dart';
 
-// ── Chat Local Model ─────────────────────────────────────────────────────────
-export 'widgets/chat_data.dart' hide MemberRole;
-
 // ── Modals & Dialogs ─────────────────────────────────────────────────────────
 // Announcement
 export 'widgets/announcement_modal.dart';
@@ -94,8 +91,6 @@ export 'widgets/create_chat_modal.dart';
 export 'widgets/edit_group_modal.dart';
 export 'widgets/invite_collaborators_modal.dart';
 export 'widgets/remove_members_modal.dart';
-export 'widgets/message_modals.dart';             // AttachFilesModal, PinMessageModal
-export 'widgets/dm_detail.dart';
 
 // Form utilities
 export 'widgets/date_picker_modal.dart';

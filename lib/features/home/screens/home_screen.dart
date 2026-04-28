@@ -1,32 +1,38 @@
 // lib/features/home/screens/home_screen.dart
 //
-// Home screen with real Firestore data:
-//   - Featured carousel (3 newest approved requests/events)
-//   - Connect & Contribute (paginated aid requests and charity events)
-//   - Official Announcements (5 newest)
-//   - Admin floating button (role-gated)
+// Home screen with real Firestore data.
+// No placeholder data.
+//
+// REACT.JS INTEGRATION NOTE:
+// =========================
+// Featured: query('aid_requests')
+//   .where('status', '==', 'approved')
+//   .orderBy('createdAt', 'desc')
+//   .limit(3)
+// Connect: same query with optional category filter
+// Announcements: query('announcements')
+//   .orderBy('createdAt', 'desc')
+//   .limit(5)
+// Admin role check: users/{uid}.role === 'admin'
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:intl/intl.dart';
 import 'package:feast/core/core.dart';
 import 'package:feast/features/features.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  final bool isAdmin;
+  const HomeScreen({super.key, this.isAdmin = false});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  int _tabIndex = 0; // 0 = Requests, 1 = Events
+  int _tabIndex = 0;
   int _featuredPage = 0;
   final PageController _featuredPageController = PageController();
-
   String _username = '';
-  bool _isAdmin = false;
 
   final List<Map<String, dynamic>> _categories = [
     {'icon': Icons.local_hospital_outlined, 'label': 'Health'},
@@ -49,7 +55,6 @@ class _HomeScreenState extends State<HomeScreen> {
     if (data == null || !mounted) return;
     setState(() {
       _username = data['displayName'] as String? ?? 'Friend';
-      _isAdmin = (data['role'] as String?) == 'admin';
     });
   }
 
@@ -58,8 +63,6 @@ class _HomeScreenState extends State<HomeScreen> {
     _featuredPageController.dispose();
     super.dispose();
   }
-
-  // ─── Build ────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -85,21 +88,19 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       bottomNavigationBar: FeastBottomNav(currentIndex: 0),
-      // Admin floating button — only visible to admins
-      floatingActionButton: _isAdmin
+      floatingActionButton: widget.isAdmin
           ? FeastFloatingButton(
               icon: Icons.admin_panel_settings,
-              onPressed: () => Navigator.pushNamed(
-                  context, AppRoutes.adminDashboard),
+              onPressed: () => Navigator.pushNamed(context, AppRoutes.adminDashboard),
               tooltip: 'Admin Dashboard',
             )
           : null,
     );
   }
 
-  // ════════════════════════════════════════════════════════════════════════
-  // ─── FEATURED CAROUSEL ────────────────────────────────────────────────
-  // ════════════════════════════════════════════════════════════════════════
+  // ──────────────────────────────────────────────────────────────────────────
+  // FEATURED CAROUSEL
+  // ──────────────────────────────────────────────────────────────────────────
 
   Widget _buildFeaturedSection() {
     return Padding(
@@ -114,8 +115,6 @@ class _HomeScreenState extends State<HomeScreen> {
             strokeWidth: 6,
           ),
           const SizedBox(height: 16),
-
-          // Real-time carousel from Firestore
           StreamBuilder<QuerySnapshot>(
             stream: FirestoreService.instance.featuredAidRequestsStream(),
             builder: (context, snap) {
@@ -132,6 +131,7 @@ class _HomeScreenState extends State<HomeScreen> {
               if (docs.isEmpty) {
                 return const EmptyStateWidget(
                   message: 'No featured items yet.',
+                  description: 'Check back later for community updates.',
                 );
               }
 
@@ -143,11 +143,9 @@ class _HomeScreenState extends State<HomeScreen> {
                     child: PageView.builder(
                       controller: _featuredPageController,
                       itemCount: docs.length,
-                      onPageChanged: (i) =>
-                          setState(() => _featuredPage = i),
+                      onPageChanged: (i) => setState(() => _featuredPage = i),
                       itemBuilder: (context, i) {
-                        final data =
-                            docs[i].data() as Map<String, dynamic>;
+                        final data = docs[i].data() as Map<String, dynamic>;
                         return _buildFeaturedCard(data, docs[i].id);
                       },
                     ),
@@ -163,8 +161,7 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                     ),
-                  if (docs.isNotEmpty &&
-                      _featuredPage < docs.length - 1)
+                  if (docs.isNotEmpty && _featuredPage < docs.length - 1)
                     Positioned(
                       right: 0,
                       child: _arrowButton(
@@ -179,9 +176,7 @@ class _HomeScreenState extends State<HomeScreen> {
               );
             },
           ),
-
           const SizedBox(height: 12),
-
           // Dot indicators
           StreamBuilder<QuerySnapshot>(
             stream: FirestoreService.instance.featuredAidRequestsStream(),
@@ -197,9 +192,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     height: 8,
                     margin: const EdgeInsets.symmetric(horizontal: 3),
                     decoration: BoxDecoration(
-                      color: _featuredPage == i
-                          ? feastGreen
-                          : feastLightGreen,
+                      color: _featuredPage == i ? feastGreen : feastLightGreen,
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
@@ -238,10 +231,8 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         child: Column(
           children: [
-            // Image
             ClipRRect(
-              borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(20)),
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
               child: SizedBox(
                 height: 160,
                 width: double.infinity,
@@ -249,12 +240,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? Image.network(images.first, fit: BoxFit.cover)
                     : Container(
                         color: feastLightGreen.withAlpha(102),
-                        child: const Icon(Icons.volunteer_activism,
-                            size: 60, color: feastGreen),
+                        child: const Icon(Icons.volunteer_activism, size: 60, color: feastGreen),
                       ),
               ),
             ),
-            // Content
             Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -287,11 +276,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 8),
                   const Text(
                     'Tap to begin. Swipe for more.',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontFamily: 'Outfit',
-                      color: feastGray,
-                    ),
+                    style: TextStyle(fontSize: 11, fontFamily: 'Outfit', color: feastGray),
                   ),
                 ],
               ),
@@ -302,9 +287,9 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ════════════════════════════════════════════════════════════════════════
-  // ─── CONNECT & CONTRIBUTE ─────────────────────────────────────────────
-  // ════════════════════════════════════════════════════════════════════════
+  // ──────────────────────────────────────────────────────────────────────────
+  // CONNECT & CONTRIBUTE
+  // ──────────────────────────────────────────────────────────────────────────
 
   Widget _buildConnectSection() {
     return BottomFormBackground(
@@ -329,7 +314,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
             // Category chips
             SizedBox(
               height: 36,
@@ -339,28 +323,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 separatorBuilder: (_, __) => const SizedBox(width: 8),
                 itemBuilder: (context, i) {
                   final cat = _categories[i];
-                  final selected =
-                      _selectedCategory == cat['label'];
+                  final selected = _selectedCategory == cat['label'];
                   return GestureDetector(
                     onTap: () => setState(() {
-                      _selectedCategory =
-                          selected ? null : cat['label'] as String;
+                      _selectedCategory = selected ? null : cat['label'] as String;
                     }),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
                         color: selected ? feastGreen : Colors.white,
                         borderRadius: BorderRadius.circular(20),
-                        border:
-                            Border.all(color: feastLightGreen, width: 1.5),
+                        border: Border.all(color: feastLightGreen, width: 1.5),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(cat['icon'] as IconData,
-                              size: 16,
-                              color: selected ? Colors.white : feastGreen),
+                              size: 16, color: selected ? Colors.white : feastGreen),
                           const SizedBox(width: 4),
                           Text(
                             cat['label'] as String,
@@ -368,8 +347,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               fontSize: 11,
                               fontFamily: 'Outfit',
                               fontWeight: FontWeight.w600,
-                              color:
-                                  selected ? Colors.white : feastGreen,
+                              color: selected ? Colors.white : feastGreen,
                             ),
                           ),
                         ],
@@ -380,7 +358,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
             // Tab buttons
             Container(
               height: 44,
@@ -403,12 +380,33 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // Live list
-            _tabIndex == 0
-                ? _buildAidRequestsList()
-                : _buildEventsList(),
+            _tabIndex == 0 ? _buildAidRequestsList() : _buildEventsList(),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTab(String label, int index) {
+    final isActive = _tabIndex == index;
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _tabIndex = index),
+        child: Container(
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: isActive ? (index == 0 ? feastGreen : feastBlue) : Colors.transparent,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 14,
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.bold,
+              color: isActive ? Colors.white : feastGray,
+            ),
+          ),
         ),
       ),
     );
@@ -421,8 +419,7 @@ class _HomeScreenState extends State<HomeScreen> {
           .snapshots(),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(
-              child: CircularProgressIndicator(color: feastGreen));
+          return const Center(child: CircularProgressIndicator(color: feastGreen));
         }
         final docs = snap.data?.docs ?? [];
         if (docs.isEmpty) {
@@ -449,8 +446,7 @@ class _HomeScreenState extends State<HomeScreen> {
           .snapshots(),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(
-              child: CircularProgressIndicator(color: feastGreen));
+          return const Center(child: CircularProgressIndicator(color: feastGreen));
         }
         final docs = snap.data?.docs ?? [];
         if (docs.isEmpty) {
@@ -467,92 +463,6 @@ class _HomeScreenState extends State<HomeScreen> {
           }).toList(),
         );
       },
-    );
-  }
-
-  // ════════════════════════════════════════════════════════════════════════
-  // ─── OFFICIAL ANNOUNCEMENTS ───────────────────────────────────────────
-  // ════════════════════════════════════════════════════════════════════════
-
-  Widget _buildAnnouncementsSection() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Column(
-        children: [
-          const FeastTagline(
-            'Official Announcements',
-            fontSize: 17,
-            textColor: Colors.white,
-            strokeColor: feastGreen,
-            strokeWidth: 6,
-          ),
-          const Text(
-            'Stay Active & Updated',
-            style: TextStyle(
-              fontSize: 13,
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.w600,
-              color: feastOrange,
-            ),
-          ),
-          const SizedBox(height: 16),
-          StreamBuilder<QuerySnapshot>(
-            stream: FirestoreService.instance.announcementsStream(),
-            builder: (context, snap) {
-              if (snap.connectionState == ConnectionState.waiting) {
-                return const Center(
-                    child: CircularProgressIndicator(color: feastGreen));
-              }
-              final docs = snap.data?.docs ?? [];
-              if (docs.isEmpty) {
-                return const EmptyStateWidget(
-                    message: 'No announcements yet.');
-              }
-              return Column(
-                children: docs.map((doc) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  return GestureDetector(
-                    onTap: () => showDialog(
-                      context: context,
-                      builder: (_) => AnnouncementModal(data: data),
-                    ),
-                    child: _buildAnnouncementCard(data),
-                  );
-                }).toList(),
-              );
-            },
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ─── Helper widgets ───────────────────────────────────────────────────────
-
-  Widget _buildTab(String label, int index) {
-    final isActive = _tabIndex == index;
-    return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _tabIndex = index),
-        child: Container(
-          alignment: Alignment.center,
-          decoration: BoxDecoration(
-            color: isActive
-                ? (index == 0 ? feastGreen : feastBlue)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 14,
-              fontFamily: 'Outfit',
-              fontWeight: FontWeight.bold,
-              color: isActive ? Colors.white : feastGray,
-            ),
-          ),
-        ),
-      ),
     );
   }
 
@@ -588,13 +498,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 width: 100,
                 height: 110,
                 child: images.isNotEmpty
-                    ? Image.network(images.first,
-                        fit: BoxFit.cover)
+                    ? Image.network(images.first, fit: BoxFit.cover)
                     : Container(
                         color: feastLightGreen.withAlpha(77),
                         child: Icon(Icons.image_outlined,
-                            size: 36,
-                            color: feastGreen.withAlpha(102)),
+                            size: 36, color: feastGreen.withAlpha(102)),
                       ),
               ),
             ),
@@ -637,6 +545,61 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // OFFICIAL ANNOUNCEMENTS
+  // ──────────────────────────────────────────────────────────────────────────
+
+  Widget _buildAnnouncementsSection() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        children: [
+          const FeastTagline(
+            'Official Announcements',
+            fontSize: 17,
+            textColor: Colors.white,
+            strokeColor: feastGreen,
+            strokeWidth: 6,
+          ),
+          const Text(
+            'Stay Active & Updated',
+            style: TextStyle(
+              fontSize: 13,
+              fontFamily: 'Outfit',
+              fontWeight: FontWeight.w600,
+              color: feastOrange,
+            ),
+          ),
+          const SizedBox(height: 16),
+          StreamBuilder<QuerySnapshot>(
+            stream: FirestoreService.instance.announcementsStream(),
+            builder: (context, snap) {
+              if (snap.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator(color: feastGreen));
+              }
+              final docs = snap.data?.docs ?? [];
+              if (docs.isEmpty) {
+                return const EmptyStateWidget(message: 'No announcements yet.');
+              }
+              return Column(
+                children: docs.map((doc) {
+                  final data = doc.data() as Map<String, dynamic>;
+                  return GestureDetector(
+                    onTap: () => showDialog(
+                      context: context,
+                      builder: (_) => AnnouncementModal(data: data),
+                    ),
+                    child: _buildAnnouncementCard(data),
+                  );
+                }).toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAnnouncementCard(Map<String, dynamic> data) {
     final images = (data['imageUrls'] as List?)?.cast<String>() ?? [];
     return Container(
@@ -667,8 +630,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   : Container(
                       color: feastLightYellow.withAlpha(102),
                       child: Icon(Icons.campaign_outlined,
-                          size: 36,
-                          color: feastOrange.withAlpha(128)),
+                          size: 36, color: feastOrange.withAlpha(128)),
                     ),
             ),
           ),
@@ -710,8 +672,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _arrowButton(
-      {required IconData icon, required VoidCallback onTap}) {
+  Widget _arrowButton({required IconData icon, required VoidCallback onTap}) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -720,10 +681,7 @@ class _HomeScreenState extends State<HomeScreen> {
           color: Colors.white.withAlpha(200),
           shape: BoxShape.circle,
           boxShadow: [
-            BoxShadow(
-              color: Colors.black.withAlpha(25),
-              blurRadius: 6,
-            ),
+            BoxShadow(color: Colors.black.withAlpha(25), blurRadius: 6),
           ],
         ),
         child: Icon(icon, color: feastGreen, size: 24),
@@ -731,11 +689,3 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
-
-// ■■ REACT.JS INTEGRATION NOTE ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-// Featured: query('aid_requests').where('status','==','approved')
-//           .orderBy('createdAt','desc').limit(3)
-// Connect:  same query with optional category filter
-// Announcements: query('announcements').orderBy('createdAt','desc').limit(5)
-// Admin role check: users/{uid}.role === 'admin'
-// ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■

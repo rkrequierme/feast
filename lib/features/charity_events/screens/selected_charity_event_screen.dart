@@ -1,6 +1,22 @@
 // lib/features/charity_events/screens/selected_charity_event_screen.dart
+//
+// Detail view for a single charity event, loaded live from Firestore.
+// Route argument: String docId
+//
+// REACT.JS INTEGRATION NOTE:
+// =========================
+// Collection: charity_events
+// Fields: title, description, category, location, startTime, endTime,
+//         status, imageUrls, participantCount
+// React query:
+//   const docRef = doc(db, 'charity_events', docId);
+//   const docSnap = await getDoc(docRef);
+// Join request: setDoc(doc(db, 'charity_events', docId, 'volunteers', uid), {
+//   userId: uid, status: 'pending', joinedAt: serverTimestamp()
+// });
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
@@ -62,10 +78,54 @@ class _SelectedCharityEventScreenState
     if (mounted) setState(() => _isBookmarked = b);
   }
 
+  Future<void> _toggleBookmark() async {
+    if (_isBookmarked) {
+      await FirestoreService.instance.removeBookmark(_docId!);
+      FeastToast.showSuccess(context, 'Removed from Bookmarks.');
+    } else {
+      await FirestoreService.instance.addBookmark(
+        itemId: _docId!,
+        itemType: 'event',
+        title: _data?['title'] ?? '',
+      );
+      FeastToast.showSuccess(context, 'Saved to Bookmarks.');
+    }
+    if (mounted) setState(() => _isBookmarked = !_isBookmarked);
+  }
+
+  Future<void> _handleShare() async {
+    final link = 'https://feast.app/events/$_docId';
+    await Clipboard.setData(ClipboardData(text: link));
+    if (!mounted) return;
+    FeastToast.showSuccess(context, 'Link copied to clipboard.');
+  }
+
+  void _showReport() {
+    if (_data == null) return;
+    showDialog(
+      context: context,
+      builder: (_) => ReportModal(
+        targetTitle: _data?['title'] as String? ?? '',
+        targetType: 'event',
+        onSubmit: (title, desc) async {
+          await FirestoreService.instance.submitReport(
+            targetId: _docId!,
+            targetType: 'charity_event',
+            title: title,
+            description: desc,
+          );
+          if (!mounted) return;
+          FeastToast.showSuccess(context, 'Report submitted. Thank you.');
+        },
+      ),
+    );
+  }
+
   void _showJoinModal() {
     showDialog(
       context: context,
       builder: (_) => JoinEventDialog(
+        eventTitle: _data?['title'] as String? ?? 'this event',
         onConfirm: () async {
           await FirestoreService.instance.joinCharityEvent(_docId!);
           if (!mounted) return;
@@ -325,29 +385,17 @@ class _SelectedCharityEventScreenState
               _circleBtn(
                   Icons.arrow_back, () => Navigator.pop(context)),
               Row(children: [
-                _circleBtn(Icons.warning_amber_rounded, () {},
+                _circleBtn(Icons.warning_amber_rounded, _showReport,
                     color: Colors.red),
                 const SizedBox(width: 8),
-                _circleBtn(Icons.share, () {},
+                _circleBtn(Icons.share, _handleShare,
                     color: feastBlue),
                 const SizedBox(width: 8),
                 _circleBtn(
                   _isBookmarked
                       ? Icons.bookmark
                       : Icons.bookmark_border,
-                  () async {
-                    if (_isBookmarked) {
-                      await FirestoreService.instance
-                          .removeBookmark(_docId!);
-                    } else {
-                      await FirestoreService.instance.addBookmark(
-                        itemId: _docId!,
-                        itemType: 'event',
-                        title: _data?['title'] ?? '',
-                      );
-                    }
-                    setState(() => _isBookmarked = !_isBookmarked);
-                  },
+                  _toggleBookmark,
                   color: feastBlue,
                 ),
               ]),

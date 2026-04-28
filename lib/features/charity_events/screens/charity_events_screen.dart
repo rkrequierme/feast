@@ -1,4 +1,21 @@
 // lib/features/charity_events/screens/charity_events_screen.dart
+//
+// Paginated list of approved charity events with real-time search and filtering.
+//
+// REACT.JS INTEGRATION NOTE:
+// =========================
+// Collection: charity_events
+// Fields: title, description, category, location, startTime, endTime,
+//         status, imageUrls, participantCount
+// React query:
+//   const q = query(
+//     collection(db, 'charity_events'),
+//     where('status', '==', 'approved'),
+//     orderBy('startTime', 'desc'),
+//     limit(10)
+//   );
+//   const snapshot = await getDocs(q);
+// Pagination: use startAfter(lastDoc)
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -17,6 +34,16 @@ class _CharityEventsScreenState extends State<CharityEventsScreen> {
   String _searchQuery = '';
   String? _selectedCategory;
 
+  final List<Map<String, dynamic>> _filterOptions = [
+    {'label': 'All', 'category': null},
+    {'label': 'Health', 'category': 'Health'},
+    {'label': 'Education', 'category': 'Education'},
+    {'label': 'Disaster Management', 'category': 'Disaster Management'},
+    {'label': 'Basic Needs', 'category': 'Basic Needs'},
+    {'label': 'Household', 'category': 'Household'},
+  ];
+
+  // Pagination
   final List<QueryDocumentSnapshot> _docs = [];
   DocumentSnapshot? _lastDoc;
   bool _isLoading = false;
@@ -27,8 +54,7 @@ class _CharityEventsScreenState extends State<CharityEventsScreen> {
   void initState() {
     super.initState();
     _fetchNextPage();
-    _searchController.addListener(
-        () => setState(() => _searchQuery = _searchController.text.toLowerCase()));
+    _searchController.addListener(() => setState(() => _searchQuery = _searchController.text.toLowerCase()));
   }
 
   @override
@@ -91,12 +117,9 @@ class _CharityEventsScreenState extends State<CharityEventsScreen> {
 
   Color _statusColor(String status) {
     switch (status) {
-      case 'Ongoing':
-        return feastSuccess;
-      case 'Concluded':
-        return feastGray;
-      default:
-        return feastOrange;
+      case 'Ongoing': return feastSuccess;
+      case 'Concluded': return feastGray;
+      default: return feastOrange;
     }
   }
 
@@ -111,7 +134,7 @@ class _CharityEventsScreenState extends State<CharityEventsScreen> {
           child: Column(
             children: [
               const SizedBox(height: 12),
-              // Search bar
+              // Search Bar
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Container(
@@ -120,42 +143,31 @@ class _CharityEventsScreenState extends State<CharityEventsScreen> {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
-                      BoxShadow(
-                          color: Colors.black.withAlpha(15),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2))
+                      BoxShadow(color: Colors.black.withAlpha(15), blurRadius: 6, offset: const Offset(0, 2)),
                     ],
                   ),
                   child: Row(
                     children: [
                       const SizedBox(width: 12),
-                      Icon(Icons.search,
-                          color: feastGray.withAlpha(150), size: 22),
+                      Icon(Icons.search, color: feastGray.withAlpha(150), size: 22),
                       const SizedBox(width: 8),
                       Expanded(
                         child: TextField(
                           controller: _searchController,
-                          style: const TextStyle(
-                              fontSize: 14,
-                              fontFamily: 'Outfit',
-                              color: feastBlack),
+                          style: const TextStyle(fontSize: 14, fontFamily: 'Outfit', color: feastBlack),
                           decoration: InputDecoration(
                             hintText: 'Search...',
-                            hintStyle: TextStyle(
-                                fontSize: 14,
-                                fontFamily: 'Outfit',
-                                color: feastGray.withAlpha(150)),
+                            hintStyle: TextStyle(fontSize: 14, fontFamily: 'Outfit', color: feastGray.withAlpha(150)),
                             border: InputBorder.none,
                             isDense: true,
-                            contentPadding:
-                                const EdgeInsets.symmetric(vertical: 10),
+                            contentPadding: const EdgeInsets.symmetric(vertical: 10),
                           ),
                         ),
                       ),
+                      // Filter button
                       IconButton(
-                        icon: const Icon(Icons.tune,
-                            color: feastBlue, size: 20),
-                        onPressed: () {},
+                        icon: const Icon(Icons.tune, color: feastBlue, size: 20),
+                        onPressed: _showFilterSheet,
                         splashRadius: 20,
                       ),
                     ],
@@ -171,29 +183,25 @@ class _CharityEventsScreenState extends State<CharityEventsScreen> {
                       ? const EmptyStateWidget(message: 'No events found.')
                       : NotificationListener<ScrollNotification>(
                           onNotification: (n) {
-                            if (n.metrics.pixels >=
-                                n.metrics.maxScrollExtent - 200) {
+                            if (n.metrics.pixels >= n.metrics.maxScrollExtent - 200) {
                               _fetchNextPage();
                             }
                             return false;
                           },
                           child: ListView.builder(
                             padding: const EdgeInsets.only(bottom: 100),
-                            itemCount:
-                                _filtered.length + (_isLoading ? 1 : 0),
+                            itemCount: _filtered.length + (_isLoading ? 1 : 0),
                             itemBuilder: (context, i) {
                               if (i == _filtered.length) {
                                 return const Center(
                                   child: Padding(
                                     padding: EdgeInsets.all(16),
-                                    child: CircularProgressIndicator(
-                                        color: feastBlue),
+                                    child: CircularProgressIndicator(color: feastBlue),
                                   ),
                                 );
                               }
                               final doc = _filtered[i];
-                              final data =
-                                  doc.data() as Map<String, dynamic>;
+                              final data = doc.data() as Map<String, dynamic>;
                               final status = _statusLabel(data);
                               return CharityEventListItem(
                                 data: data,
@@ -220,8 +228,66 @@ class _CharityEventsScreenState extends State<CharityEventsScreen> {
         icon: Icons.add,
         tooltip: 'Create Charity Event',
         backgroundColor: feastBlue,
-        onPressed: () =>
-            Navigator.pushNamed(context, AppRoutes.createEvent),
+        onPressed: () => Navigator.pushNamed(context, AppRoutes.createEvent),
+      ),
+    );
+  }
+
+  void _showFilterSheet() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Filter by Category', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _filterOptions.map((opt) => _filterChip(opt['label'] as String, opt['category'] as String?)).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _filterChip(String label, String? category) {
+    final selected = _selectedCategory == category;
+    return GestureDetector(
+      onTap: () {
+        Navigator.pop(context);
+        setState(() {
+          _selectedCategory = category;
+          _docs.clear();
+          _lastDoc = null;
+          _hasMore = true;
+        });
+        _fetchNextPage();
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? feastBlue : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: feastBlue),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontFamily: 'Outfit',
+            fontSize: 13,
+            color: selected ? Colors.white : feastBlue,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
       ),
     );
   }

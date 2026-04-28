@@ -1,3 +1,14 @@
+// lib/features/settings/screens/settings_screen.dart
+//
+// User settings screen with profile display, notification toggle, and logout.
+// Edit Profile opens EditProfileModal.
+//
+// REACT.JS INTEGRATION NOTE:
+// =========================
+// User data: users/{uid}
+// Fields: displayName, profilePictureUrl, notificationsEnabled, etc.
+// React: Use onSnapshot to listen to user document changes.
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
@@ -47,21 +58,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     if (_notificationsEnabled) {
       showDialog(
         context: context,
-        builder: (_) => AlertDialog(
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-          title: const Text('Disable App Notifications', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
-          content: const Text('Are you sure you want to disable app notifications?', style: TextStyle(fontFamily: 'Outfit')),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('No', style: TextStyle(color: feastGray))),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: feastGreen),
-              onPressed: () async {
-                Navigator.pop(context);
-                await _setNotifications(false);
-              },
-              child: const Text('Yes', style: TextStyle(color: Colors.white)),
-            ),
-          ],
+        builder: (_) => DisableNotificationDialog(
+          isDisabling: true,
+          onConfirm: () async {
+            await _setNotifications(false);
+          },
         ),
       );
     } else {
@@ -81,10 +82,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
       context: context,
       builder: (_) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Logout', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
-        content: const Text('Are you sure you want to log out?', style: TextStyle(fontFamily: 'Outfit')),
+        title: const Text(
+          'Logout',
+          style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'Are you sure you want to log out?',
+          style: TextStyle(fontFamily: 'Outfit'),
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel', style: TextStyle(color: feastGray))),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel', style: TextStyle(color: feastGray, fontFamily: 'Outfit')),
+          ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: feastError),
             onPressed: () async {
@@ -93,7 +103,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               if (!mounted) return;
               Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
             },
-            child: const Text('Logout', style: TextStyle(color: Colors.white)),
+            child: const Text('Logout', style: TextStyle(color: Colors.white, fontFamily: 'Outfit')),
           ),
         ],
       ),
@@ -121,21 +131,48 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   children: [
                     _buildProfileCard(),
                     const SizedBox(height: 24),
-                    _menuItem(icon: Icons.edit_outlined, label: 'Edit Profile', onTap: _showEditProfile),
+                    _menuItem(
+                      icon: Icons.edit_outlined,
+                      label: 'Edit Profile',
+                      onTap: _showEditProfile,
+                    ),
                     const SizedBox(height: 12),
                     _menuItem(
-                      icon: _notificationsEnabled ? Icons.notifications_active_outlined : Icons.notifications_off_outlined,
-                      label: _notificationsEnabled ? 'Turn Off App Notifications' : 'Turn On App Notifications',
+                      icon: _notificationsEnabled
+                          ? Icons.notifications_active_outlined
+                          : Icons.notifications_off_outlined,
+                      label: _notificationsEnabled
+                          ? 'Turn Off App Notifications'
+                          : 'Turn On App Notifications',
                       onTap: _handleNotificationsToggle,
                     ),
                     const SizedBox(height: 12),
-                    _menuItem(icon: Icons.star_outline, label: 'Rate Our App', onTap: () {}),
+                    _menuItem(
+                      icon: Icons.star_outline,
+                      label: 'Rate Our App',
+                      onTap: () {
+                        // TODO: Implement rate app functionality
+                        FeastToast.showInfo(context, 'Rate app feature coming soon.');
+                      },
+                    ),
                     const SizedBox(height: 12),
-                    _menuItem(icon: Icons.info_outline, label: 'About The App', onTap: () => Navigator.pushNamed(context, AppRoutes.about)),
+                    _menuItem(
+                      icon: Icons.info_outline,
+                      label: 'About The App',
+                      onTap: () => Navigator.pushNamed(context, AppRoutes.about),
+                    ),
                     const SizedBox(height: 12),
-                    _menuItem(icon: Icons.help_outline, label: 'Help & FAQ', onTap: () => Navigator.pushNamed(context, AppRoutes.support)),
+                    _menuItem(
+                      icon: Icons.help_outline,
+                      label: 'Help & FAQ',
+                      onTap: () => Navigator.pushNamed(context, AppRoutes.support),
+                    ),
                     const SizedBox(height: 12),
-                    _menuItem(icon: Icons.description_outlined, label: 'Terms & Conditions', onTap: () => Navigator.pushNamed(context, AppRoutes.legal)),
+                    _menuItem(
+                      icon: Icons.description_outlined,
+                      label: 'Terms & Conditions',
+                      onTap: () => Navigator.pushNamed(context, AppRoutes.legal),
+                    ),
                     const SizedBox(height: 12),
                     _logoutItem(),
                   ],
@@ -152,7 +189,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withAlpha(13), blurRadius: 8, offset: const Offset(0, 3))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(13),
+            blurRadius: 8,
+            offset: const Offset(0, 3),
+          ),
+        ],
       ),
       child: Row(
         children: [
@@ -160,17 +203,34 @@ class _SettingsScreenState extends State<SettingsScreen> {
             radius: 28,
             backgroundColor: feastLightGreen.withAlpha(128),
             backgroundImage: _profilePictureUrl.isNotEmpty ? NetworkImage(_profilePictureUrl) : null,
-            child: _profilePictureUrl.isEmpty ? const Icon(Icons.person, size: 32, color: feastGreen) : null,
+            child: _profilePictureUrl.isEmpty
+                ? const Icon(Icons.person, size: 32, color: feastGreen)
+                : null,
           ),
           const SizedBox(width: 14),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(_displayName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, fontFamily: 'Outfit', color: feastBlack)),
+              Text(
+                _displayName,
+                style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  fontFamily: 'Outfit',
+                  color: feastBlack,
+                ),
+              ),
               const SizedBox(height: 4),
               Row(
                 children: [
-                  Text('Verified Account', style: TextStyle(fontSize: 12, fontFamily: 'Outfit', color: feastGray.withAlpha(179))),
+                  Text(
+                    'Verified Account',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontFamily: 'Outfit',
+                      color: feastGray.withAlpha(179),
+                    ),
+                  ),
                   const SizedBox(width: 6),
                   const Icon(Icons.check_circle, size: 16, color: feastGreen),
                 ],
@@ -182,7 +242,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  Widget _menuItem({required IconData icon, required String label, required VoidCallback onTap}) {
+  Widget _menuItem({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -191,13 +255,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: Colors.black.withAlpha(13), blurRadius: 8, offset: const Offset(0, 3))],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(13),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
         child: Row(
           children: [
             Icon(icon, size: 22, color: feastBlack),
             const SizedBox(width: 14),
-            Expanded(child: Text(label, style: const TextStyle(fontSize: 14, fontFamily: 'Outfit', fontWeight: FontWeight.w600, color: feastBlack))),
+            Expanded(
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w600,
+                  color: feastBlack,
+                ),
+              ),
+            ),
             const Icon(Icons.chevron_right, size: 22, color: feastGray),
           ],
         ),
@@ -214,13 +294,29 @@ class _SettingsScreenState extends State<SettingsScreen> {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
-          boxShadow: [BoxShadow(color: Colors.black.withAlpha(13), blurRadius: 8, offset: const Offset(0, 3))],
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withAlpha(13),
+              blurRadius: 8,
+              offset: const Offset(0, 3),
+            ),
+          ],
         ),
         child: Row(
           children: [
             const Icon(Icons.logout, size: 22, color: feastError),
             const SizedBox(width: 14),
-            const Expanded(child: Text('Logout', style: TextStyle(fontSize: 14, fontFamily: 'Outfit', fontWeight: FontWeight.w600, color: feastError))),
+            const Expanded(
+              child: Text(
+                'Logout',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.w600,
+                  color: feastError,
+                ),
+              ),
+            ),
             Icon(Icons.chevron_right, size: 22, color: feastError.withAlpha(120)),
           ],
         ),

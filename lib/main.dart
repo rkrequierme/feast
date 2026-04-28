@@ -28,7 +28,6 @@ class FeastApp extends StatelessWidget {
     return MaterialApp(
       title: 'F.E.A.S.T.',
       debugShowCheckedModeBanner: false,
-      // Auth-aware routing: always start at splash which decides where to go
       home: const _AuthGate(),
       routes: AppRouter.routes,
       onGenerateRoute: AppRouter.onGenerateRoute,
@@ -37,9 +36,7 @@ class FeastApp extends StatelessWidget {
 }
 
 /// Listens to Firebase Auth state and routes accordingly.
-/// - Not signed in → LoginScreen
-/// - Signed in but account is pending/banned → shows friendly message
-/// - Signed in & active → HomeScreen
+/// For development: all authenticated users go directly to HomeScreen.
 class _AuthGate extends StatelessWidget {
   const _AuthGate();
 
@@ -60,7 +57,7 @@ class _AuthGate extends StatelessWidget {
           return const LoginScreen();
         }
 
-        // Logged in — check Firestore user doc for approval status
+        // Logged in — go directly to HomeScreen (admin approval skipped for dev)
         return StreamBuilder<DocumentSnapshot>(
           stream: FirebaseFirestore.instance
               .collection(FirestorePaths.users)
@@ -77,28 +74,11 @@ class _AuthGate extends StatelessWidget {
             }
 
             final data = userSnap.data!.data() as Map<String, dynamic>;
-            final status = data['status'] as String? ?? 'pending';
+            final role = data['role'] as String? ?? 'user';
+            final isAdmin = role == 'admin';
 
-            switch (status) {
-              case 'active':
-                return const HomeScreen();
-              case 'banned':
-                // Sign them out and show a message
-                FirebaseAuth.instance.signOut();
-                return const _StatusScreen(
-                  message:
-                      'Your account has been banned. Contact the Barangay for assistance.',
-                  icon: Icons.block,
-                );
-              case 'pending':
-              default:
-                FirebaseAuth.instance.signOut();
-                return const _StatusScreen(
-                  message:
-                      'Your account is awaiting admin approval. You will be notified once it is activated.',
-                  icon: Icons.hourglass_top,
-                );
-            }
+            // Any authenticated user (including admin) goes to HomeScreen
+            return HomeScreen(isAdmin: isAdmin);
           },
         );
       },
@@ -106,61 +86,20 @@ class _AuthGate extends StatelessWidget {
   }
 }
 
-/// Simple informational screen shown for pending/banned users.
-class _StatusScreen extends StatelessWidget {
-  final String message;
-  final IconData icon;
-  const _StatusScreen({required this.message, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: feastLighterYellow,
-      body: FeastBackground(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FeastLogo(height: 100),
-                const SizedBox(height: 32),
-                Icon(icon, size: 64, color: feastGreen),
-                const SizedBox(height: 16),
-                Text(
-                  message,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 16,
-                    color: feastBlack,
-                  ),
-                ),
-                const SizedBox(height: 32),
-                FeastButton(
-                  text: 'Back to Login',
-                  onPressed: () {
-                    FirebaseAuth.instance.signOut();
-                    Navigator.pushReplacementNamed(context, AppRoutes.login);
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// ■■ REACT.JS INTEGRATION NOTE ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-// Collection : users
-// Document  : {uid}
-// Fields    : status ('pending'|'active'|'banned'), role ('user'|'admin')
-// React use : onAuthStateChanged(auth, async (user) => {
-//               if (!user) { redirect('/login'); return; }
-//               const snap = await getDoc(doc(db,'users',user.uid));
-//               if (snap.data().status !== 'active') { signOut(auth); }
-//               else { redirect('/home'); }
-//             });
-// ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
+// REACT.JS INTEGRATION NOTE
+// =========================
+// Auth state monitoring in React:
+//
+// import { onAuthStateChanged } from 'firebase/auth';
+//
+// onAuthStateChanged(auth, async (user) => {
+//   if (!user) {
+//     redirect('/login');
+//     return;
+//   }
+//   const userDoc = await getDoc(doc(db, 'users', user.uid));
+//   const role = userDoc.data()?.role;
+//   // Redirect based on role
+//   if (role === 'admin') redirect('/admin');
+//   else redirect('/home');
+// });

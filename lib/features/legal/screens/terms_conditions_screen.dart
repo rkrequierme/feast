@@ -1,3 +1,18 @@
+// lib/features/legal/screens/terms_conditions_screen.dart
+//
+// Terms & Conditions screen with expandable sections.
+// Content is editable by admins via Firestore static_content collection.
+//
+// REACT.JS INTEGRATION NOTE:
+// =========================
+// Collection: static_content
+// Document: terms_conditions
+// Fields: sections (Array of {title, body})
+// React query:
+//   const docRef = doc(db, 'static_content', 'terms_conditions');
+//   const docSnap = await getDoc(docRef);
+//   const sections = docSnap.data()?.sections || defaultSections;
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:feast/core/core.dart';
@@ -50,8 +65,7 @@ class TermsConditionsScreen extends StatelessWidget {
 
             if (snap.hasData && snap.data!.exists) {
               final raw = snap.data!.data() as Map<String, dynamic>?;
-              final adminSections =
-                  (raw?['sections'] as List?)?.cast<Map<String, dynamic>>();
+              final adminSections = (raw?['sections'] as List?)?.cast<Map<String, dynamic>>();
               if (adminSections != null && adminSections.isNotEmpty) {
                 sections = adminSections
                     .map((s) => {
@@ -74,28 +88,31 @@ class TermsConditionsScreen extends StatelessWidget {
                           'Terms & Conditions',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18),
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
                         ),
                         SizedBox(height: 4),
                         Text(
                           'Effective Date: February 11, 2026',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontSize: 12,
-                              color: feastGray),
+                            fontFamily: 'Outfit',
+                            fontSize: 12,
+                            color: feastGray,
+                          ),
                         ),
                         Divider(height: 24),
                         Text(
                           'Welcome to the F.E.A.S.T. Charity Management System. By using this platform, you agree to abide by the following terms and conditions designed to keep the Almanza Dos community safe and supportive while promoting equity.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontSize: 13,
-                              color: feastGray,
-                              height: 1.5),
+                            fontFamily: 'Outfit',
+                            fontSize: 13,
+                            color: feastGray,
+                            height: 1.5,
+                          ),
                         ),
                       ],
                     ),
@@ -113,10 +130,11 @@ class TermsConditionsScreen extends StatelessWidget {
                         content: Text(
                           sec['body'] ?? '',
                           style: const TextStyle(
-                              fontFamily: 'Outfit',
-                              fontSize: 13,
-                              color: feastGray,
-                              height: 1.5),
+                            fontFamily: 'Outfit',
+                            fontSize: 13,
+                            color: feastGray,
+                            height: 1.5,
+                          ),
                         ),
                       ),
                     );

@@ -1,4 +1,15 @@
 // lib/features/auth/screens/register_id_screen.dart
+//
+// Step 2 of 2: Legal ID upload with client-side encryption.
+// Users upload an image of their valid ID before completing registration.
+//
+// REACT.JS INTEGRATION NOTE:
+// =========================
+// Legal ID encryption in React (admin side only):
+//   - The key and IV should NEVER be exposed in client-side React code
+//   - Use a Cloud Function to decrypt IDs: admin.firestore().collection('users').doc(uid)
+//   - Storage path: legal_ids/{uid}/{uuid}.enc
+//   - Admin decrypts using AES-256-CBC with server-held key
 
 import 'dart:io';
 import 'package:flutter/material.dart';
@@ -20,6 +31,10 @@ class _RegisterIdScreenState extends State<RegisterIdScreen> {
   bool _isLoading = false;
 
   static const _allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // File Picker - Images Only
+  // ──────────────────────────────────────────────────────────────────────────
 
   Future<void> _pickIdFile() async {
     final result = await FilePicker.platform.pickFiles(
@@ -46,6 +61,10 @@ class _RegisterIdScreenState extends State<RegisterIdScreen> {
       _selectedFileName = file.name;
     });
   }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Register - Create Account + Upload Encrypted ID
+  // ──────────────────────────────────────────────────────────────────────────
 
   Future<void> _register() async {
     if (_selectedIdFile == null) {
@@ -90,9 +109,10 @@ class _RegisterIdScreenState extends State<RegisterIdScreen> {
       if (!mounted) return;
       FeastToast.showSuccess(
         context,
-        'Registration submitted! Please wait for admin approval.',
+        'Registration successful! You can now log in.',
       );
-      
+
+      // Navigate to login screen
       Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
     } on Exception catch (e) {
       if (!mounted) return;
@@ -101,6 +121,10 @@ class _RegisterIdScreenState extends State<RegisterIdScreen> {
       if (mounted) setState(() => _isLoading = false);
     }
   }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // Build
+  // ──────────────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -134,6 +158,8 @@ class _RegisterIdScreenState extends State<RegisterIdScreen> {
                   style: TextStyle(fontFamily: 'Outfit', fontSize: 13, color: feastGray),
                 ),
                 const SizedBox(height: 24),
+
+                // ID Upload Area
                 GestureDetector(
                   onTap: _pickIdFile,
                   child: Container(
@@ -168,7 +194,10 @@ class _RegisterIdScreenState extends State<RegisterIdScreen> {
                                   }),
                                   child: Container(
                                     padding: const EdgeInsets.all(4),
-                                    decoration: const BoxDecoration(color: feastWarning, shape: BoxShape.circle),
+                                    decoration: const BoxDecoration(
+                                      color: feastWarning,
+                                      shape: BoxShape.circle,
+                                    ),
                                     child: const Icon(Icons.close, color: Colors.white, size: 16),
                                   ),
                                 ),
@@ -180,34 +209,50 @@ class _RegisterIdScreenState extends State<RegisterIdScreen> {
                             children: [
                               Icon(Icons.upload_file_outlined, size: 40, color: feastGreen.withAlpha(153)),
                               const SizedBox(height: 8),
-                              const Text('Select File', style: TextStyle(fontFamily: 'Outfit', fontSize: 14, color: feastGray)),
-                              const Text('JPG, JPEG, PNG, WEBP, GIF', style: TextStyle(fontFamily: 'Outfit', fontSize: 11, color: feastGray)),
+                              const Text(
+                                'Select File',
+                                style: TextStyle(fontFamily: 'Outfit', fontSize: 14, color: feastGray),
+                              ),
+                              const Text(
+                                'JPG, JPEG, PNG, WEBP, GIF',
+                                style: TextStyle(fontFamily: 'Outfit', fontSize: 11, color: feastGray),
+                              ),
                             ],
                           ),
                   ),
                 ),
+
                 if (_selectedFileName != null)
-                Padding(
-                  padding: const EdgeInsets.only(top: 8, left: 4),
-                  child: Text(
-                    'Selected: $_selectedFileName',
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 12,
-                      color: feastGray,
-                      fontStyle: FontStyle.italic,
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8, left: 4),
+                    child: Text(
+                      'Selected: $_selectedFileName',
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 12,
+                        color: feastGray,
+                        fontStyle: FontStyle.italic,
+                      ),
                     ),
                   ),
-                ),
+
                 const SizedBox(height: 16),
-                const Text('List of Recognised IDs:', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 13)),
+
+                // Recognized IDs list
+                const Text(
+                  'List of Recognised IDs:',
+                  style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 13),
+                ),
                 const Text(
                   '• National ID  • Philippine Passport  • Driver\'s License\n'
                   '• UMID  • PRC ID  • Voter\'s ID  • Postal ID\n'
                   '• Senior Citizen ID  • PhilHealth ID  • PWD ID  • Barangay ID',
                   style: TextStyle(fontFamily: 'Outfit', fontSize: 12),
                 ),
+
                 const SizedBox(height: 24),
+
+                // Terms & Conditions Checkbox
                 FeastCheckbox(
                   text: "I've read the terms and conditions.",
                   value: _agreedToTerms,
@@ -215,13 +260,17 @@ class _RegisterIdScreenState extends State<RegisterIdScreen> {
                   onLinkTap: () => Navigator.pushNamed(context, AppRoutes.legal),
                   onChanged: (val) => setState(() => _agreedToTerms = val ?? false),
                 ),
+
                 const SizedBox(height: 24),
+
+                // Sign Up Button
                 _isLoading
                     ? const Center(child: CircularProgressIndicator(color: feastGreen))
                     : FeastButton(
                         text: 'Sign Up',
                         onPressed: _agreedToTerms ? _register : null,
                       ),
+
                 const SizedBox(height: 16),
               ],
             ),

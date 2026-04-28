@@ -1,10 +1,23 @@
+// lib/core/widgets/edit_profile_modal.dart
+//
+// Modal for editing user profile information.
+// Updates location, contact number, date of birth, and gender.
+// Automatically updates residency status based on location.
+//
+// REACT.JS INTEGRATION NOTE:
+// =========================
+// In React, implement as a form modal:
+//   const [formData, setFormData] = useState({...});
+//   await updateDoc(doc(db, 'users', uid), { ...formData, updatedAt: serverTimestamp() });
+
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:feast/core/core.dart';
+import '../constants/app_colors.dart';
+import '../constants/firestore_paths.dart';
+import 'feast_toast.dart';
 
 class EditProfileModal extends StatefulWidget {
-  /// Called after a successful save so the parent can reload user data.
   final VoidCallback? onSaved;
 
   const EditProfileModal({super.key, this.onSaved});
@@ -75,6 +88,7 @@ class _EditProfileModalState extends State<EditProfileModal> {
 
       widget.onSaved?.call();
       if (mounted) Navigator.of(context).pop();
+      FeastToast.showSuccess(context, 'Profile updated successfully!');
     } catch (e) {
       if (mounted) {
         FeastToast.showError(context, 'Failed to save profile. Try again.');
@@ -102,8 +116,7 @@ class _EditProfileModalState extends State<EditProfileModal> {
     );
     if (picked != null && mounted) {
       setState(() {
-        _dobCtrl.text =
-            '${picked.month.toString().padLeft(2, '0')}/${picked.day.toString().padLeft(2, '0')}/${picked.year}';
+        _dobCtrl.text = '${picked.month.toString().padLeft(2, '0')}/${picked.day.toString().padLeft(2, '0')}/${picked.year}';
       });
     }
   }
@@ -142,18 +155,20 @@ class _EditProfileModalState extends State<EditProfileModal> {
                             Text(
                               'Update Profile Settings',
                               style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  fontFamily: 'Outfit',
-                                  color: feastBlack),
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'Outfit',
+                                color: feastBlack,
+                              ),
                             ),
                             SizedBox(height: 2),
                             Text(
                               'Correct any mistakes or changes to your profile.',
                               style: TextStyle(
-                                  fontSize: 11,
-                                  fontFamily: 'Outfit',
-                                  color: feastGray),
+                                fontSize: 11,
+                                fontFamily: 'Outfit',
+                                color: feastGray,
+                              ),
                             ),
                           ],
                         ),
@@ -193,7 +208,10 @@ class _EditProfileModalState extends State<EditProfileModal> {
                         isExpanded: true,
                         hint: const Text('-- Select --', style: TextStyle(color: Colors.grey, fontFamily: 'Outfit')),
                         items: ['Male', 'Female', 'Other'].map((g) {
-                          return DropdownMenuItem(value: g, child: Text(g, style: const TextStyle(fontFamily: 'Outfit')));
+                          return DropdownMenuItem(
+                            value: g,
+                            child: Text(g, style: const TextStyle(fontFamily: 'Outfit')),
+                          );
                         }).toList(),
                         onChanged: (v) => setState(() => _selectedGender = v),
                       ),
@@ -208,11 +226,24 @@ class _EditProfileModalState extends State<EditProfileModal> {
                         backgroundColor: feastBlue,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
                       ),
                       child: _isSaving
-                          ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : const Text('Confirm', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, fontFamily: 'Outfit')),
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Text(
+                              'Confirm',
+                              style: TextStyle(
+                                fontSize: 15,
+                                fontWeight: FontWeight.bold,
+                                fontFamily: 'Outfit',
+                              ),
+                            ),
                     ),
                   ),
                   const SizedBox(height: 10),
@@ -224,9 +255,18 @@ class _EditProfileModalState extends State<EditProfileModal> {
                         foregroundColor: feastWarning,
                         side: const BorderSide(color: feastWarning),
                         padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(25)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
                       ),
-                      child: const Text('Cancel', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, fontFamily: 'Outfit')),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          fontFamily: 'Outfit',
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -235,9 +275,23 @@ class _EditProfileModalState extends State<EditProfileModal> {
     );
   }
 
-  Widget _label(String text) => Text(text, style: const TextStyle(fontSize: 12, fontFamily: 'Outfit', fontWeight: FontWeight.bold, color: feastGray));
+  Widget _label(String text) => Text(
+    text,
+    style: const TextStyle(
+      fontSize: 12,
+      fontFamily: 'Outfit',
+      fontWeight: FontWeight.bold,
+      color: feastGray,
+    ),
+  );
 
-  Widget _field(TextEditingController ctrl, String hint, IconData prefix, {TextInputType type = TextInputType.text, IconData? suffix}) {
+  Widget _field(
+    TextEditingController ctrl,
+    String hint,
+    IconData prefix, {
+    TextInputType type = TextInputType.text,
+    IconData? suffix,
+  }) {
     return Container(
       decoration: _boxDeco(),
       child: TextField(
@@ -260,6 +314,12 @@ class _EditProfileModalState extends State<EditProfileModal> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(4),
         border: Border.all(color: Colors.grey.withAlpha(77)),
-        boxShadow: [BoxShadow(color: Colors.black.withAlpha(10), blurRadius: 4, offset: const Offset(0, 2))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withAlpha(10),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ],
       );
 }

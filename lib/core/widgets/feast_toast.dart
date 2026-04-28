@@ -1,4 +1,16 @@
+// lib/core/widgets/feast_toast.dart
+//
+// Reusable toast notifications for success, error, and info messages.
+//
+// REACT.JS INTEGRATION NOTE:
+// =========================
+// In React, use a toast library like react-hot-toast or sonner:
+//   import toast from 'react-hot-toast';
+//   toast.success('Success message');
+//   toast.error('Error message');
+
 import 'package:flutter/material.dart';
+import '../constants/app_colors.dart';
 
 class FeastToast {
   static void show(BuildContext context, String message) {
@@ -6,15 +18,22 @@ class FeastToast {
   }
 
   static void showError(BuildContext context, String message) {
-    _showToast(context, message, color: const Color(0xFFD32F2F));
+    _showToast(context, message, color: feastError);
   }
 
-  // Added this method to fix the error in ForgotPasswordScreen
   static void showSuccess(BuildContext context, String message) {
-    _showToast(context, message, color: const Color(0xFF388E3C)); // Green for success
+    _showToast(context, message, color: feastSuccess);
   }
 
-  static void _showToast(BuildContext context, String message, {Color color = const Color(0xFF757A79)}) {
+  static void showInfo(BuildContext context, String message) {
+    _showToast(context, message, color: feastBlue);
+  }
+
+  static void _showToast(
+    BuildContext context,
+    String message, {
+    Color color = feastGray,
+  }) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         behavior: SnackBarBehavior.floating,
@@ -31,9 +50,9 @@ class FeastToast {
             textAlign: TextAlign.center,
             style: const TextStyle(
               color: Colors.white,
-              fontSize: 16,
+              fontSize: 14,
               fontWeight: FontWeight.bold,
-              fontFamily: 'Montserrat',
+              fontFamily: 'Outfit',
             ),
           ),
         ),

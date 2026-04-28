@@ -2,10 +2,15 @@
 //
 // Step 1 of 2 in the registration flow.
 // Collects personal details, then navigates to RegisterIdScreen.
+// All form-field construction is delegated to LabeledTextField.
 //
-// All form-field construction is now delegated to LabeledTextField, which
-// replaces the four private helpers (_buildField, _buildDropdown,
-// _buildDateField, _buildPasswordField) that used to live here.
+// REACT.JS INTEGRATION NOTE:
+// =========================
+// Registration flow in React:
+//   1. await createUserWithEmailAndPassword(auth, email, password)
+//   2. await setDoc(doc(db, 'users', user.uid), { ...userData, role: 'user', status: 'active' })
+//   3. Redirect to login or home
+// Password validation: same regex rules as Flutter
 
 import 'package:flutter/material.dart';
 import 'package:feast/core/core.dart';
@@ -21,7 +26,7 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
 
-  // One controller per field.
+  // Form controllers
   final _firstNameController  = TextEditingController();
   final _middleNameController = TextEditingController();
   final _lastNameController   = TextEditingController();
@@ -32,7 +37,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _emailController      = TextEditingController();
   final _passwordController   = TextEditingController();
 
-  // Live password-strength feedback shown below the password field.
+  // Live password-strength feedback
   List<String> _passwordErrors = [];
 
   static const _genders = ['Male', 'Female', 'Other'];
@@ -51,13 +56,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
     super.dispose();
   }
 
-  // ── Navigation ────────────────────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────
+  // Navigation to ID Upload Screen
+  // ──────────────────────────────────────────────────────────────────────────
 
   void _goToIdUpload() {
-    // Run all TextFormField validators first.
+    // Run all validators first
     if (!_formKey.currentState!.validate()) return;
 
-    // Extra guards for fields not covered by TextFormField validators.
+    // Extra guards
     if (_genderController.text.isEmpty) {
       FeastToast.showError(context, 'Please select your gender.');
       return;
@@ -91,7 +98,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     );
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────
+  // Build
+  // ──────────────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -105,11 +114,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
               key: _formKey,
               child: Column(
                 children: [
-                  // isLogin: false → the "Register" tab is highlighted in green.
+                  // ToggleLoginRegister with isLogin: false (Register tab highlighted)
                   const ToggleLoginRegister(isLogin: false),
                   const SizedBox(height: 24),
 
-                  // ── Name fields ─────────────────────────────────────────
+                  // ── First Name ──────────────────────────────────────────────
                   LabeledTextField(
                     label: 'First Name',
                     hintText: 'Juan',
@@ -120,15 +129,16 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 16),
 
+                  // ── Middle Name (Optional) ──────────────────────────────────
                   LabeledTextField(
                     label: 'Middle Name (If Applicable)',
                     hintText: 'Santos',
                     prefixIcon: Icons.person_outline,
                     controller: _middleNameController,
-                    // Optional — no validator needed.
                   ),
                   const SizedBox(height: 16),
 
+                  // ── Last Name ───────────────────────────────────────────────
                   LabeledTextField(
                     label: 'Last Name',
                     hintText: 'De La Cruz',
@@ -139,7 +149,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // ── Location ────────────────────────────────────────────
+                  // ── Location ────────────────────────────────────────────────
                   LabeledTextField(
                     label: 'Location',
                     hintText: 'e.g. Almanza Dos, Las Piñas City',
@@ -150,7 +160,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // ── Contact number ──────────────────────────────────────
+                  // ── Contact Number ──────────────────────────────────────────
                   LabeledTextField(
                     label: 'Contact Number',
                     hintText: '+63 XXX XXX XXXX',
@@ -158,14 +168,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     controller: _contactController,
                     keyboardType: TextInputType.phone,
                     validator: (v) {
-                      if (v == null || v.trim().isEmpty) return 'Contact number is required';
-                      if (!AuthService.isValidPhilippinePhone(v)) return 'Format: +63 XXX XXX XXXX';
+                      if (v == null || v.trim().isEmpty) {
+                        return 'Contact number is required';
+                      }
+                      if (!AuthService.isValidPhilippinePhone(v)) {
+                        return 'Format: +63 XXX XXX XXXX';
+                      }
                       return null;
                     },
                   ),
                   const SizedBox(height: 16),
 
-                  // ── Gender dropdown ─────────────────────────────────────
+                  // ── Gender Dropdown ─────────────────────────────────────────
                   LabeledTextField(
                     label: 'Gender',
                     hintText: '-- Select --',
@@ -180,7 +194,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // ── Date of birth ───────────────────────────────────────
+                  // ── Date of Birth ───────────────────────────────────────────
                   LabeledTextField(
                     label: 'Date of Birth',
                     hintText: 'MM/DD/YYYY',
@@ -192,7 +206,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // ── Email ───────────────────────────────────────────────
+                  // ── Email ───────────────────────────────────────────────────
                   LabeledTextField(
                     label: 'Email',
                     hintText: 'name@email.com',
@@ -209,14 +223,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // ── Password ────────────────────────────────────────────
+                  // ── Password ────────────────────────────────────────────────
                   LabeledTextField(
                     label: 'Password',
                     hintText: '••••••••',
                     prefixIcon: Icons.lock_outline,
                     controller: _passwordController,
                     type: LabeledFieldType.password,
-                    // Update live strength errors on every keystroke.
                     onChanged: (v) => setState(
                       () => _passwordErrors = AuthService.checkPasswordStrength(v),
                     ),
@@ -228,7 +241,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     },
                   ),
 
-                  // Live password-strength hint rows.
+                  // Live password-strength hints
                   if (_passwordErrors.isNotEmpty) ...[
                     const SizedBox(height: 8),
                     ..._passwordErrors.map(
@@ -250,6 +263,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                   const SizedBox(height: 24),
 
+                  // Next button
                   FeastButton(
                     text: 'Next: Verify Identity',
                     onPressed: _goToIdUpload,

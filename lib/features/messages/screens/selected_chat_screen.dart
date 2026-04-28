@@ -1,3 +1,21 @@
+// lib/features/messages/screens/selected_chat_screen.dart
+//
+// Real-time chat detail with Firestore messages.
+// No placeholder data.
+//
+// REACT.JS INTEGRATION NOTE:
+// =========================
+// Subcollection: chats/{chatId}/messages
+// Fields: senderId, text, attachmentUrl, sentAt, readBy[]
+// React query for messages:
+//   const q = query(
+//     collection(db, 'chats', chatId, 'messages'),
+//     orderBy('sentAt', 'desc'),
+//     limit(30)
+//   );
+//   const snapshot = await getDocs(q);
+// CRITICAL: Security Rules must block admins from reading messages.
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -39,6 +57,19 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
       if (snap.docs.isNotEmpty) _lastDoc = snap.docs.last;
       _hasMore = snap.docs.length == 30;
     });
+    _scrollToBottom();
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      }
+    });
   }
 
   void _onScroll() {
@@ -72,11 +103,6 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
       text: text,
     );
     await _loadInitial();
-    _scrollController.animateTo(
-      _scrollController.position.maxScrollExtent,
-      duration: const Duration(milliseconds: 200),
-      curve: Curves.easeOut,
-    );
   }
 
   @override
@@ -100,11 +126,14 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
           builder: (_, snap) {
             final data = snap.data?.data() as Map<String, dynamic>? ?? {};
             final name = data['groupName'] as String? ?? 'Chat';
-            return Text(name,
-                style: const TextStyle(
-                    fontFamily: 'Outfit',
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16));
+            return Text(
+              name,
+              style: const TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            );
           },
         ),
         actions: [
@@ -123,71 +152,75 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
           Expanded(
             child: _messages.isEmpty
                 ? const Center(
-                    child: Text('No messages yet.',
-                        style: TextStyle(fontFamily: 'Outfit', color: feastGray)))
+                    child: Text(
+                      'No messages yet. Say hello!',
+                      style: TextStyle(fontFamily: 'Outfit', color: feastGray),
+                    ),
+                  )
                 : ListView.builder(
                     controller: _scrollController,
+                    reverse: true,
                     padding: const EdgeInsets.all(16),
-                    itemCount: _messages.length + (_isLoadingMore ? 1 : 0),
+                    itemCount: _messages.length,
                     itemBuilder: (context, i) {
-                      if (i == 0 && _isLoadingMore) {
-                        return const Center(
-                            child: CircularProgressIndicator(color: feastGreen));
-                      }
-                      final msg = _messages[_isLoadingMore ? i - 1 : i]
+                      final msg = _messages[_messages.length - 1 - i]
                           .data() as Map<String, dynamic>;
                       final isMine = msg['senderId'] == _uid;
                       return _buildMessageBubble(msg, isMine);
                     },
                   ),
           ),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              border: Border(top: BorderSide(color: feastLightGreen.withAlpha(120))),
+          _buildMessageInput(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMessageInput() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        border: Border(top: BorderSide(color: feastLightGreen.withAlpha(120))),
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.attach_file, color: feastGray, size: 22),
+            onPressed: () => showDialog(
+              context: context,
+              builder: (_) => FilePickerModal(
+                mode: FilePickerMode.allFiles,
+                onConfirm: (files) async {
+                  for (final file in files) {
+                    final url = await StorageService.instance
+                        .uploadChatAttachment(file, widget.chatId);
+                    await FirestoreService.instance.sendMessage(
+                      chatId: widget.chatId,
+                      text: '',
+                      attachmentUrl: url,
+                    );
+                  }
+                  await _loadInitial();
+                },
+              ),
             ),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: const Icon(Icons.attach_file, color: feastGray, size: 22),
-                  onPressed: () => showDialog(
-                    context: context,
-                    builder: (_) => FilePickerModal(
-                      mode: FilePickerMode.allFiles,
-                      onConfirm: (files) async {
-                        for (final file in files) {
-                          final url = await StorageService.instance
-                              .uploadChatAttachment(file, widget.chatId);
-                          await FirestoreService.instance.sendMessage(
-                            chatId: widget.chatId,
-                            text: '',
-                            attachmentUrl: url,
-                          );
-                        }
-                        await _loadInitial();
-                      },
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: TextField(
-                    controller: _messageController,
-                    style: const TextStyle(fontFamily: 'Outfit', fontSize: 14),
-                    decoration: InputDecoration(
-                      hintText: 'Write a message...',
-                      hintStyle: TextStyle(color: feastGray.withAlpha(150)),
-                      border: InputBorder.none,
-                    ),
-                    onSubmitted: (_) => _sendMessage(),
-                  ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.send, color: feastGreen),
-                  onPressed: _sendMessage,
-                ),
-              ],
+          ),
+          Expanded(
+            child: TextField(
+              controller: _messageController,
+              style: const TextStyle(fontFamily: 'Outfit', fontSize: 14),
+              decoration: InputDecoration(
+                hintText: 'Write a message...',
+                hintStyle: TextStyle(color: feastGray.withAlpha(150)),
+                border: InputBorder.none,
+              ),
+              onSubmitted: (_) => _sendMessage(),
             ),
+          ),
+          IconButton(
+            icon: const Icon(Icons.send, color: feastGreen),
+            onPressed: _sendMessage,
           ),
         ],
       ),
@@ -198,8 +231,7 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
     final text = msg['text'] as String? ?? '';
     final attachmentUrl = msg['attachmentUrl'] as String? ?? '';
     final timestamp = (msg['sentAt'] as Timestamp?)?.toDate();
-    final timeStr =
-        timestamp != null ? DateFormat('h:mm a').format(timestamp) : '';
+    final timeStr = timestamp != null ? DateFormat('h:mm a').format(timestamp) : '';
 
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
@@ -219,35 +251,42 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
           ),
           boxShadow: [
             BoxShadow(
-                color: Colors.black.withAlpha(10),
-                blurRadius: 4,
-                offset: const Offset(0, 2)),
+              color: Colors.black.withAlpha(10),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
           ],
         ),
         child: Column(
-          crossAxisAlignment:
-              isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
             if (attachmentUrl.isNotEmpty)
-              Image.network(attachmentUrl,
-                  height: 120, width: double.infinity, fit: BoxFit.cover),
+              Image.network(
+                attachmentUrl,
+                height: 120,
+                width: double.infinity,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) => const Icon(Icons.broken_image, size: 40),
+              ),
             if (text.isNotEmpty)
               Text(
                 text,
                 style: TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 14,
-                    color: isMine ? Colors.white : feastBlack),
+                  fontFamily: 'Outfit',
+                  fontSize: 14,
+                  color: isMine ? Colors.white : feastBlack,
+                ),
               ),
             const SizedBox(height: 4),
             Text(
               timeStr,
               style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontSize: 10,
-                  color: isMine
-                      ? Colors.white.withAlpha(180)
-                      : feastGray.withAlpha(180)),
+                fontFamily: 'Outfit',
+                fontSize: 10,
+                color: isMine
+                    ? Colors.white.withAlpha(180)
+                    : feastGray.withAlpha(180),
+              ),
             ),
           ],
         ),

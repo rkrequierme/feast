@@ -1,3 +1,18 @@
+// lib/features/guide/screens/app_guide_screen.dart
+//
+// App Guide screen with expandable sections.
+// Content is editable by admins via Firestore static_content collection.
+//
+// REACT.JS INTEGRATION NOTE:
+// =========================
+// Collection: static_content
+// Document: app_guide
+// Fields: guides (Array of {title, body})
+// React query:
+//   const docRef = doc(db, 'static_content', 'app_guide');
+//   const docSnap = await getDoc(docRef);
+//   const guides = docSnap.data()?.guides || defaultGuides;
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:feast/core/core.dart';
@@ -50,8 +65,7 @@ class AppGuideScreen extends StatelessWidget {
 
             if (snap.hasData && snap.data!.exists) {
               final raw = snap.data!.data() as Map<String, dynamic>?;
-              final adminGuides =
-                  (raw?['guides'] as List?)?.cast<Map<String, dynamic>>();
+              final adminGuides = (raw?['guides'] as List?)?.cast<Map<String, dynamic>>();
               if (adminGuides != null && adminGuides.isNotEmpty) {
                 guides = adminGuides
                     .map((g) => {
@@ -74,29 +88,32 @@ class AppGuideScreen extends StatelessWidget {
                           'Welcome to the F.E.A.S.T. Guide',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                              color: feastBlack),
+                            fontFamily: 'Outfit',
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                            color: feastBlack,
+                          ),
                         ),
                         SizedBox(height: 4),
                         Text(
                           'Empowering the Almanza Dos Community',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontSize: 13,
-                              color: feastGray),
+                            fontFamily: 'Outfit',
+                            fontSize: 13,
+                            color: feastGray,
+                          ),
                         ),
                         Divider(height: 24),
                         Text(
                           'Explore the sections below to learn how to make the most of our features.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                              fontFamily: 'Outfit',
-                              fontSize: 13,
-                              color: feastGray,
-                              height: 1.5),
+                            fontFamily: 'Outfit',
+                            fontSize: 13,
+                            color: feastGray,
+                            height: 1.5,
+                          ),
                         ),
                       ],
                     ),
@@ -114,10 +131,11 @@ class AppGuideScreen extends StatelessWidget {
                         content: Text(
                           guide['body'] ?? '',
                           style: const TextStyle(
-                              fontFamily: 'Outfit',
-                              fontSize: 13,
-                              color: feastGray,
-                              height: 1.5),
+                            fontFamily: 'Outfit',
+                            fontSize: 13,
+                            color: feastGray,
+                            height: 1.5,
+                          ),
                         ),
                       ),
                     );

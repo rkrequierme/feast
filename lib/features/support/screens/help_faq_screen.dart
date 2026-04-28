@@ -1,3 +1,17 @@
+// lib/features/support/screens/help_faq_screen.dart
+//
+// Help & FAQ screen with expandable Q&A sections.
+// Users can submit questions to admins via the FAB.
+//
+// REACT.JS INTEGRATION NOTE:
+// =========================
+// Collection: static_content
+// Document: help_faq
+// Fields: faqs (Array of {question, answer})
+// Collection for user questions: user_questions
+// Fields: title, description, status, submittedAt
+// Admin dashboard: query where status == 'pending'
+
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:feast/core/core.dart';
@@ -55,11 +69,14 @@ class _HelpFaqScreenState extends State<HelpFaqScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Submit a Question',
-                      style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16)),
+                  const Text(
+                    'Submit a Question',
+                    style: TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
                   GestureDetector(
                     onTap: () => Navigator.pop(context),
                     child: const Icon(Icons.close, size: 20),
@@ -67,16 +84,22 @@ class _HelpFaqScreenState extends State<HelpFaqScreen> {
                 ],
               ),
               const SizedBox(height: 4),
-              const Text('Note: Submit Your Questions Here',
-                  style: TextStyle(
-                      fontFamily: 'Outfit', fontSize: 12, color: feastGray)),
+              const Text(
+                'Note: Submit Your Questions Here',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontSize: 12,
+                  color: feastGray,
+                ),
+              ),
               const SizedBox(height: 14),
               TextField(
                 controller: titleCtrl,
                 decoration: InputDecoration(
                   hintText: 'Question Title',
                   border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8)),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
               const SizedBox(height: 10),
@@ -86,7 +109,8 @@ class _HelpFaqScreenState extends State<HelpFaqScreen> {
                 decoration: InputDecoration(
                   hintText: 'Insert Question Description Here...',
                   border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8)),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
                 ),
               ),
               const SizedBox(height: 16),
@@ -95,15 +119,21 @@ class _HelpFaqScreenState extends State<HelpFaqScreen> {
                 children: [
                   ElevatedButton(
                     onPressed: () => Navigator.pop(context),
-                    style:
-                        ElevatedButton.styleFrom(backgroundColor: feastError),
-                    child: const Text('Cancel',
-                        style: TextStyle(color: Colors.white)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: feastError,
+                    ),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(color: Colors.white),
+                    ),
                   ),
                   const SizedBox(width: 10),
                   ElevatedButton(
                     onPressed: () async {
-                      if (titleCtrl.text.trim().isEmpty) return;
+                      if (titleCtrl.text.trim().isEmpty) {
+                        FeastToast.showError(context, 'Please enter a question title.');
+                        return;
+                      }
                       await FirebaseFirestore.instance
                           .collection('user_questions')
                           .add({
@@ -114,12 +144,15 @@ class _HelpFaqScreenState extends State<HelpFaqScreen> {
                       });
                       if (!context.mounted) return;
                       Navigator.pop(context);
-                      FeastToast.showSuccess(
-                          context, 'Question submitted. Thank you!');
+                      FeastToast.showSuccess(context, 'Question submitted. Thank you!');
                     },
-                    style: ElevatedButton.styleFrom(backgroundColor: feastBlue),
-                    child: const Text('Submit',
-                        style: TextStyle(color: Colors.white)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: feastBlue,
+                    ),
+                    child: const Text(
+                      'Submit',
+                      style: TextStyle(color: Colors.white),
+                    ),
                   ),
                 ],
               ),
@@ -151,8 +184,7 @@ class _HelpFaqScreenState extends State<HelpFaqScreen> {
             List<Map<String, String>> faqs = List.from(_defaultFaqs);
             if (snap.hasData && snap.data!.exists) {
               final raw = snap.data!.data() as Map<String, dynamic>?;
-              final adminFaqs =
-                  (raw?['faqs'] as List?)?.cast<Map<String, dynamic>>();
+              final adminFaqs = (raw?['faqs'] as List?)?.cast<Map<String, dynamic>>();
               if (adminFaqs != null && adminFaqs.isNotEmpty) {
                 faqs = adminFaqs
                     .map((f) => {
@@ -187,10 +219,11 @@ class _HelpFaqScreenState extends State<HelpFaqScreen> {
                       'Whether you are managing operations, donating to a cause, volunteering your time, or seeking support as a beneficiary, we want your experience to be seamless.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontSize: 13,
-                          color: feastGray,
-                          height: 1.5),
+                        fontFamily: 'Outfit',
+                        fontSize: 13,
+                        color: feastGray,
+                        height: 1.5,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 20),

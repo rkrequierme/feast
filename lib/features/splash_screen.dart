@@ -1,3 +1,22 @@
+// lib/features/splash_screen.dart
+//
+// Animated splash screen shown while checking authentication state.
+// Displays logo, tagline, and loading indicator.
+// Auto-navigates to login screen after 3 seconds or when auth state changes.
+//
+// REACT.JS INTEGRATION NOTE:
+// =========================
+// In React, implement splash screen using useEffect + setTimeout:
+//   useEffect(() => {
+//     const timer = setTimeout(() => {
+//       onAuthStateChanged(auth, (user) => {
+//         if (user) navigate('/home');
+//         else navigate('/login');
+//       });
+//     }, 2000);
+//     return () => clearTimeout(timer);
+//   }, []);
+
 import 'package:flutter/material.dart';
 import 'package:feast/core/core.dart';
 

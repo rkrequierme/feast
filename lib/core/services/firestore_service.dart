@@ -1,11 +1,26 @@
 // lib/core/services/firestore_service.dart
 //
-// All Firestore read / write operations live here.
+// ALL FIRESTORE READ / WRITE OPERATIONS LIVE HERE.
 // Screens call these methods — no raw Firestore calls in UI code.
+//
+// REACT.JS INTEGRATION NOTE:
+// =========================
+// Each method below corresponds to a React hook or service function.
+// Collection references remain identical between Flutter and React.
+// 
+// Example React equivalent for aidRequestsQuery():
+//   import { collection, query, where, orderBy, limit, startAfter } from 'firebase/firestore';
+//   const q = query(
+//     collection(db, 'aid_requests'),
+//     where('status', '==', 'approved'),
+//     orderBy('createdAt', 'desc'),
+//     limit(10)
+//   );
+//   const snapshot = await getDocs(q);
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:feast/core/core.dart';
+import '../constants/firestore_paths.dart';
 
 class FirestoreService {
   FirestoreService._();
@@ -41,8 +56,6 @@ class FirestoreService {
     );
   }
 
-  /// Updates specific fields for a user document by UID.
-  /// Useful during registration or admin overrides.
   Future<void> updateUserField({
     required String uid,
     required Map<String, dynamic> data,
@@ -53,11 +66,19 @@ class FirestoreService {
     });
   }
 
+  // ──────────────────────────────────────────────────────────────────────────
+  // IS USER ADMIN? (For hiding admin UI from regular users)
+  // ──────────────────────────────────────────────────────────────────────────
+
+  Future<bool> isCurrentUserAdmin() async {
+    final user = await getCurrentUser();
+    return user?['role'] == 'admin';
+  }
+
   // ════════════════════════════════════════════════════════════════════════
   // ── AID REQUESTS ────────────────────────────────────────────────────────
   // ════════════════════════════════════════════════════════════════════════
 
-  /// Paginated, approved aid requests ordered by newest first.
   Query<Map<String, dynamic>> aidRequestsQuery({
     String? category,
     DocumentSnapshot? startAfter,
@@ -78,7 +99,6 @@ class FirestoreService {
     return q;
   }
 
-  /// Real-time stream of the 3 most recent approved aid requests (for carousel).
   Stream<QuerySnapshot> featuredAidRequestsStream() =>
       _db
           .collection(FirestorePaths.aidRequests)
@@ -87,12 +107,11 @@ class FirestoreService {
           .limit(3)
           .snapshots();
 
-  Future<DocumentReference> createAidRequest(
-      Map<String, dynamic> data) async {
+  Future<DocumentReference> createAidRequest(Map<String, dynamic> data) async {
     final ref = await _db.collection(FirestorePaths.aidRequests).add({
       ...data,
       'authorId': _uid,
-      'status': 'pending', // admin must approve
+      'status': 'pending',
       'donorCount': 0,
       'fundsDonated': 0.0,
       'itemsDonated': 0,
@@ -109,14 +128,31 @@ class FirestoreService {
     return ref;
   }
 
-  Future<void> saveDraft(
-      Map<String, dynamic> data, String collection) async {
-    await _db.collection('drafts').add({
+  Future<void> saveDraft(Map<String, dynamic> data, String collection) async {
+    await _db.collection('drafts').doc(_uid).collection(collection).doc('current').set({
       ...data,
       'authorId': _uid,
-      'collection': collection,
       'savedAt': FieldValue.serverTimestamp(),
     });
+  }
+
+  Future<Map<String, dynamic>?> loadDraft(String collection) async {
+    final doc = await _db
+        .collection('drafts')
+        .doc(_uid)
+        .collection(collection)
+        .doc('current')
+        .get();
+    return doc.data();
+  }
+
+  Future<void> deleteDraft(String collection) async {
+    await _db
+        .collection('drafts')
+        .doc(_uid)
+        .collection(collection)
+        .doc('current')
+        .delete();
   }
 
   // ─── Donations ──────────────────────────────────────────────────────────
@@ -135,7 +171,7 @@ class FirestoreService {
       'donorId': _uid,
       'type': 'funds',
       'amount': amount,
-      'status': 'pledged', // 'pledged' → 'delivered' → 'claimed'
+      'status': 'pledged',
       'pledgedAt': FieldValue.serverTimestamp(),
       'deadline': Timestamp.fromDate(
         DateTime.now().add(const Duration(days: 3)),
@@ -162,7 +198,7 @@ class FirestoreService {
 
   Future<void> donateItems({
     required String requestId,
-    required List<Map<String, dynamic>> items, // [{name, quantity}]
+    required List<Map<String, dynamic>> items,
   }) async {
     final batch = _db.batch();
 
@@ -174,7 +210,7 @@ class FirestoreService {
         'donorId': _uid,
         'type': 'items',
         'itemName': item['name'],
-        'quantity': item['quantity'],
+        'quantity': item['qty'],
         'status': 'pledged',
         'pledgedAt': FieldValue.serverTimestamp(),
         'deadline': Timestamp.fromDate(
@@ -202,7 +238,7 @@ class FirestoreService {
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  // ── CHARITY EVENTS ────────────────────────────────────────────────────
+  // ── CHARITY EVENTS ──────────────────────────────────────────────────────
   // ════════════════════════════════════════════════════════════════════════
 
   Query<Map<String, dynamic>> charityEventsQuery({
@@ -225,8 +261,7 @@ class FirestoreService {
     return q;
   }
 
-  Future<DocumentReference> createCharityEvent(
-      Map<String, dynamic> data) async {
+  Future<DocumentReference> createCharityEvent(Map<String, dynamic> data) async {
     final ref = await _db.collection(FirestorePaths.charityEvents).add({
       ...data,
       'organiserId': _uid,
@@ -252,7 +287,7 @@ class FirestoreService {
         .doc(_uid)
         .set({
       'userId': _uid,
-      'status': 'pending', // admin must confirm
+      'status': 'pending',
       'joinedAt': FieldValue.serverTimestamp(),
     });
 
@@ -264,21 +299,16 @@ class FirestoreService {
   }
 
   Future<void> leaveCharityEvent(String eventId) async {
-    // Check 24-hour restriction before allowing leave
     final eventDoc = await _db
         .collection(FirestorePaths.charityEvents)
         .doc(eventId)
         .get();
-    final startTime =
-        (eventDoc.data()?['startTime'] as Timestamp?)?.toDate();
+    final startTime = (eventDoc.data()?['startTime'] as Timestamp?)?.toDate();
 
     if (startTime != null &&
-        DateTime.now().isAfter(
-          startTime.subtract(const Duration(hours: 24)),
-        )) {
+        DateTime.now().isAfter(startTime.subtract(const Duration(hours: 24)))) {
       throw Exception(
-        'Cannot leave an event within 24 hours of its start time. '
-        'A penalty may apply.',
+        'Cannot leave an event within 24 hours of its start time.',
       );
     }
 
@@ -300,7 +330,7 @@ class FirestoreService {
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  // ── ANNOUNCEMENTS ─────────────────────────────────────────────────────
+  // ── ANNOUNCEMENTS ───────────────────────────────────────────────────────
   // ════════════════════════════════════════════════════════════════════════
 
   Stream<QuerySnapshot> announcementsStream({int limit = 5}) =>
@@ -311,7 +341,7 @@ class FirestoreService {
           .snapshots();
 
   // ════════════════════════════════════════════════════════════════════════
-  // ── NOTIFICATIONS ─────────────────────────────────────────────────────
+  // ── NOTIFICATIONS ───────────────────────────────────────────────────────
   // ════════════════════════════════════════════════════════════════════════
 
   Stream<QuerySnapshot> notificationsStream() =>
@@ -327,7 +357,7 @@ class FirestoreService {
         .get();
 
     if (snap.docs.isEmpty) return;
-    
+
     final batch = _db.batch();
     for (final doc in snap.docs) {
       batch.update(doc.reference, {'read': true});
@@ -350,7 +380,7 @@ class FirestoreService {
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  // ── BOOKMARKS ─────────────────────────────────────────────────────────
+  // ── BOOKMARKS ───────────────────────────────────────────────────────────
   // ════════════════════════════════════════════════════════════════════════
 
   Stream<QuerySnapshot> bookmarksStream() =>
@@ -361,7 +391,7 @@ class FirestoreService {
 
   Future<void> addBookmark({
     required String itemId,
-    required String itemType, // 'request' | 'event'
+    required String itemType,
     required String title,
   }) async {
     await _db
@@ -391,10 +421,9 @@ class FirestoreService {
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  // ── MESSAGES / CHATS ──────────────────────────────────────────────────
+  // ── MESSAGES / CHATS ────────────────────────────────────────────────────
   // ════════════════════════════════════════════════════════════════════════
 
-  /// Stream of chats where the current user is a participant.
   Stream<QuerySnapshot> chatsStream() =>
       _db
           .collection(FirestorePaths.chats)
@@ -402,7 +431,6 @@ class FirestoreService {
           .orderBy('lastMessageAt', descending: true)
           .snapshots();
 
-  /// Paginated messages for a chat — newest first, then reversed in UI.
   Query<Map<String, dynamic>> messagesQuery(
     String chatId, {
     DocumentSnapshot? startAfter,
@@ -444,7 +472,6 @@ class FirestoreService {
     required String chatId,
     required String text,
     String? attachmentUrl,
-    String? attachmentType,
   }) async {
     final batch = _db.batch();
 
@@ -456,7 +483,6 @@ class FirestoreService {
       'senderId': _uid,
       'text': text,
       'attachmentUrl': attachmentUrl ?? '',
-      'attachmentType': attachmentType ?? '',
       'sentAt': FieldValue.serverTimestamp(),
       'readBy': [_uid],
     });
@@ -473,7 +499,7 @@ class FirestoreService {
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  // ── HISTORY / ACTIVITY LOGS ────────────────────────────────────────────
+  // ── HISTORY / ACTIVITY LOGS ─────────────────────────────────────────────
   // ════════════════════════════════════════════════════════════════════════
 
   Stream<QuerySnapshot> activityLogsStream() =>
@@ -483,12 +509,12 @@ class FirestoreService {
           .snapshots();
 
   // ════════════════════════════════════════════════════════════════════════
-  // ── REPORTS ────────────────────────────────────────────────────────────
+  // ── REPORTS ─────────────────────────────────────────────────────────────
   // ════════════════════════════════════════════════════════════════════════
 
   Future<void> submitReport({
     required String targetId,
-    required String targetType, // 'user' | 'aid_request' | 'charity_event'
+    required String targetType,
     required String title,
     required String description,
   }) async {
@@ -510,10 +536,9 @@ class FirestoreService {
   }
 
   // ════════════════════════════════════════════════════════════════════════
-  // ── ADMIN ──────────────────────────────────────────────────────────────
+  // ── ADMIN (Temporary - Move to React.js) ────────────────────────────────
   // ════════════════════════════════════════════════════════════════════════
 
-  /// Only callable when role == 'admin'.
   Future<void> approveUser(String uid) async {
     await _db.collection(FirestorePaths.users).doc(uid).update({
       'status': 'active',
@@ -551,8 +576,7 @@ class FirestoreService {
     });
   }
 
-  Future<void> rejectPost(
-      String collection, String postId, String reason) async {
+  Future<void> rejectPost(String collection, String postId, String reason) async {
     await _db.collection(collection).doc(postId).update({
       'status': 'rejected',
       'rejectionReason': reason,
@@ -577,9 +601,7 @@ class FirestoreService {
   Future<void> banUser(String uid, String reason, int days) async {
     final banExpiry = days == 0
         ? null
-        : Timestamp.fromDate(
-            DateTime.now().add(Duration(days: days)),
-          );
+        : Timestamp.fromDate(DateTime.now().add(Duration(days: days)));
     await _db.collection(FirestorePaths.users).doc(uid).update({
       'status': 'banned',
       'banReason': reason,
@@ -603,7 +625,7 @@ class FirestoreService {
     });
   }
 
-  // ─── Pending counts (used by admin dashboard) ───────────────────────────
+  // ─── Pending counts (admin dashboard) ───────────────────────────────────
 
   Stream<int> pendingUsersCount() => _db
       .collection(FirestorePaths.users)
@@ -617,7 +639,9 @@ class FirestoreService {
       .snapshots()
       .map((s) => s.size);
 
-  // ─── Helpers ─────────────────────────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════════════════
+  // ── HELPERS ─────────────────────────────────────────────────────────────
+  // ════════════════════════════════════════════════════════════════════════
 
   Future<void> _logActivity({
     required String type,
@@ -646,31 +670,10 @@ class FirestoreService {
         .add({
       'title': title,
       'body': body,
-      'type': type, // 'system' | 'user'
+      'type': type,
       'status': status,
       'read': false,
       'createdAt': FieldValue.serverTimestamp(),
     });
   }
 }
-
-// ■■ REACT.JS INTEGRATION NOTE ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-// Collection : aid_requests
-// Fields    : title, description, category, location, authorId, status,
-//             aidType, imageUrls, fundraiserGoal, fundsDonated,
-//             donorCount, itemsDonated, acceptedItems, postDuration,
-//             createdAt, approvedAt, updatedAt
-// Sub-coll  : donations — donorId, type, amount|items, status, deadline
-//
-// Collection : charity_events
-// Fields    : title, description, category, location, organiserId,
-//             coOrganiserIds, startTime, endTime, status, imageUrls,
-//             participantCount, createdAt, approvedAt
-// Sub-coll  : volunteers — userId, status, joinedAt
-//
-// Collection : chats
-// Fields    : participantIds[], isGroup, groupName, creatorId, adminIds[]
-// Sub-coll  : messages — senderId, text, attachmentUrl, sentAt, readBy[]
-//
-// Pagination: React uses startAfter(lastDoc) from Firestore SDK v9+.
-// ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■

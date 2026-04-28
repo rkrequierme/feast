@@ -1,15 +1,40 @@
+// lib/core/widgets/profile_popup.dart
+//
+// User profile popup shown when tapping the avatar in the app bar.
+// Displays user name, Edit Profile button, and Logout button.
+//
+// REACT.JS INTEGRATION NOTE:
+// =========================
+// In React, implement as a dropdown menu:
+//   <Menu>
+//     <MenuItem onClick={() => setEditProfileOpen(true)}>Edit Profile</MenuItem>
+//     <MenuItem onClick={() => signOut(auth)}>Logout</MenuItem>
+//   </Menu>
+
 import 'package:flutter/material.dart';
-import '../core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import '../constants/app_colors.dart';
+import '../services/auth_service.dart';
+import 'edit_profile_modal.dart';
+import 'feast_toast.dart';
 
 class ProfilePopup extends StatelessWidget {
   final String username;
   final String? profilePictureUrl;
 
   const ProfilePopup({
-    super.key, 
+    super.key,
     required this.username,
     this.profilePictureUrl,
   });
+
+  Future<void> _handleLogout(BuildContext context) async {
+    Navigator.pop(context); // Close popup first
+    await AuthService.instance.signOut();
+    if (context.mounted) {
+      Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -42,12 +67,13 @@ class ProfilePopup extends StatelessWidget {
               username,
               textAlign: TextAlign.center,
               style: const TextStyle(
-                fontSize: 22, 
-                fontWeight: FontWeight.bold, 
-                fontFamily: 'Outfit'
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
+                fontFamily: 'Outfit',
               ),
             ),
             const SizedBox(height: 24),
+
             // Edit Profile Button
             SizedBox(
               width: double.infinity,
@@ -55,7 +81,9 @@ class ProfilePopup extends StatelessWidget {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: feastBlue,
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
                 onPressed: () {
                   Navigator.pop(context); // Close Popup
@@ -65,12 +93,18 @@ class ProfilePopup extends StatelessWidget {
                   );
                 },
                 child: const Text(
-                  'Edit Profile', 
-                  style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)
+                  'Edit Profile',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'Outfit',
+                  ),
                 ),
               ),
             ),
             const SizedBox(height: 12),
+
             // Logout Button
             SizedBox(
               width: double.infinity,
@@ -79,15 +113,18 @@ class ProfilePopup extends StatelessWidget {
                   foregroundColor: feastError,
                   side: const BorderSide(color: feastError),
                   padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-                onPressed: () {
-                  // Add your actual logout logic here via AuthService
-                  Navigator.pop(context);
-                },
+                onPressed: () => _handleLogout(context),
                 child: const Text(
-                  'Logout', 
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
+                  'Logout',
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    fontFamily: 'Outfit',
+                  ),
                 ),
               ),
             ),

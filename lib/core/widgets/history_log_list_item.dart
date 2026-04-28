@@ -1,8 +1,22 @@
-import 'package:flutter/material.dart';
+// lib/core/widgets/history_log_list_item.dart
+//
+// Activity log list item and sortable list view.
+// Real data comes from FirestoreService.instance.activityLogsStream()
+//
+// REACT.JS INTEGRATION NOTE:
+// =========================
+// Collection: users/{uid}/activity_logs
+// Fields: type, description, status, timestamp
+// React query:
+//   const q = query(
+//     collection(db, 'users', uid, 'activity_logs'),
+//     orderBy('timestamp', 'desc')
+//   );
+//   const snapshot = await getDocs(q);
 
-// ---------------------------------------------------------------------------
-// HistoryLogListItem
-// ---------------------------------------------------------------------------
+import 'package:flutter/material.dart';
+import '../constants/app_colors.dart';
+
 enum LogStatus { approved, pending, rejected, success, inProgress }
 
 class HistoryLogListItem extends StatelessWidget {
@@ -15,39 +29,52 @@ class HistoryLogListItem extends StatelessWidget {
 
   const HistoryLogListItem({
     super.key,
-    this.id = 'placeholder_id',
-    this.actionType = 'Post Handling',
-    this.description = 'Performed an action.',
-    this.formattedDate = '02-08-2026 | 12:00 PM',
-    this.status = LogStatus.success,
+    required this.id,
+    required this.actionType,
+    required this.description,
+    required this.formattedDate,
+    required this.status,
     this.sortableDate,
   });
 
   String get _statusLabel {
     switch (status) {
-      case LogStatus.approved: return 'Approved';
-      case LogStatus.pending: return 'Pending';
-      case LogStatus.rejected: return 'Rejected';
-      case LogStatus.success: return 'Success';
-      case LogStatus.inProgress: return 'In Progress';
+      case LogStatus.approved:
+        return 'Approved';
+      case LogStatus.pending:
+        return 'Pending';
+      case LogStatus.rejected:
+        return 'Rejected';
+      case LogStatus.success:
+        return 'Success';
+      case LogStatus.inProgress:
+        return 'In Progress';
     }
   }
 
   Color get _statusColor {
     switch (status) {
-      case LogStatus.approved: return Colors.green;
-      case LogStatus.pending: return Colors.orange;
-      case LogStatus.rejected: return Colors.red;
-      case LogStatus.success: return Colors.green;
-      case LogStatus.inProgress: return Colors.blue;
+      case LogStatus.approved:
+        return Colors.green;
+      case LogStatus.pending:
+        return Colors.orange;
+      case LogStatus.rejected:
+        return Colors.red;
+      case LogStatus.success:
+        return Colors.green;
+      case LogStatus.inProgress:
+        return Colors.blue;
     }
   }
 
   IconData get _actionIcon {
     switch (actionType) {
-      case 'User Authentication': return Icons.person_outline;
-      case 'Credential Changes': return Icons.sync;
-      default: return Icons.edit_note;
+      case 'User Authentication':
+        return Icons.person_outline;
+      case 'Credential Changes':
+        return Icons.sync;
+      default:
+        return Icons.edit_note;
     }
   }
 
@@ -131,11 +158,15 @@ class HistoryLogListItem extends StatelessWidget {
   }
 }
 
-// ---------------------------------------------------------------------------
-// HistoryListView Logic
-// ---------------------------------------------------------------------------
+// ─────────────────────────────────────────────────────────────────────────────
+// Sort Options
+// ─────────────────────────────────────────────────────────────────────────────
 
 enum _SortOption { newest, oldest, inProgress, logType }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HistoryListView - No placeholder data, uses Firestore streams
+// ─────────────────────────────────────────────────────────────────────────────
 
 class HistoryListView extends StatefulWidget {
   final List<HistoryLogListItem> recentItems;
@@ -147,36 +178,12 @@ class HistoryListView extends StatefulWidget {
     required this.pastItems,
   });
 
-  factory HistoryListView.placeholder() {
-    return HistoryListView(
-      recentItems: [
-        HistoryLogListItem(
-          id: 'r1',
-          actionType: 'Post Handling',
-          description: 'Remove Charity Event.',
-          formattedDate: '02-08-2026 | 3:00 PM',
-          status: LogStatus.rejected,
-          sortableDate: DateTime(2026, 8, 2, 15, 0),
-        ),
-        HistoryLogListItem(
-          id: 'r2',
-          actionType: 'Post Handling',
-          description: 'Edit Event Details.',
-          formattedDate: '02-08-2026 | 11:30 AM',
-          status: LogStatus.pending,
-          sortableDate: DateTime(2026, 8, 2, 11, 30),
-        ),
-      ],
-      pastItems: [
-        HistoryLogListItem(
-          id: 'p1',
-          actionType: 'User Authentication',
-          description: 'You Logged Out.',
-          formattedDate: '02-01-2026 | 1:00 PM',
-          status: LogStatus.success,
-          sortableDate: DateTime(2026, 1, 2, 13, 0),
-        ),
-      ],
+  /// Creates an empty view with no hardcoded data.
+  /// Real data comes from FirestoreService.instance.activityLogsStream()
+  factory HistoryListView.empty() {
+    return const HistoryListView(
+      recentItems: [],
+      pastItems: [],
     );
   }
 
@@ -246,7 +253,6 @@ class _HistoryListViewState extends State<HistoryListView> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    // FIXED SECTION
                     ...[
                       (_SortOption.newest, 'Newest'),
                       (_SortOption.oldest, 'Oldest'),

@@ -2,6 +2,12 @@
 //
 // Detail view for a single aid request, loaded live from Firestore.
 // Route argument: String docId
+//
+// REACT.JS INTEGRATION NOTE:
+// =========================
+// getDoc(doc(db, 'aid_requests', docId))
+// Sub-collection donations: collection('aid_requests/{id}/donations')
+// Bookmark: setDoc(doc(db,'users',uid,'bookmarks',docId), {...})
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -77,9 +83,6 @@ class _SelectedAidRequestScreenState
     FeastToast.showSuccess(context, 'Link copied to clipboard.');
   }
 
-  // FIX: Replaced removed `ReportContentDialog` with `ReportModal`.
-  // - `title` param renamed to `targetTitle`
-  // - `onConfirm` param renamed to `onSubmit`
   void _showReport() {
     if (_data == null) return;
     showDialog(
@@ -101,28 +104,25 @@ class _SelectedAidRequestScreenState
     );
   }
 
-  // FIX: Replaced removed `DonateItemsDialog` with `DonateModal` (step-1
-  // intent dialog). Replaced removed `ItemDonationDialog` with
-  // `ItemDonationModal` (step-2 item-entry dialog).
   void _showGiveItems() {
+    if (_data == null) return;
     showDialog(
       context: context,
       builder: (_) => DonateModal(
         title: 'Donate Items',
-        aidRequestName: _data?['title'] as String? ?? '',
-        boldNote:
-            'Note: Items must be physically delivered to the Barangay Hall.',
+        aidRequestName: _data!['title'] as String? ?? '',
+        boldNote: 'Note: Items must be physically delivered to the Barangay Hall.',
         onYes: () => showDialog(
           context: context,
           builder: (_) => ItemDonationModal(
+            acceptedItems: (_data!['acceptedItems'] as List?)?.cast<String>() ?? [],
             onConfirm: (items) async {
               await FirestoreService.instance.donateItems(
                 requestId: _docId!,
                 items: items,
               );
               if (!mounted) return;
-              FeastToast.showSuccess(
-                  context, 'Item donation submitted. Thank you!');
+              FeastToast.showSuccess(context, 'Item donation submitted. Thank you!');
             },
           ),
         ),
@@ -130,19 +130,17 @@ class _SelectedAidRequestScreenState
     );
   }
 
-  // FIX: Replaced removed `DonateFundsDialog` with `DonateModal` (step-1
-  // intent dialog). `DonateFundsAmountDialog` is in donate_modal.dart and
-  // is already correct — no change needed there.
   void _showDonateFunds() {
+    if (_data == null) return;
     showDialog(
       context: context,
       builder: (_) => DonateModal(
         title: 'Donate Funds',
-        aidRequestName: _data?['title'] as String? ?? '',
+        aidRequestName: _data!['title'] as String? ?? '',
         onYes: () => showDialog(
           context: context,
           builder: (_) => DonateFundsAmountDialog(
-            requestTitle: _data?['title'] as String? ?? '',
+            requestTitle: _data!['title'] as String? ?? '',
             onConfirm: (amount) async {
               await FirestoreService.instance.donateFunds(
                 requestId: _docId!,
@@ -213,10 +211,10 @@ class _SelectedAidRequestScreenState
           child: SingleChildScrollView(
             child: Column(
               children: [
-                // ── Image Carousel ────────────────────────────────────
+                // Image Carousel
                 _buildImageCarousel(images),
 
-                // ── Detail Card ───────────────────────────────────────
+                // Detail Card
                 Transform.translate(
                   offset: const Offset(0, -24),
                   child: Container(
@@ -266,7 +264,7 @@ class _SelectedAidRequestScreenState
                                 color: feastGray,
                                 height: 1.5)),
 
-                        // ── Stats row ─────────────────────────────────
+                        // Stats row
                         const SizedBox(height: 16),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceAround,
@@ -284,7 +282,7 @@ class _SelectedAidRequestScreenState
                           ],
                         ),
 
-                        // ── Fundraiser progress bar ────────────────────
+                        // Fundraiser progress bar
                         if (isFundraiser && goalAmount > 0) ...[
                           const SizedBox(height: 14),
                           Row(
@@ -323,7 +321,7 @@ class _SelectedAidRequestScreenState
                                   color: feastGray)),
                         ],
 
-                        // ── Donate buttons ────────────────────────────
+                        // Donate buttons
                         const SizedBox(height: 20),
                         if (isFundraiser)
                           SizedBox(
@@ -377,7 +375,7 @@ class _SelectedAidRequestScreenState
                   ),
                 ),
 
-                // ── Bookmark toggle ───────────────────────────────────
+                // Bookmark toggle
                 GestureDetector(
                   onTap: _toggleBookmark,
                   child: Row(
@@ -619,9 +617,3 @@ class _SelectedAidRequestScreenState
     return '${diff.inMinutes} Minutes Left';
   }
 }
-
-// ■■ REACT.JS INTEGRATION NOTE ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-// getDoc(doc(db, 'aid_requests', docId))
-// Sub-collection donations: collection('aid_requests/{id}/donations')
-// Bookmark: setDoc(doc(db,'users',uid,'bookmarks',docId), {...})
-// ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■

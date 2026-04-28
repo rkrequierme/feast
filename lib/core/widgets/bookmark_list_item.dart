@@ -1,32 +1,25 @@
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import '../constants/app_colors.dart';
-
-// ─────────────────────────────────────────────────────────────────────────────
-// bookmark_list_item.dart
+// lib/core/widgets/bookmark_list_item.dart
 //
 // Swipeable bookmark card used in BookmarksScreen.
 //   Swipe RIGHT → share (copy deep link to clipboard)
 //   Swipe LEFT  → remove bookmark (confirmation dialog)
 //
-// FIREBASE WIRING (caller-side):
-//   StreamBuilder<QuerySnapshot>(
-//     stream: db.collection('users').doc(uid).collection('bookmarks')
-//              .orderBy('createdAt', descending: true).snapshots(),
-//     builder: (ctx, snap) {
-//       final docs = snap.data?.docs ?? [];
-//       return ListView.builder(
-//         itemCount: docs.length,
-//         itemBuilder: (_, i) {
-//           final d = docs[i].data() as Map<String, dynamic>;
-//           return BookmarkListItem.fromMap(d,
-//             onRemove: () => docs[i].reference.delete(),
-//           );
-//         },
-//       );
-//     },
+// REACT.JS INTEGRATION NOTE:
+// =========================
+// Collection: users/{uid}/bookmarks
+// Fields: itemId, itemType ('request'|'event'), title, savedAt
+// React query:
+//   const q = query(
+//     collection(db, 'users', uid, 'bookmarks'),
+//     orderBy('savedAt', 'desc')
 //   );
-// ─────────────────────────────────────────────────────────────────────────────
+//   const snapshot = await getDocs(q);
+// Add: await setDoc(doc(db, 'users', uid, 'bookmarks', itemId), { ... })
+// Remove: await deleteDoc(doc(db, 'users', uid, 'bookmarks', itemId))
+
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import '../constants/app_colors.dart';
 
 enum BookmarkType { request, event }
 
@@ -414,8 +407,7 @@ class _RemoveBookmarkDialog extends StatelessWidget {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// BookmarksListView
-// Tab-filtered (All / Requests / Events) wrapper around BookmarkListItem.
+// BookmarksListView - Tab-filtered wrapper around BookmarkListItem
 // ─────────────────────────────────────────────────────────────────────────────
 
 class BookmarksListView extends StatefulWidget {
@@ -552,36 +544,4 @@ class _BookmarksListViewState extends State<BookmarksListView> {
           ),
         ),
       );
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// BookmarksRegistry
-// Lightweight in-memory registry for bookmark state across screens.
-// REPLACE with a Firestore ChangeNotifier in production.
-// ─────────────────────────────────────────────────────────────────────────────
-
-class BookmarksRegistry extends ChangeNotifier {
-  BookmarksRegistry._();
-  static final BookmarksRegistry instance = BookmarksRegistry._();
-
-  final Set<String> _bookmarkedIds = {};
-  bool contains(String id) => _bookmarkedIds.contains(id);
-
-  void add(String id) {
-    _bookmarkedIds.add(id);
-    notifyListeners();
-  }
-
-  void remove(String id) {
-    _bookmarkedIds.remove(id);
-    notifyListeners();
-  }
-
-  void toggle(String id) {
-    if (contains(id)) {
-      remove(id);
-    } else {
-      add(id);
-    }
-  }
 }

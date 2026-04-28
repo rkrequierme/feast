@@ -1,9 +1,23 @@
 // lib/features/notifications/screens/notifications_screen.dart
 //
-// Real-time notifications pulled from Firestore.
+// Real-time notifications from Firestore.
 // Three tabs: All | User (social) | System (approvals/rejections).
-// Announcements pinned at the top of every tab.
 // Swipe-to-delete with confirmation; marks items read on open.
+//
+// REACT.JS INTEGRATION NOTE:
+// =========================
+// Collection: users/{uid}/notifications
+// Fields: title, body, type ('system'|'user'|'announcement'),
+//         status ('approved'|'pending'|'rejected'|'warning'|'info'),
+//         read, createdAt
+// React query:
+//   const q = query(
+//     collection(db, 'users', uid, 'notifications'),
+//     orderBy('createdAt', 'desc')
+//   );
+//   const snapshot = await getDocs(q);
+// Mark read: await updateDoc(doc.ref, { read: true })
+// Delete: await deleteDoc(doc.ref)
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -34,7 +48,6 @@ class _NotificationsScreenState extends State<NotificationsScreen>
     super.dispose();
   }
 
-  /// Batch-mark all unread notifications as read when screen opens.
   Future<void> _markAllRead() async {
     await FirestoreService.instance.markAllNotificationsRead();
   }
@@ -47,16 +60,16 @@ class _NotificationsScreenState extends State<NotificationsScreen>
       body: FeastBackground(
         child: Column(
           children: [
-            // Tabs
             TabBar(
               controller: _tabController,
               labelColor: feastGreen,
               unselectedLabelColor: feastGray,
               indicatorColor: feastGreen,
               labelStyle: const TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.bold,
-                  fontSize: 13),
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.bold,
+                fontSize: 13,
+              ),
               tabs: const [
                 Tab(text: 'All'),
                 Tab(text: 'Users'),
@@ -81,12 +94,59 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   }
 }
 
-// ─── Notification List for each tab ──────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────────────────
+// Notification List for each tab
+// ──────────────────────────────────────────────────────────────────────────
 
 class _NotifList extends StatelessWidget {
-  final String? typeFilter; // null = all, 'user', 'system'
+  final String? typeFilter;
 
   const _NotifList({required this.typeFilter});
+
+  String _formatTime(Timestamp? ts) {
+    if (ts == null) return '';
+    final date = ts.toDate();
+    final now = DateTime.now();
+    final diff = now.difference(date);
+
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m';
+    if (diff.inDays < 1) return '${diff.inHours}h';
+    if (diff.inDays == 1) return 'Yesterday';
+    return DateFormat('MMM d').format(date);
+  }
+
+  Color _statusColor(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+        return feastSuccess;
+      case 'pending':
+        return feastOrange;
+      case 'rejected':
+      case 'denied':
+      case 'warning':
+      case 'banned':
+        return feastError;
+      default:
+        return feastBlue;
+    }
+  }
+
+  IconData _statusIcon(String status) {
+    switch (status.toLowerCase()) {
+      case 'approved':
+        return Icons.check_circle_outline;
+      case 'pending':
+        return Icons.hourglass_top_outlined;
+      case 'rejected':
+      case 'denied':
+        return Icons.cancel_outlined;
+      case 'warning':
+        return Icons.warning_amber_outlined;
+      default:
+        return Icons.notifications_outlined;
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -95,7 +155,8 @@ class _NotifList extends StatelessWidget {
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(
-              child: CircularProgressIndicator(color: feastGreen));
+            child: CircularProgressIndicator(color: feastGreen),
+          );
         }
 
         var docs = snap.data?.docs ?? [];
@@ -103,19 +164,16 @@ class _NotifList extends StatelessWidget {
         // Filter by tab type
         if (typeFilter != null) {
           docs = docs
-              .where((d) =>
-                  (d.data() as Map<String, dynamic>)['type'] == typeFilter)
+              .where((d) => (d.data() as Map<String, dynamic>)['type'] == typeFilter)
               .toList();
         }
 
-        // Separate announcements (type == 'announcement') pinned at top
+        // Separate announcements pinned at top
         final announcements = docs
-            .where((d) =>
-                (d.data() as Map<String, dynamic>)['type'] == 'announcement')
+            .where((d) => (d.data() as Map<String, dynamic>)['type'] == 'announcement')
             .toList();
         final rest = docs
-            .where((d) =>
-                (d.data() as Map<String, dynamic>)['type'] != 'announcement')
+            .where((d) => (d.data() as Map<String, dynamic>)['type'] != 'announcement')
             .toList();
 
         if (docs.isEmpty) {
@@ -125,23 +183,29 @@ class _NotifList extends StatelessWidget {
         return ListView(
           padding: const EdgeInsets.only(bottom: 40),
           children: [
-            // Pinned announcements section
             if (announcements.isNotEmpty) ...[
               _sectionHeader('Official Announcements'),
-              ...announcements
-                  .map((doc) => _NotifTile(doc: doc))
-                  .toList(),
+              ...announcements.map((doc) => _NotifTile(
+                doc: doc,
+                formatTime: _formatTime,
+                statusColor: _statusColor,
+                statusIcon: _statusIcon,
+              )),
             ],
-
-            // Rest of notifications
             if (rest.isNotEmpty) ...[
               _sectionHeader(
-                  typeFilter == 'user'
-                      ? 'User Notifications'
-                      : typeFilter == 'system'
-                          ? 'System Notifications'
-                          : 'All Notifications'),
-              ...rest.map((doc) => _NotifTile(doc: doc)).toList(),
+                typeFilter == 'user'
+                    ? 'User Notifications'
+                    : typeFilter == 'system'
+                        ? 'System Notifications'
+                        : 'All Notifications',
+              ),
+              ...rest.map((doc) => _NotifTile(
+                doc: doc,
+                formatTime: _formatTime,
+                statusColor: _statusColor,
+                statusIcon: _statusIcon,
+              )),
             ],
           ],
         );
@@ -165,53 +229,22 @@ class _NotifList extends StatelessWidget {
   }
 }
 
-// ─── Individual Notification Tile ─────────────────────────────────────────────
+// ──────────────────────────────────────────────────────────────────────────
+// Individual Notification Tile
+// ──────────────────────────────────────────────────────────────────────────
 
 class _NotifTile extends StatelessWidget {
   final QueryDocumentSnapshot doc;
+  final String Function(Timestamp?) formatTime;
+  final Color Function(String) statusColor;
+  final IconData Function(String) statusIcon;
 
-  const _NotifTile({required this.doc});
-
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'approved':
-        return feastSuccess;
-      case 'pending':
-        return feastOrange;
-      case 'rejected':
-      case 'denied':
-      case 'warning':
-      case 'banned':
-        return feastError;
-      default:
-        return feastBlue;
-    }
-  }
-
-  IconData _statusIcon(String status) {
-    switch (status) {
-      case 'approved':
-        return Icons.check_circle_outline;
-      case 'pending':
-        return Icons.hourglass_top_outlined;
-      case 'rejected':
-      case 'denied':
-        return Icons.cancel_outlined;
-      case 'warning':
-        return Icons.warning_amber_outlined;
-      default:
-        return Icons.notifications_outlined;
-    }
-  }
-
-  String _formatTime(Timestamp? ts) {
-    if (ts == null) return '';
-    final diff = DateTime.now().difference(ts.toDate());
-    if (diff.inMinutes < 1) return 'just now';
-    if (diff.inHours < 1) return '${diff.inMinutes}m';
-    if (diff.inDays < 1) return '${diff.inHours}h';
-    return DateFormat('MMM d').format(ts.toDate());
-  }
+  const _NotifTile({
+    required this.doc,
+    required this.formatTime,
+    required this.statusColor,
+    required this.statusIcon,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -229,27 +262,29 @@ class _NotifTile extends StatelessWidget {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         color: feastError,
-        child: const Icon(Icons.delete_outline,
-            color: Colors.white, size: 28),
+        child: const Icon(Icons.delete_outline, color: Colors.white, size: 28),
       ),
       confirmDismiss: (_) async {
         return await showDialog<bool>(
           context: context,
           builder: (_) => AlertDialog(
-            title: const Text('Delete Notification',
-                style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold)),
+            title: const Text(
+              'Delete Notification',
+              style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+            ),
             content: const Text(
-                'Are you sure you want to delete this notification? This action cannot be undone.'),
+              'Are you sure you want to delete this notification? This action cannot be undone.',
+              style: TextStyle(fontFamily: 'Outfit'),
+            ),
             actions: [
               TextButton(
-                  onPressed: () => Navigator.pop(context, false),
-                  child: const Text('Cancel')),
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel', style: TextStyle(fontFamily: 'Outfit')),
+              ),
               ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                    backgroundColor: feastError),
+                style: ElevatedButton.styleFrom(backgroundColor: feastError),
                 onPressed: () => Navigator.pop(context, true),
-                child: const Text('Delete',
-                    style: TextStyle(color: Colors.white)),
+                child: const Text('Delete', style: TextStyle(color: Colors.white, fontFamily: 'Outfit')),
               ),
             ],
           ),
@@ -272,20 +307,15 @@ class _NotifTile extends StatelessWidget {
           ],
         ),
         child: ListTile(
-          contentPadding:
-              const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           leading: Container(
             width: 42,
             height: 42,
             decoration: BoxDecoration(
-              color: _statusColor(status).withAlpha(30),
+              color: statusColor(status).withAlpha(30),
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              _statusIcon(status),
-              color: _statusColor(status),
-              size: 22,
-            ),
+            child: Icon(statusIcon(status), color: statusColor(status), size: 22),
           ),
           title: Row(
             children: [
@@ -294,27 +324,22 @@ class _NotifTile extends StatelessWidget {
                   title,
                   style: TextStyle(
                     fontFamily: 'Outfit',
-                    fontWeight:
-                        isRead ? FontWeight.w500 : FontWeight.bold,
+                    fontWeight: isRead ? FontWeight.w500 : FontWeight.bold,
                     fontSize: 13,
                     color: feastBlack,
                   ),
                 ),
               ),
               Text(
-                _formatTime(createdAt),
-                style: const TextStyle(
-                    fontFamily: 'Outfit',
-                    fontSize: 10,
-                    color: feastGray),
+                formatTime(createdAt),
+                style: const TextStyle(fontFamily: 'Outfit', fontSize: 10, color: feastGray),
               ),
               if (!isRead) ...[
                 const SizedBox(width: 6),
                 Container(
                   width: 8,
                   height: 8,
-                  decoration: const BoxDecoration(
-                      color: feastBlue, shape: BoxShape.circle),
+                  decoration: const BoxDecoration(color: feastBlue, shape: BoxShape.circle),
                 ),
               ],
             ],
@@ -326,10 +351,11 @@ class _NotifTile extends StatelessWidget {
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: const TextStyle(
-                  fontFamily: 'Outfit',
-                  fontSize: 12,
-                  color: feastGray,
-                  height: 1.4),
+                fontFamily: 'Outfit',
+                fontSize: 12,
+                color: feastGray,
+                height: 1.4,
+              ),
             ),
           ),
         ),
@@ -337,16 +363,3 @@ class _NotifTile extends StatelessWidget {
     );
   }
 }
-
-// ■■ REACT.JS INTEGRATION NOTE ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
-// Collection : users/{uid}/notifications
-// Fields    : title, body, type ('system'|'user'|'announcement'),
-//             status ('approved'|'pending'|'rejected'|'warning'|'info'),
-//             read, createdAt
-// React     : onSnapshot(collection(db,'users',uid,'notifications'),
-//               orderBy('createdAt','desc'))
-// Mark read : updateDoc(doc.ref, { read: true })
-// Delete    : deleteDoc(doc.ref)
-// Admin     : addDoc to target user's notifications sub-collection
-//             to trigger a notification from admin actions.
-// ■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■■
