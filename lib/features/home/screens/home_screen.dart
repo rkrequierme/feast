@@ -19,6 +19,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:feast/core/core.dart';
 import 'package:feast/features/features.dart';
+import 'package:feast/core/utils/date_parser.dart';
 
 class HomeScreen extends StatefulWidget {
   final bool isAdmin;
@@ -33,6 +34,7 @@ class _HomeScreenState extends State<HomeScreen> {
   int _featuredPage = 0;
   final PageController _featuredPageController = PageController();
   String _username = '';
+  bool _isAdmin = false;
 
   final List<Map<String, dynamic>> _categories = [
     {'icon': Icons.local_hospital_outlined, 'label': 'Health'},
@@ -55,6 +57,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (data == null || !mounted) return;
     setState(() {
       _username = data['displayName'] as String? ?? 'Friend';
+      _isAdmin = (data['role'] as String?) == 'admin';
     });
   }
 
@@ -70,7 +73,7 @@ class _HomeScreenState extends State<HomeScreen> {
       appBar: FeastAppBar(
         title: 'Home',
         username: _username,
-        showWelcomeMessage: true,  // <-- ONLY Home Screen shows welcome message
+        showWelcomeMessage: true, // <-- ONLY Home Screen shows welcome message
       ),
       drawer: FeastDrawer(username: _username),
       body: FeastBackground(
@@ -92,10 +95,12 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
       bottomNavigationBar: FeastBottomNav(currentIndex: 0),
-      floatingActionButton: widget.isAdmin
+      floatingActionButton: (widget.isAdmin || _isAdmin)
           ? FeastFloatingButton(
               icon: Icons.admin_panel_settings,
-              onPressed: () => Navigator.pushNamed(context, AppRoutes.adminDashboard),
+              backgroundColor: feastOrange,
+              onPressed: () =>
+                  Navigator.pushNamed(context, AppRoutes.adminDashboard),
               tooltip: 'Admin Dashboard',
             )
           : null,
@@ -131,7 +136,14 @@ class _HomeScreenState extends State<HomeScreen> {
                 );
               }
 
-              final docs = snap.data?.docs ?? [];
+              var docs = snap.data?.docs ?? [];
+              docs = docs.toList()..sort((a, b) {
+                final aTime = DateParser.parse((a.data() as Map<String, dynamic>)['createdAt']);
+                final bTime = DateParser.parse((b.data() as Map<String, dynamic>)['createdAt']);
+                if (aTime == null || bTime == null) return 0;
+                return bTime.compareTo(aTime);
+              });
+              if (docs.length > 3) docs = docs.sublist(0, 3);
               if (docs.isEmpty) {
                 return const EmptyStateWidget(
                   message: 'No featured items yet.',
@@ -236,7 +248,9 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           children: [
             ClipRRect(
-              borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(20),
+              ),
               child: SizedBox(
                 height: 160,
                 width: double.infinity,
@@ -244,7 +258,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? Image.network(images.first, fit: BoxFit.cover)
                     : Container(
                         color: feastLightGreen.withAlpha(102),
-                        child: const Icon(Icons.volunteer_activism, size: 60, color: feastGreen),
+                        child: const Icon(
+                          Icons.volunteer_activism,
+                          size: 60,
+                          color: feastGreen,
+                        ),
                       ),
               ),
             ),
@@ -280,7 +298,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   const SizedBox(height: 8),
                   const Text(
                     'Tap to begin. Swipe for more.',
-                    style: TextStyle(fontSize: 11, fontFamily: 'Outfit', color: feastGray),
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontFamily: 'Outfit',
+                      color: feastGray,
+                    ),
                   ),
                 ],
               ),
@@ -330,10 +352,15 @@ class _HomeScreenState extends State<HomeScreen> {
                   final selected = _selectedCategory == cat['label'];
                   return GestureDetector(
                     onTap: () => setState(() {
-                      _selectedCategory = selected ? null : cat['label'] as String;
+                      _selectedCategory = selected
+                          ? null
+                          : cat['label'] as String;
                     }),
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: selected ? feastGreen : Colors.white,
                         borderRadius: BorderRadius.circular(20),
@@ -342,8 +369,11 @@ class _HomeScreenState extends State<HomeScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(cat['icon'] as IconData,
-                              size: 16, color: selected ? Colors.white : feastGreen),
+                          Icon(
+                            cat['icon'] as IconData,
+                            size: 16,
+                            color: selected ? Colors.white : feastGreen,
+                          ),
                           const SizedBox(width: 4),
                           Text(
                             cat['label'] as String,
@@ -377,10 +407,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
               child: Row(
-                children: [
-                  _buildTab('Requests', 0),
-                  _buildTab('Events', 1),
-                ],
+                children: [_buildTab('Requests', 0), _buildTab('Events', 1)],
               ),
             ),
             const SizedBox(height: 16),
@@ -399,7 +426,9 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Container(
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: isActive ? (index == 0 ? feastGreen : feastBlue) : Colors.transparent,
+            color: isActive
+                ? (index == 0 ? feastGreen : feastBlue)
+                : Colors.transparent,
             borderRadius: BorderRadius.circular(12),
           ),
           child: Text(
@@ -423,9 +452,18 @@ class _HomeScreenState extends State<HomeScreen> {
           .snapshots(),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: feastGreen));
+          return const Center(
+            child: CircularProgressIndicator(color: feastGreen),
+          );
         }
-        final docs = snap.data?.docs ?? [];
+        var docs = snap.data?.docs ?? [];
+        docs = docs.toList()..sort((a, b) {
+          final aTime = DateParser.parse((a.data() as Map<String, dynamic>)['createdAt']);
+          final bTime = DateParser.parse((b.data() as Map<String, dynamic>)['createdAt']);
+          if (aTime == null || bTime == null) return 0;
+          return bTime.compareTo(aTime);
+        });
+        if (docs.length > 5) docs = docs.sublist(0, 5);
         if (docs.isEmpty) {
           return const EmptyStateWidget(message: 'No aid requests yet.');
         }
@@ -450,9 +488,18 @@ class _HomeScreenState extends State<HomeScreen> {
           .snapshots(),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
-          return const Center(child: CircularProgressIndicator(color: feastGreen));
+          return const Center(
+            child: CircularProgressIndicator(color: feastGreen),
+          );
         }
-        final docs = snap.data?.docs ?? [];
+        var docs = snap.data?.docs ?? [];
+        docs = docs.toList()..sort((a, b) {
+          final aTime = DateParser.parse((a.data() as Map<String, dynamic>)['startTime']);
+          final bTime = DateParser.parse((b.data() as Map<String, dynamic>)['startTime']);
+          if (aTime == null || bTime == null) return 0;
+          return aTime.compareTo(bTime); // oldest start time first
+        });
+        if (docs.length > 5) docs = docs.sublist(0, 5);
         if (docs.isEmpty) {
           return const EmptyStateWidget(message: 'No events yet.');
         }
@@ -505,8 +552,11 @@ class _HomeScreenState extends State<HomeScreen> {
                     ? Image.network(images.first, fit: BoxFit.cover)
                     : Container(
                         color: feastLightGreen.withAlpha(77),
-                        child: Icon(Icons.image_outlined,
-                            size: 36, color: feastGreen.withAlpha(102)),
+                        child: Icon(
+                          Icons.image_outlined,
+                          size: 36,
+                          color: feastGreen.withAlpha(102),
+                        ),
                       ),
               ),
             ),
@@ -579,7 +629,9 @@ class _HomeScreenState extends State<HomeScreen> {
             stream: FirestoreService.instance.announcementsStream(),
             builder: (context, snap) {
               if (snap.connectionState == ConnectionState.waiting) {
-                return const Center(child: CircularProgressIndicator(color: feastGreen));
+                return const Center(
+                  child: CircularProgressIndicator(color: feastGreen),
+                );
               }
               final docs = snap.data?.docs ?? [];
               if (docs.isEmpty) {
@@ -633,8 +685,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   ? Image.network(images.first, fit: BoxFit.cover)
                   : Container(
                       color: feastLightYellow.withAlpha(102),
-                      child: Icon(Icons.campaign_outlined,
-                          size: 36, color: feastOrange.withAlpha(128)),
+                      child: Icon(
+                        Icons.campaign_outlined,
+                        size: 36,
+                        color: feastOrange.withAlpha(128),
+                      ),
                     ),
             ),
           ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
+import '../utils/date_parser.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // aid_request_list_item.dart
@@ -66,8 +67,10 @@ class AidRequestListItem extends StatefulWidget {
     final expiresAt = data['expiresAt'];
     int days = 0;
     if (expiresAt != null) {
-      final dt = (expiresAt as dynamic).toDate() as DateTime;
-      days = dt.difference(DateTime.now()).inDays.clamp(0, 9999);
+      final dt = DateParser.parse(expiresAt);
+      if (dt != null) {
+        days = dt.difference(DateTime.now()).inDays.clamp(0, 9999);
+      }
     }
     final images = List<String>.from(data['imageUrls'] as List? ?? []);
     return AidRequestListItem(

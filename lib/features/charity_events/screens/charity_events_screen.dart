@@ -20,6 +20,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:feast/core/core.dart';
+import 'package:feast/features/features.dart';
+import 'package:feast/core/utils/date_parser.dart';
 import 'package:feast/core/services/firestore_service.dart';
 
 class CharityEventsScreen extends StatefulWidget {
@@ -34,6 +36,7 @@ class _CharityEventsScreenState extends State<CharityEventsScreen> {
   String _searchQuery = '';
   String? _selectedCategory;
   String _username = 'User';
+  bool _isAdmin = false;
 
   final List<Map<String, dynamic>> _filterOptions = [
     {'label': 'All', 'category': null},
@@ -54,14 +57,20 @@ class _CharityEventsScreenState extends State<CharityEventsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadUsername();
+    _loadUser();
     _fetchNextPage();
-    _searchController.addListener(() => setState(() => _searchQuery = _searchController.text.toLowerCase()));
+    _searchController.addListener(
+      () => setState(() => _searchQuery = _searchController.text.toLowerCase()),
+    );
   }
 
-  Future<void> _loadUsername() async {
-    final name = await FirestoreService.instance.getCurrentUserName();
-    if (mounted) setState(() => _username = name);
+  Future<void> _loadUser() async {
+    final data = await FirestoreService.instance.getCurrentUser();
+    if (data == null || !mounted) return;
+    setState(() {
+      _username = data['displayName'] as String? ?? 'User';
+      _isAdmin = (data['role'] as String?) == 'admin';
+    });
   }
 
   @override
@@ -77,17 +86,27 @@ class _CharityEventsScreenState extends State<CharityEventsScreen> {
       final snap = await FirestoreService.instance
           .charityEventsQuery(
             category: _selectedCategory,
-            startAfter: _lastDoc,
-            limit: _pageSize,
+            // ignoring startAfter since we removed orderBy
           )
           .get();
       if (!mounted) return;
       setState(() {
         if (snap.docs.isNotEmpty) {
-          _docs.addAll(snap.docs);
-          _lastDoc = snap.docs.last;
+          var fetchedDocs = snap.docs.toList();
+          fetchedDocs.sort((a, b) {
+            final aTime = DateParser.parse(
+              (a.data() as Map<String, dynamic>)['startTime'],
+            );
+            final bTime = DateParser.parse(
+              (b.data() as Map<String, dynamic>)['startTime'],
+            );
+            if (aTime == null || bTime == null) return 0;
+            return aTime.compareTo(bTime); // upcoming first
+          });
+          _docs.clear();
+          _docs.addAll(fetchedDocs);
         }
-        _hasMore = snap.docs.length == _pageSize;
+        _hasMore = false; // We loaded everything, no pagination needed
         _isLoading = false;
       });
     } catch (_) {
@@ -124,9 +143,12 @@ class _CharityEventsScreenState extends State<CharityEventsScreen> {
 
   Color _statusColor(String status) {
     switch (status) {
-      case 'Ongoing': return feastSuccess;
-      case 'Concluded': return feastGray;
-      default: return feastOrange;
+      case 'Ongoing':
+        return feastSuccess;
+      case 'Concluded':
+        return feastGray;
+      default:
+        return feastOrange;
     }
   }
 
@@ -150,30 +172,52 @@ class _CharityEventsScreenState extends State<CharityEventsScreen> {
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(12),
                     boxShadow: [
-                      BoxShadow(color: Colors.black.withAlpha(15), blurRadius: 6, offset: const Offset(0, 2)),
+                      BoxShadow(
+                        color: Colors.black.withAlpha(15),
+                        blurRadius: 6,
+                        offset: const Offset(0, 2),
+                      ),
                     ],
                   ),
                   child: Row(
                     children: [
                       const SizedBox(width: 12),
-                      Icon(Icons.search, color: feastGray.withAlpha(150), size: 22),
+                      Icon(
+                        Icons.search,
+                        color: feastGray.withAlpha(150),
+                        size: 22,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: TextField(
                           controller: _searchController,
-                          style: const TextStyle(fontSize: 14, fontFamily: 'Outfit', color: feastBlack),
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontFamily: 'Outfit',
+                            color: feastBlack,
+                          ),
                           decoration: InputDecoration(
                             hintText: 'Search...',
-                            hintStyle: TextStyle(fontSize: 14, fontFamily: 'Outfit', color: feastGray.withAlpha(150)),
+                            hintStyle: TextStyle(
+                              fontSize: 14,
+                              fontFamily: 'Outfit',
+                              color: feastGray.withAlpha(150),
+                            ),
                             border: InputBorder.none,
                             isDense: true,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 10,
+                            ),
                           ),
                         ),
                       ),
                       // Filter button
                       IconButton(
-                        icon: const Icon(Icons.tune, color: feastBlue, size: 20),
+                        icon: const Icon(
+                          Icons.tune,
+                          color: feastBlue,
+                          size: 20,
+                        ),
                         onPressed: _showFilterSheet,
                         splashRadius: 20,
                       ),
@@ -190,7 +234,8 @@ class _CharityEventsScreenState extends State<CharityEventsScreen> {
                       ? const EmptyStateWidget(message: 'No events found.')
                       : NotificationListener<ScrollNotification>(
                           onNotification: (n) {
-                            if (n.metrics.pixels >= n.metrics.maxScrollExtent - 200) {
+                            if (n.metrics.pixels >=
+                                n.metrics.maxScrollExtent - 200) {
                               _fetchNextPage();
                             }
                             return false;
@@ -203,7 +248,9 @@ class _CharityEventsScreenState extends State<CharityEventsScreen> {
                                 return const Center(
                                   child: Padding(
                                     padding: EdgeInsets.all(16),
-                                    child: CircularProgressIndicator(color: feastBlue),
+                                    child: CircularProgressIndicator(
+                                      color: feastBlue,
+                                    ),
                                   ),
                                 );
                               }
@@ -231,11 +278,28 @@ class _CharityEventsScreenState extends State<CharityEventsScreen> {
         ),
       ),
       bottomNavigationBar: const FeastBottomNav(currentIndex: 2),
-      floatingActionButton: FeastFloatingButton(
-        icon: Icons.add,
-        tooltip: 'Create Charity Event',
-        backgroundColor: feastBlue,
-        onPressed: () => Navigator.pushNamed(context, AppRoutes.createEvent),
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (_isAdmin) ...[
+            FeastFloatingButton(
+              icon: Icons.admin_panel_settings,
+              tooltip: 'Admin Dashboard',
+              backgroundColor: feastOrange,
+              onPressed: () =>
+                  Navigator.pushNamed(context, AppRoutes.adminDashboard),
+            ),
+            const SizedBox(height: 16),
+          ],
+          FeastFloatingButton(
+            icon: Icons.add,
+            tooltip: 'Create Charity Event',
+            backgroundColor: feastBlue,
+            onPressed: () =>
+                Navigator.pushNamed(context, AppRoutes.createEvent),
+          ),
+        ],
       ),
     );
   }
@@ -253,12 +317,26 @@ class _CharityEventsScreenState extends State<CharityEventsScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Filter by Category', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16)),
+            const Text(
+              'Filter by Category',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: _filterOptions.map((opt) => _filterChip(opt['label'] as String, opt['category'] as String?)).toList(),
+              children: _filterOptions
+                  .map(
+                    (opt) => _filterChip(
+                      opt['label'] as String,
+                      opt['category'] as String?,
+                    ),
+                  )
+                  .toList(),
             ),
           ],
         ),

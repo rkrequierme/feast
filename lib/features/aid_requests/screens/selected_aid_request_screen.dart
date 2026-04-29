@@ -13,6 +13,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:feast/core/core.dart';
+import 'package:feast/core/utils/date_parser.dart';
 
 class SelectedAidRequestScreen extends StatefulWidget {
   const SelectedAidRequestScreen({super.key});
@@ -203,8 +204,7 @@ class _SelectedAidRequestScreenState
         ? ((fundsDonated / goalAmount) * 100).clamp(0, 100).toInt()
         : 0;
 
-    final expiresAt =
-        (_data!['expiresAt'] as Timestamp?)?.toDate();
+    final expiresAt = DateParser.parse(_data!['expiresAt']);
     final timeRemaining = expiresAt != null
         ? _formatTimeRemaining(expiresAt)
         : 'N/A';

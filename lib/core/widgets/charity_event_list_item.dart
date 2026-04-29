@@ -17,6 +17,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../constants/app_colors.dart';
+import '../utils/date_parser.dart';
 
 class CharityEventListItem extends StatelessWidget {
   // ── Primary map-based constructor (used by CharityEventsScreen) ──────────
@@ -80,8 +81,8 @@ class CharityEventListItem extends StatelessWidget {
 
   String get _duration {
     if (data != null) {
-      final start = (data!['startTime'] as Timestamp?)?.toDate();
-      final end = (data!['endTime'] as Timestamp?)?.toDate();
+      final start = DateParser.parse(data!['startTime']);
+      final end = DateParser.parse(data!['endTime']);
       if (start != null && end != null) {
         String _fmt(DateTime dt) {
           final h = dt.hour % 12 == 0 ? 12 : dt.hour % 12;
@@ -135,8 +136,8 @@ class CharityEventListItem extends StatelessWidget {
   String get _statusLabel {
     if (statusLabel != null) return statusLabel!;
     if (data != null) {
-      final start = (data!['startTime'] as Timestamp?)?.toDate();
-      final end = (data!['endTime'] as Timestamp?)?.toDate();
+      final start = DateParser.parse(data!['startTime']);
+      final end = DateParser.parse(data!['endTime']);
       final now = DateTime.now();
       if (start == null || now.isBefore(start)) return 'Not Yet Started';
       if (end != null && now.isAfter(end)) return 'Concluded';

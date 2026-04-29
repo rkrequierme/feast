@@ -14,6 +14,8 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:feast/core/core.dart';
+import 'package:feast/features/features.dart';
+import 'package:feast/core/utils/date_parser.dart';
 
 class AidRequestsScreen extends StatefulWidget {
   const AidRequestsScreen({super.key});
@@ -27,6 +29,7 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
   String? _selectedCategory;
   String _searchQuery = '';
   bool _isResident = false;
+  bool _isAdmin = false;
   String _username = 'User';
 
   // Pagination
@@ -53,7 +56,9 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
     _loadUsername();
     _loadUser();
     _fetchNextPage();
-    _searchController.addListener(() => setState(() => _searchQuery = _searchController.text.toLowerCase()));
+    _searchController.addListener(
+      () => setState(() => _searchQuery = _searchController.text.toLowerCase()),
+    );
   }
 
   Future<void> _loadUsername() async {
@@ -65,7 +70,10 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
     if (AuthService.instance.currentUser == null) return;
     final data = await FirestoreService.instance.getCurrentUser();
     if (data != null && mounted) {
-      setState(() => _isResident = data['isResident'] as bool? ?? false);
+      setState(() {
+        _isResident = data['isResident'] as bool? ?? false;
+        _isAdmin = (data['role'] as String?) == 'admin';
+      });
     }
   }
 
@@ -76,18 +84,24 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
     try {
       final query = FirestoreService.instance.aidRequestsQuery(
         category: _selectedCategory,
-        startAfter: _lastDoc,
-        limit: _pageSize,
+        // ignoring startAfter since we removed orderBy
       );
       final snap = await query.get();
       if (!mounted) return;
 
       setState(() {
         if (snap.docs.isNotEmpty) {
-          _docs.addAll(snap.docs);
-          _lastDoc = snap.docs.last;
+          var fetchedDocs = snap.docs.toList();
+          fetchedDocs.sort((a, b) {
+            final aTime = DateParser.parse((a.data())['createdAt']);
+            final bTime = DateParser.parse((b.data())['createdAt']);
+            if (aTime == null || bTime == null) return 0;
+            return bTime.compareTo(aTime); // newest first
+          });
+          _docs.clear();
+          _docs.addAll(fetchedDocs);
         }
-        _hasMore = snap.docs.length == _pageSize;
+        _hasMore = false; // We loaded everything, no pagination needed
         _isLoading = false;
       });
     } catch (_) {
@@ -147,23 +161,29 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
                   onRefresh: _refresh,
                   color: feastGreen,
                   child: _filteredDocs.isEmpty && !_isLoading
-                      ? const EmptyStateWidget(message: 'No aid requests found.')
+                      ? const EmptyStateWidget(
+                          message: 'No aid requests found.',
+                        )
                       : NotificationListener<ScrollNotification>(
                           onNotification: (notif) {
-                            if (notif.metrics.pixels >= notif.metrics.maxScrollExtent - 200) {
+                            if (notif.metrics.pixels >=
+                                notif.metrics.maxScrollExtent - 200) {
                               _fetchNextPage();
                             }
                             return false;
                           },
                           child: ListView.builder(
                             padding: const EdgeInsets.only(bottom: 100),
-                            itemCount: _filteredDocs.length + (_isLoading ? 1 : 0),
+                            itemCount:
+                                _filteredDocs.length + (_isLoading ? 1 : 0),
                             itemBuilder: (context, index) {
                               if (index == _filteredDocs.length) {
                                 return const Center(
                                   child: Padding(
                                     padding: EdgeInsets.all(16),
-                                    child: CircularProgressIndicator(color: feastGreen),
+                                    child: CircularProgressIndicator(
+                                      color: feastGreen,
+                                    ),
                                   ),
                                 );
                               }
@@ -186,14 +206,29 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
         ),
       ),
       bottomNavigationBar: const FeastBottomNav(currentIndex: 1),
-      floatingActionButton: FeastFloatingButton(
-        icon: Icons.add,
-        tooltip: 'Create Aid Request',
-        enabled: _isResident,
-        disabledTooltip: 'Only Barangay residents may post aid requests.',
-        onPressed: _isResident
-            ? () => Navigator.pushNamed(context, AppRoutes.createAidRequest)
-            : null,
+      floatingActionButton: Column(
+        mainAxisAlignment: MainAxisAlignment.end,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          if (_isAdmin) ...[
+            FeastFloatingButton(
+              icon: Icons.admin_panel_settings,
+              tooltip: 'Admin Dashboard',
+              backgroundColor: feastOrange,
+              onPressed: () => Navigator.pushNamed(context, AppRoutes.adminDashboard),
+            ),
+            const SizedBox(height: 16),
+          ],
+          FeastFloatingButton(
+            icon: Icons.add,
+            tooltip: 'Create Aid Request',
+            enabled: _isResident,
+            disabledTooltip: 'Only Barangay residents may post aid requests.',
+            onPressed: _isResident
+                ? () => Navigator.pushNamed(context, AppRoutes.createAidRequest)
+                : null,
+          ),
+        ],
       ),
     );
   }
@@ -210,7 +245,11 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withAlpha(15), blurRadius: 6, offset: const Offset(0, 2)),
+                  BoxShadow(
+                    color: Colors.black.withAlpha(15),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
                 ],
               ),
               child: Row(
@@ -221,13 +260,23 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
                   Expanded(
                     child: TextField(
                       controller: _searchController,
-                      style: const TextStyle(fontSize: 14, fontFamily: 'Outfit', color: feastBlack),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontFamily: 'Outfit',
+                        color: feastBlack,
+                      ),
                       decoration: InputDecoration(
                         hintText: 'Search...',
-                        hintStyle: TextStyle(fontSize: 14, fontFamily: 'Outfit', color: feastGray.withAlpha(150)),
+                        hintStyle: TextStyle(
+                          fontSize: 14,
+                          fontFamily: 'Outfit',
+                          color: feastGray.withAlpha(150),
+                        ),
                         border: InputBorder.none,
                         isDense: true,
-                        contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                        contentPadding: const EdgeInsets.symmetric(
+                          vertical: 10,
+                        ),
                       ),
                     ),
                   ),
@@ -245,7 +294,11 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(12),
                 boxShadow: [
-                  BoxShadow(color: Colors.black.withAlpha(15), blurRadius: 6, offset: const Offset(0, 2)),
+                  BoxShadow(
+                    color: Colors.black.withAlpha(15),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
                 ],
               ),
               child: const Icon(Icons.tune, color: feastGreen, size: 20),
@@ -269,12 +322,26 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Filter / Sort', style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 16)),
+            const Text(
+              'Filter / Sort',
+              style: TextStyle(
+                fontFamily: 'Outfit',
+                fontWeight: FontWeight.bold,
+                fontSize: 16,
+              ),
+            ),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               runSpacing: 8,
-              children: _filterOptions.map((opt) => _filterChip(opt['label'] as String, opt['category'] as String?)).toList(),
+              children: _filterOptions
+                  .map(
+                    (opt) => _filterChip(
+                      opt['label'] as String,
+                      opt['category'] as String?,
+                    ),
+                  )
+                  .toList(),
             ),
           ],
         ),

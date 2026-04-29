@@ -7,6 +7,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:feast/core/core.dart';
+import 'package:feast/core/utils/date_parser.dart';
 import 'package:feast/core/services/storage_service.dart';
 import 'dart:typed_data';
 
@@ -97,14 +98,25 @@ class _PendingUsersTab extends StatelessWidget {
       stream: FirebaseFirestore.instance
           .collection(FirestorePaths.users)
           .where('status', isEqualTo: 'pending')
-          .orderBy('createdAt', descending: true)
           .snapshots(),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(
               child: CircularProgressIndicator(color: feastGreen));
         }
-        final docs = snap.data?.docs ?? [];
+        if (snap.hasError) {
+          return Center(
+            child: Text('Error: ${snap.error}', style: const TextStyle(color: Colors.red)),
+          );
+        }
+        var docs = snap.data?.docs ?? [];
+        docs = docs.toList()..sort((a, b) {
+          final aTime = DateParser.parse((a.data() as Map<String, dynamic>)['createdAt']);
+          final bTime = DateParser.parse((b.data() as Map<String, dynamic>)['createdAt']);
+          if (aTime == null || bTime == null) return 0;
+          return bTime.compareTo(aTime);
+        });
+        
         if (docs.isEmpty) {
           return const Center(
             child: Text('No pending registrations.',
@@ -332,13 +344,24 @@ class _PendingContentList extends StatelessWidget {
       stream: FirebaseFirestore.instance
           .collection(collection)
           .where('status', isEqualTo: 'pending')
-          .orderBy('createdAt', descending: true)
           .snapshots(),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return Center(child: CircularProgressIndicator(color: color));
         }
-        final docs = snap.data?.docs ?? [];
+        if (snap.hasError) {
+          return Center(
+            child: Text('Error: ${snap.error}', style: const TextStyle(color: Colors.red)),
+          );
+        }
+        var docs = snap.data?.docs ?? [];
+        docs = docs.toList()..sort((a, b) {
+          final aTime = DateParser.parse((a.data() as Map<String, dynamic>)['createdAt']);
+          final bTime = DateParser.parse((b.data() as Map<String, dynamic>)['createdAt']);
+          if (aTime == null || bTime == null) return 0;
+          return bTime.compareTo(aTime);
+        });
+        
         if (docs.isEmpty) {
           return Center(
             child: Text(emptyMessage,
@@ -471,14 +494,25 @@ class _ReportsTab extends StatelessWidget {
       stream: FirebaseFirestore.instance
           .collection(FirestorePaths.reports)
           .where('status', isEqualTo: 'pending')
-          .orderBy('createdAt', descending: true)
           .snapshots(),
       builder: (context, snap) {
         if (snap.connectionState == ConnectionState.waiting) {
           return const Center(
               child: CircularProgressIndicator(color: feastGreen));
         }
-        final docs = snap.data?.docs ?? [];
+        if (snap.hasError) {
+          return Center(
+            child: Text('Error: ${snap.error}', style: const TextStyle(color: Colors.red)),
+          );
+        }
+        var docs = snap.data?.docs ?? [];
+        docs = docs.toList()..sort((a, b) {
+          final aTime = DateParser.parse((a.data() as Map<String, dynamic>)['createdAt']);
+          final bTime = DateParser.parse((b.data() as Map<String, dynamic>)['createdAt']);
+          if (aTime == null || bTime == null) return 0;
+          return bTime.compareTo(aTime);
+        });
+        
         if (docs.isEmpty) {
           return const Center(
             child: Text('No pending reports.',

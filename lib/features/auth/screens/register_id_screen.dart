@@ -15,6 +15,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:feast/core/core.dart';
+import 'package:feast/features/legal/widgets/terms_conditions_dialog.dart';
 
 class RegisterIdScreen extends StatefulWidget {
   final Map<String, String> formData;
@@ -257,7 +258,12 @@ class _RegisterIdScreenState extends State<RegisterIdScreen> {
                   text: "I've read the terms and conditions.",
                   value: _agreedToTerms,
                   linkText: 'terms and conditions',
-                  onLinkTap: () => Navigator.pushNamed(context, AppRoutes.legal),
+                  onLinkTap: () {
+                    showDialog(
+                      context: context,
+                      builder: (_) => const TermsConditionsDialog(),
+                    );
+                  },
                   onChanged: (val) => setState(() => _agreedToTerms = val ?? false),
                 ),
 

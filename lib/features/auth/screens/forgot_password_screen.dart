@@ -6,6 +6,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:feast/core/core.dart';
+import 'package:feast/features/legal/widgets/terms_conditions_dialog.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -123,8 +124,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                 linkColor: feastLink,
                                 onChanged: (val) =>
                                     setState(() => _agreedToTerms = val ?? false),
-                                onLinkTap: () => Navigator.pushNamed(
-                                    context, AppRoutes.legal),
+                                onLinkTap: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (_) => const TermsConditionsDialog(),
+                                  );
+                                },
                               ),
                               const SizedBox(height: 24),
 

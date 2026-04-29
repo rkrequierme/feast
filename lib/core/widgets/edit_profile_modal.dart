@@ -10,11 +10,14 @@
 //   const [formData, setFormData] = useState({...});
 //   await updateDoc(doc(db, 'users', uid), { ...formData, updatedAt: serverTimestamp() });
 
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants/app_colors.dart';
 import '../constants/firestore_paths.dart';
+import '../services/storage_service.dart';
 import 'feast_toast.dart';
 
 class EditProfileModal extends StatefulWidget {
@@ -31,6 +34,8 @@ class _EditProfileModalState extends State<EditProfileModal> {
   final _contactCtrl = TextEditingController();
   final _dobCtrl = TextEditingController();
   String? _selectedGender;
+  String? _currentProfileUrl;
+  File? _newProfileImage;
   bool _isLoading = true;
   bool _isSaving = false;
 
@@ -53,7 +58,18 @@ class _EditProfileModalState extends State<EditProfileModal> {
     _contactCtrl.text = data['contactNumber'] as String? ?? '';
     _dobCtrl.text = data['dateOfBirth'] as String? ?? '';
     _selectedGender = data['gender'] as String?;
+    _currentProfileUrl = data['profilePictureUrl'] as String?;
     setState(() => _isLoading = false);
+  }
+
+  Future<void> _pickImage() async {
+    final picker = ImagePicker();
+    final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+    if (pickedFile != null && mounted) {
+      setState(() {
+        _newProfileImage = File(pickedFile.path);
+      });
+    }
   }
 
   Future<void> _save() async {
@@ -79,6 +95,14 @@ class _EditProfileModalState extends State<EditProfileModal> {
       }
       if (_selectedGender != null) {
         updates['gender'] = _selectedGender;
+      }
+
+      if (_newProfileImage != null) {
+        final uploadedUrl = await StorageService.instance.uploadProfilePicture(
+          _newProfileImage!,
+          uid,
+        );
+        updates['profilePictureUrl'] = uploadedUrl;
       }
 
       await FirebaseFirestore.instance
@@ -179,7 +203,45 @@ class _EditProfileModalState extends State<EditProfileModal> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 24),
+                  
+                  // Profile Picture
+                  Center(
+                    child: GestureDetector(
+                      onTap: _pickImage,
+                      child: Stack(
+                        children: [
+                          CircleAvatar(
+                            radius: 40,
+                            backgroundColor: feastLightGreen.withAlpha(128),
+                            backgroundImage: _newProfileImage != null
+                                ? FileImage(_newProfileImage!) as ImageProvider
+                                : (_currentProfileUrl != null && _currentProfileUrl!.isNotEmpty
+                                    ? NetworkImage(_currentProfileUrl!)
+                                    : null),
+                            child: (_newProfileImage == null && (_currentProfileUrl == null || _currentProfileUrl!.isEmpty))
+                                ? const Icon(Icons.person, size: 40, color: feastGreen)
+                                : null,
+                          ),
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: feastGreen,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.white, width: 2),
+                              ),
+                              child: const Icon(Icons.camera_alt, color: Colors.white, size: 14),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+
                   _label('Location'),
                   const SizedBox(height: 6),
                   _field(_locationCtrl, 'Insert Location Here...', Icons.location_on_outlined),

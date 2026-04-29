@@ -26,6 +26,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String _profilePictureUrl = '';
   bool _notificationsEnabled = true;
   bool _isLoadingUser = true;
+  bool _isAdmin = false;
 
   @override
   void initState() {
@@ -47,6 +48,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         _displayName = data['displayName'] as String? ?? 'User';
         _profilePictureUrl = data['profilePictureUrl'] as String? ?? '';
         _notificationsEnabled = data['notificationsEnabled'] as bool? ?? true;
+        _isAdmin = (data['role'] as String?) == 'admin';
         _isLoadingUser = false;
       });
     } catch (_) {
@@ -93,7 +95,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: feastGray, fontFamily: 'Outfit')),
+            child: const Text(
+              'Cancel',
+              style: TextStyle(color: feastGray, fontFamily: 'Outfit'),
+            ),
           ),
           ElevatedButton(
             style: ElevatedButton.styleFrom(backgroundColor: feastError),
@@ -101,9 +106,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               Navigator.pop(context);
               await AuthService.instance.signOut();
               if (!mounted) return;
-              Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
+              Navigator.pushNamedAndRemoveUntil(
+                context,
+                AppRoutes.login,
+                (_) => false,
+              );
             },
-            child: const Text('Logout', style: TextStyle(color: Colors.white, fontFamily: 'Outfit')),
+            child: const Text(
+              'Logout',
+              style: TextStyle(color: Colors.white, fontFamily: 'Outfit'),
+            ),
           ),
         ],
       ),
@@ -149,6 +161,15 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                               const SizedBox(height: 12),
                               _menuItem(
+                                icon: Icons.lock_outline,
+                                label: 'Change Password',
+                                onTap: () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.resetPassword,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              _menuItem(
                                 icon: _notificationsEnabled
                                     ? Icons.notifications_active_outlined
                                     : Icons.notifications_off_outlined,
@@ -162,26 +183,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 icon: Icons.star_outline,
                                 label: 'Rate Our App',
                                 onTap: () {
-                                  FeastToast.showInfo(context, 'Rate app feature coming soon.');
+                                  FeastToast.showInfo(
+                                    context,
+                                    'Rate app feature coming soon.',
+                                  );
                                 },
                               ),
                               const SizedBox(height: 12),
                               _menuItem(
                                 icon: Icons.info_outline,
                                 label: 'About The App',
-                                onTap: () => Navigator.pushNamed(context, AppRoutes.about),
+                                onTap: () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.about,
+                                ),
                               ),
                               const SizedBox(height: 12),
                               _menuItem(
                                 icon: Icons.help_outline,
                                 label: 'Help & FAQ',
-                                onTap: () => Navigator.pushNamed(context, AppRoutes.support),
+                                onTap: () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.support,
+                                ),
                               ),
                               const SizedBox(height: 12),
                               _menuItem(
                                 icon: Icons.description_outlined,
                                 label: 'Terms & Conditions',
-                                onTap: () => Navigator.pushNamed(context, AppRoutes.legal),
+                                onTap: () => Navigator.pushNamed(
+                                  context,
+                                  AppRoutes.legal,
+                                ),
                               ),
                               const SizedBox(height: 12),
                               _logoutItem(),
@@ -197,6 +230,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
       ),
       bottomNavigationBar: const FeastBottomNav(currentIndex: 4),
+      floatingActionButton: _isAdmin
+          ? FeastFloatingButton(
+              icon: Icons.admin_panel_settings,
+              tooltip: 'Admin Dashboard',
+              backgroundColor: feastOrange,
+              onPressed: () => Navigator.pushNamed(context, AppRoutes.adminDashboard),
+            )
+          : null,
     );
   }
 
@@ -219,7 +260,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
           CircleAvatar(
             radius: 28,
             backgroundColor: feastLightGreen.withAlpha(128),
-            backgroundImage: _profilePictureUrl.isNotEmpty ? NetworkImage(_profilePictureUrl) : null,
+            backgroundImage: _profilePictureUrl.isNotEmpty
+                ? NetworkImage(_profilePictureUrl)
+                : null,
             child: _profilePictureUrl.isEmpty
                 ? const Icon(Icons.person, size: 32, color: feastGreen)
                 : null,
@@ -334,7 +377,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 ),
               ),
             ),
-            Icon(Icons.chevron_right, size: 22, color: feastError.withAlpha(120)),
+            Icon(
+              Icons.chevron_right,
+              size: 22,
+              color: feastError.withAlpha(120),
+            ),
           ],
         ),
       ),

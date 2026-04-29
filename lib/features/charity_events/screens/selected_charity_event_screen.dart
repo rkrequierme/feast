@@ -22,6 +22,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
 import 'package:feast/core/core.dart';
 import 'package:feast/core/services/firestore_service.dart';
+import 'package:feast/core/utils/date_parser.dart';
 
 class SelectedCharityEventScreen extends StatefulWidget {
   const SelectedCharityEventScreen({super.key});
@@ -164,15 +165,15 @@ class _SelectedCharityEventScreenState
   }
 
   bool get _isWithin24h {
-    final start = (_data?['startTime'] as Timestamp?)?.toDate();
+    final start = DateParser.parse(_data?['startTime']);
     if (start == null) return false;
     return DateTime.now()
         .isAfter(start.subtract(const Duration(hours: 24)));
   }
 
   double get _elapsedPercent {
-    final start = (_data?['startTime'] as Timestamp?)?.toDate();
-    final end = (_data?['endTime'] as Timestamp?)?.toDate();
+    final start = DateParser.parse(_data?['startTime']);
+    final end = DateParser.parse(_data?['endTime']);
     if (start == null || end == null) return 0;
     final total = end.difference(start).inMinutes;
     if (total <= 0) return 0;
@@ -206,8 +207,8 @@ class _SelectedCharityEventScreenState
     final description = _data!['description'] as String? ?? '';
     final participantCount = (_data!['participantCount'] as int?) ?? 0;
 
-    final startTime = (_data!['startTime'] as Timestamp?)?.toDate();
-    final endTime = (_data!['endTime'] as Timestamp?)?.toDate();
+    final startTime = DateParser.parse(_data!['startTime']);
+    final endTime = DateParser.parse(_data!['endTime']);
     final duration = startTime != null && endTime != null
         ? '${DateFormat('h:mm a').format(startTime)} – ${DateFormat('h:mm a (MMM d, y)').format(endTime)}'
         : 'TBD';

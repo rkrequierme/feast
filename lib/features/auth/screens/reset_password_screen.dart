@@ -44,7 +44,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
       await AuthService.instance.updatePassword(_newPasswordController.text);
       if (!mounted) return;
       FeastToast.showSuccess(context, 'Password changed successfully!');
-      Navigator.pushReplacementNamed(context, AppRoutes.login);
+      Navigator.pop(context);
     } on AuthException catch (e) {
       if (!mounted) return;
       FeastToast.showError(context, e.message);
@@ -161,10 +161,9 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                               const SizedBox(height: 16),
 
                               FeastLink(
-                                text: 'Return To Login',
+                                text: 'Cancel',
                                 alignment: Alignment.center,
-                                onPressed: () => Navigator.pushReplacementNamed(
-                                    context, AppRoutes.login),
+                                onPressed: () => Navigator.pop(context),
                               ),
                             ],
                           ),

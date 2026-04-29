@@ -440,12 +440,18 @@ class FirestoreService {
   // ── MESSAGES / CHATS ────────────────────────────────────────────────────
   // ════════════════════════════════════════════════════════════════════════
 
-  Stream<QuerySnapshot> chatsStream() =>
-      _db
-          .collection(FirestorePaths.chats)
-          .where('participantIds', arrayContains: _uid)
-          .orderBy('lastMessageAt', descending: true)
-          .snapshots();
+  Stream<QuerySnapshot> chatsStream() {
+    final user = _auth.currentUser;
+    if (user == null) {
+      return const Stream.empty();
+    }
+    // Removing orderBy to see if it fixes the PERMISSION_DENIED
+    // This also avoids index requirements for now
+    return _db
+        .collection(FirestorePaths.chats)
+        .where('participantIds', arrayContains: user.uid)
+        .snapshots();
+  }
 
   Query<Map<String, dynamic>> messagesQuery(
     String chatId, {
