@@ -46,13 +46,16 @@ class AuthService {
     required bool rememberMe,
   }) async {
     try {
-      // Note: setPersistence is REMOVED because it causes errors on some platforms
-      // We'll handle "Remember Me" using SharedPreferences only
-      if (rememberMe) {
-        await _auth.setPersistence(Persistence.LOCAL);
-      } else {
-        await _auth.setPersistence(Persistence.SESSION);
-      }
+      // FIX: setPersistence is ONLY supported on Web platforms
+      // For mobile, Firebase Auth persists by default automatically.
+      // We only need SharedPreferences for "Remember Me" UI state.
+      
+      // Remove this entire setPersistence block - it's what's causing the crash!
+      // if (rememberMe) {
+      //   await _auth.setPersistence(Persistence.LOCAL);
+      // } else {
+      //   await _auth.setPersistence(Persistence.SESSION);
+      // }
       
       final cred = await _auth.signInWithEmailAndPassword(
         email: email.trim(),
@@ -72,7 +75,7 @@ class AuthService {
         status: 'Success',
       );
 
-      // Persist "remember me" flag locally
+      // Persist "remember me" flag locally (this still works fine)
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('remember_me', rememberMe);
       if (rememberMe) {
@@ -88,6 +91,12 @@ class AuthService {
     } catch (e, stackTrace) {
       debugPrint('❌ AuthService.signIn unexpected error: $e');
       debugPrint('Stack trace: $stackTrace');
+      
+      // Handle the setPersistence error gracefully
+      if (e.toString().contains('setPersistence() is only supported on web')) {
+        throw AuthException('Please restart the app and try again. (Persistence error)');
+      }
+      
       throw AuthException('Something went wrong. Please try again.');
     }
   }
@@ -315,22 +324,45 @@ class AuthService {
   // ERROR MAPPER
   // ──────────────────────────────────────────────────────────────────────────
 
+// lib/core/services/auth_service.dart
+// Update the _mapFirebaseError method
+
   String _mapFirebaseError(String code) {
     switch (code) {
+      // Sign In Errors
       case 'user-not-found':
-        return 'No account found with that email address.';
+        return 'No account found with this email address. Please check your email or sign up.';
       case 'wrong-password':
-        return 'Incorrect password. Please try again.';
-      case 'email-already-in-use':
-        return 'An account with this email already exists.';
-      case 'weak-password':
-        return 'Password is too weak. Please choose a stronger password.';
+        return 'Incorrect password. Please try again or use "Forgot Password".';
+      case 'invalid-credential':
+        return 'Invalid email or password. Please check your credentials and try again.';
       case 'invalid-email':
-        return 'Please enter a valid email address.';
+        return 'Please enter a valid email address (e.g., name@example.com).';
+      case 'user-disabled':
+        return 'This account has been disabled. Please contact support for assistance.';
       case 'too-many-requests':
-        return 'Too many attempts. Please wait a moment and try again.';
+        return 'Too many failed attempts. Please wait a few minutes before trying again.';
+      
+      // Registration Errors
+      case 'email-already-in-use':
+        return 'An account with this email already exists. Please sign in instead.';
+      case 'weak-password':
+        return 'Password is too weak. Please use at least 8 characters with uppercase, lowercase, numbers, and special characters.';
+      case 'operation-not-allowed':
+        return 'Email/password sign in is currently disabled. Please contact support.';
+      
+      // Password Reset Errors
+      case 'expired-action-code':
+        return 'The password reset link has expired. Please request a new one.';
+      case 'invalid-action-code':
+        return 'The password reset link is invalid. Please request a new link.';
+      
+      // Network & General Errors
       case 'network-request-failed':
-        return 'Network error. Please check your connection.';
+        return 'Network connection error. Please check your internet connection and try again.';
+      case 'internal-error':
+        return 'A server error occurred. Please try again in a few moments.';
+      
       default:
         return 'Something went wrong. Please try again.';
     }

@@ -67,6 +67,9 @@ class _RegisterIdScreenState extends State<RegisterIdScreen> {
   // Register - Create Account + Upload Encrypted ID
   // ──────────────────────────────────────────────────────────────────────────
 
+// lib/features/auth/screens/register_id_screen.dart
+// Update the _register method to show specific errors
+
   Future<void> _register() async {
     if (_selectedIdFile == null) {
       FeastToast.showError(context, 'Please upload your legal ID.');
@@ -80,7 +83,6 @@ class _RegisterIdScreenState extends State<RegisterIdScreen> {
     setState(() => _isLoading = true);
 
     try {
-      // Step 1: Create Firebase Auth account
       final cred = await AuthService.instance.register(
         email: widget.formData['email']!,
         password: widget.formData['password']!,
@@ -94,14 +96,12 @@ class _RegisterIdScreenState extends State<RegisterIdScreen> {
         legalIdUrl: null,
       );
 
-      // Step 2: Upload encrypted ID using real UID
       final uid = cred.user!.uid;
       final idUrl = await StorageService.instance.uploadLegalId(
         _selectedIdFile!,
         uid,
       );
 
-      // Step 3: Update Firestore doc with the encrypted ID URL
       await FirestoreService.instance.updateUserField(
         uid: uid,
         data: {'legalIdUrl': idUrl},
@@ -113,11 +113,18 @@ class _RegisterIdScreenState extends State<RegisterIdScreen> {
         'Registration successful! You can now log in.',
       );
 
-      // Navigate to login screen
       Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
-    } on Exception catch (e) {
+    } on AuthException catch (e) {
       if (!mounted) return;
-      FeastToast.showError(context, e.toString());
+      // AuthException already has a user-friendly message from AuthService
+      FeastToast.showError(context, e.message);
+    } on StorageException catch (e) {
+      if (!mounted) return;
+      FeastToast.showError(context, e.message);
+    } catch (e) {
+      if (!mounted) return;
+      debugPrint('Unexpected registration error: $e');
+      FeastToast.showError(context, 'Registration failed. Please check your internet connection and try again.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }

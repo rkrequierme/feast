@@ -1,12 +1,20 @@
 // lib/features/auth/screens/login_screen.dart
-//
-// Login screen with Firebase Auth, Remember Me, and inline validation.
-// Updated to use the refactored LabeledTextField direct-parameter API
-// (LabeledFieldType enum) instead of the old LabeledTextFieldConfig class.
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:feast/core/core.dart';
+
+// Custom input formatter that forces lowercase text
+class LowerCaseTextFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    return newValue.copyWith(text: newValue.text.toLowerCase());
+  }
+}
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -17,38 +25,53 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _emailController    = TextEditingController();
+  final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
   bool _rememberMe = false;
-  bool _isLoading  = false;
+  bool _isLoading = false;
+  bool _isFormValid = false;
 
   @override
   void initState() {
     super.initState();
     _loadRememberedEmail();
+    
+    _emailController.addListener(_validateForm);
+    _passwordController.addListener(_validateForm);
+  }
+
+  void _validateForm() {
+    final emailValid = _emailController.text.trim().isNotEmpty;
+    final passwordValid = _passwordController.text.isNotEmpty;
+    final isValid = emailValid && passwordValid;
+    
+    if (_isFormValid != isValid) {
+      setState(() => _isFormValid = isValid);
+    }
   }
 
   Future<void> _loadRememberedEmail() async {
-    final prefs     = await SharedPreferences.getInstance();
+    final prefs = await SharedPreferences.getInstance();
     final remembered = prefs.getBool('remember_me') ?? false;
-    final email      = prefs.getString('cached_email') ?? '';
+    final email = prefs.getString('cached_email') ?? '';
     if (remembered && email.isNotEmpty) {
       setState(() {
         _rememberMe = true;
-        _emailController.text = email;
+        _emailController.text = email.toLowerCase();
       });
+      _validateForm();
     }
   }
 
   @override
   void dispose() {
+    _emailController.removeListener(_validateForm);
+    _passwordController.removeListener(_validateForm);
     _emailController.dispose();
     _passwordController.dispose();
     super.dispose();
   }
-
-  // ── Sign In ───────────────────────────────────────────────────────────────
 
   Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) return;
@@ -56,26 +79,22 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => _isLoading = true);
     try {
       await AuthService.instance.signIn(
-        email:      _emailController.text,
-        password:   _passwordController.text,
+        email: _emailController.text.trim().toLowerCase(),
+        password: _passwordController.text,
         rememberMe: _rememberMe,
       );
       if (!mounted) return;
       Navigator.pushReplacementNamed(context, AppRoutes.home);
     } on AuthException catch (e) {
       if (!mounted) return;
-      debugPrint('Login AuthException: ${e.message}');
       FeastToast.showError(context, e.message);
     } catch (e) {
       if (!mounted) return;
-      debugPrint('Login unexpected error: $e');
-      FeastToast.showError(context, 'Something went wrong. Please try again.');
+      FeastToast.showError(context, 'Network error. Please check your connection.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
   }
-
-  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -92,7 +111,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.start,
                     children: [
-                      // ── Logo & tagline ──────────────────────────────────
                       Padding(
                         padding: const EdgeInsets.only(top: 80, bottom: 40),
                         child: Column(
@@ -105,51 +123,86 @@ class _LoginScreenState extends State<LoginScreen> {
                           ],
                         ),
                       ),
-
-                      // ── Form card ───────────────────────────────────────
                       BottomFormBackground(
                         child: SingleChildScrollView(
                           padding: const EdgeInsets.fromLTRB(40, 40, 40, 60),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              // isLogin: true → "Login" tab is highlighted.
                               const ToggleLoginRegister(isLogin: true),
                               const SizedBox(height: 32),
-
-                              // ── Email ─────────────────────────────────
-                              // type defaults to LabeledFieldType.text,
-                              // which shows the clear (×) button automatically.
-                              LabeledTextField(
-                                label:       'Email',
-                                hintText:    'name@email.com',
-                                prefixIcon:  Icons.mail_outline,
-                                controller:  _emailController,
-                                keyboardType: TextInputType.emailAddress,
-                                textCapitalization: TextCapitalization.none,
-                                validator: (v) {
-                                  if (v == null || v.trim().isEmpty) {
-                                    return 'Email is required';
-                                  }
-                                  if (!RegExp(r'^[^@]+@[^@]+\.[^@]+')
-                                      .hasMatch(v.trim())) {
-                                    return 'Enter a valid email';
-                                  }
-                                  return null;
-                                },
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const FieldLabel(text: 'Email'),
+                                  const SizedBox(height: 4),
+                                  Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(4),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: Colors.black.withOpacity(0.15),
+                                          blurRadius: 12,
+                                          spreadRadius: 1,
+                                          offset: const Offset(0, 6),
+                                        ),
+                                      ],
+                                    ),
+                                    child: TextFormField(
+                                      controller: _emailController,
+                                      keyboardType: TextInputType.emailAddress,
+                                      textCapitalization: TextCapitalization.none,
+                                      inputFormatters: [
+                                        LowerCaseTextFormatter(),
+                                      ],
+                                      style: const TextStyle(
+                                        fontSize: 14,
+                                        fontFamily: 'Outfit',
+                                      ),
+                                      decoration: InputDecoration(
+                                        hintText: 'name@email.com',
+                                        hintStyle: const TextStyle(
+                                          color: Colors.grey,
+                                          fontSize: 14,
+                                          fontFamily: 'Outfit',
+                                        ),
+                                        prefixIcon: Icon(
+                                          Icons.mail_outline,
+                                          color: Colors.black54,
+                                        ),
+                                        suffixIcon: IconButton(
+                                          icon: Icon(Icons.close,
+                                              color: Colors.black54, size: 20),
+                                          onPressed: () =>
+                                              _emailController.clear(),
+                                        ),
+                                        border: InputBorder.none,
+                                        contentPadding:
+                                            const EdgeInsets.symmetric(
+                                                vertical: 16, horizontal: 12),
+                                      ),
+                                      validator: (v) {
+                                        if (v == null || v.trim().isEmpty) {
+                                          return 'Email is required';
+                                        }
+                                        if (!RegExp(r'^[^@]+@[^@]+\.[^@]+')
+                                            .hasMatch(v.trim())) {
+                                          return 'Enter a valid email';
+                                        }
+                                        return null;
+                                      },
+                                    ),
+                                  ),
+                                ],
                               ),
                               const SizedBox(height: 24),
-
-                              // ── Password ──────────────────────────────
-                              // LabeledFieldType.password manages its own
-                              // obscureText state internally — no
-                              // _isPasswordVisible flag needed here.
                               LabeledTextField(
-                                label:      'Password',
-                                hintText:   '••••••••',
+                                label: 'Password',
+                                hintText: '••••••••',
                                 prefixIcon: Icons.lock_outline,
                                 controller: _passwordController,
-                                type:       LabeledFieldType.password,
+                                type: LabeledFieldType.password,
                                 validator: (v) {
                                   if (v == null || v.isEmpty) {
                                     return 'Password is required';
@@ -158,8 +211,6 @@ class _LoginScreenState extends State<LoginScreen> {
                                 },
                               ),
                               const SizedBox(height: 24),
-
-                              // ── Remember Me ───────────────────────────
                               FeastCheckbox(
                                 text: 'Remember Me.',
                                 value: _rememberMe,
@@ -167,22 +218,43 @@ class _LoginScreenState extends State<LoginScreen> {
                                     setState(() => _rememberMe = val ?? false),
                               ),
                               const SizedBox(height: 24),
-
-                              // ── Sign In button ────────────────────────
                               _isLoading
                                   ? const Center(
                                       child: CircularProgressIndicator(
                                           color: feastGreen),
                                     )
-                                  : FeastButton(
-                                      text:      'Sign In',
-                                      onPressed: _signIn,
+                                  : SizedBox(
+                                      width: double.infinity,
+                                      child: ElevatedButton(
+                                        onPressed: _isFormValid ? _signIn : null,
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: _isFormValid
+                                              ? feastGreen
+                                              : feastGreen.withOpacity(0.5),
+                                          padding: const EdgeInsets.symmetric(
+                                              vertical: 16),
+                                          elevation: 4,
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(25),
+                                          ),
+                                        ),
+                                        child: Text(
+                                          'Sign In',
+                                          style: TextStyle(
+                                            fontSize: 16,
+                                            fontFamily: "Outfit",
+                                            fontWeight: FontWeight.bold,
+                                            color: _isFormValid
+                                                ? Colors.white
+                                                : Colors.white.withOpacity(0.7),
+                                          ),
+                                        ),
+                                      ),
                                     ),
                               const SizedBox(height: 24),
-
-                              // ── Forgot password link ──────────────────
                               FeastLink(
-                                text:      'Forgot Password?',
+                                text: 'Forgot Password?',
                                 alignment: Alignment.center,
                                 onPressed: () => Navigator.pushNamed(
                                     context, AppRoutes.forgotPassword),

@@ -62,9 +62,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   void _goToIdUpload() {
     // Run all validators first
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      // Show specific validation error
+      return;
+    }
 
-    // Extra guards
+    // Extra guards with specific error messages
     if (_genderController.text.isEmpty) {
       FeastToast.showError(context, 'Please select your gender.');
       return;
@@ -74,7 +77,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
     if (_passwordErrors.isNotEmpty) {
-      FeastToast.showError(context, 'Password does not meet all requirements.');
+      // Show the first password requirement that's missing
+      FeastToast.showError(context, _passwordErrors.first);
+      return;
+    }
+
+    // Validate email format again to be safe
+    final email = _emailController.text.trim();
+    if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(email)) {
+      FeastToast.showError(context, 'Please enter a valid email address.');
+      return;
+    }
+
+    // Validate phone number format
+    final phone = _contactController.text.trim();
+    if (!AuthService.isValidPhilippinePhone(phone)) {
+      FeastToast.showError(context, 'Please enter a valid Philippine phone number (+63 XXX XXX XXXX).');
       return;
     }
 
@@ -83,15 +101,15 @@ class _RegisterScreenState extends State<RegisterScreen> {
       MaterialPageRoute(
         builder: (_) => RegisterIdScreen(
           formData: {
-            'firstName':     _firstNameController.text.trim(),
-            'middleName':    _middleNameController.text.trim(),
-            'lastName':      _lastNameController.text.trim(),
-            'location':      _locationController.text,
+            'firstName': _firstNameController.text.trim(),
+            'middleName': _middleNameController.text.trim(),
+            'lastName': _lastNameController.text.trim(),
+            'location': _locationController.text,
             'contactNumber': _contactController.text.trim(),
-            'gender':        _genderController.text,
-            'dateOfBirth':   _dobController.text,
-            'email':         _emailController.text.trim(),
-            'password':      _passwordController.text,
+            'gender': _genderController.text,
+            'dateOfBirth': _dobController.text,
+            'email': email,
+            'password': _passwordController.text,
           },
         ),
       ),
