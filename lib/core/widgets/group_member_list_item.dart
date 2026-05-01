@@ -163,48 +163,6 @@ class GroupMembersListView extends StatelessWidget {
     this.onSearchTap,
   });
 
-  factory GroupMembersListView.placeholder() {
-    return GroupMembersListView(
-      isAdminView: false,
-      members: const [
-        GroupMemberListItem(
-            uid: '1',
-            displayName: 'Adina Santos',
-            role: MemberRole.member,
-            isCurrentUser: true,
-            isOnline: true),
-        GroupMemberListItem(
-            uid: '2',
-            displayName: 'Jose De La Cruz',
-            role: MemberRole.leader,
-            isOnline: true),
-        GroupMemberListItem(
-            uid: '3',
-            displayName: 'Marvin Reyes',
-            role: MemberRole.coLeader,
-            isOnline: true),
-        GroupMemberListItem(
-            uid: '4', displayName: 'Gregory Bautistsa', isOnline: false),
-        GroupMemberListItem(
-            uid: '5', displayName: 'Samuel Del Rosario', isOnline: true),
-        GroupMemberListItem(
-            uid: '6', displayName: 'Bambang Gonzales', isOnline: false),
-        GroupMemberListItem(
-            uid: '7', displayName: 'Sururi Aquino', isOnline: true),
-        GroupMemberListItem(
-            uid: '8', displayName: 'Michael Ramos', isOnline: false),
-        GroupMemberListItem(
-            uid: '9', displayName: 'Jackobs Garcia', isOnline: false),
-        GroupMemberListItem(
-            uid: '10', displayName: 'Anastasia Lopez', isOnline: true),
-        GroupMemberListItem(
-            uid: '11', displayName: 'Fuelta Fernandez', isOnline: false),
-        GroupMemberListItem(
-            uid: '12', displayName: 'Kimini Mendoza', isOnline: true),
-      ],
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     return Column(

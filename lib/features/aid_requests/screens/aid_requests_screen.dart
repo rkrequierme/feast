@@ -82,29 +82,32 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
     setState(() => _isLoading = true);
 
     try {
-      final query = FirestoreService.instance.aidRequestsQuery(
-        category: _selectedCategory,
-        // ignoring startAfter since we removed orderBy
-      );
-      final snap = await query.get();
+      Query<Map<String, dynamic>> query = FirebaseFirestore.instance
+          .collection(FirestorePaths.aidRequests)
+          .where('status', isEqualTo: 'approved')
+          .orderBy('createdAt', descending: true)
+          .orderBy(FieldPath.documentId);
+      
+      if (_selectedCategory != null && _selectedCategory != 'All') {
+        query = query.where('category', isEqualTo: _selectedCategory);
+      }
+      if (_lastDoc != null) {
+        query = query.startAfterDocument(_lastDoc!);
+      }
+      
+      final snap = await query.limit(_pageSize).get();
+      
       if (!mounted) return;
-
       setState(() {
         if (snap.docs.isNotEmpty) {
-          var fetchedDocs = snap.docs.toList();
-          fetchedDocs.sort((a, b) {
-            final aTime = DateParser.parse((a.data())['createdAt']);
-            final bTime = DateParser.parse((b.data())['createdAt']);
-            if (aTime == null || bTime == null) return 0;
-            return bTime.compareTo(aTime); // newest first
-          });
-          _docs.clear();
-          _docs.addAll(fetchedDocs);
+          _docs.addAll(snap.docs);
+          _lastDoc = snap.docs.last;
         }
-        _hasMore = false; // We loaded everything, no pagination needed
+        _hasMore = snap.docs.length == _pageSize;
         _isLoading = false;
       });
-    } catch (_) {
+    } catch (e) {
+      debugPrint('Pagination error: $e');
       if (mounted) setState(() => _isLoading = false);
     }
   }
@@ -114,6 +117,7 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
       _docs.clear();
       _lastDoc = null;
       _hasMore = true;
+      _isLoading = false;
     });
     await _fetchNextPage();
   }
@@ -124,6 +128,7 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
       _docs.clear();
       _lastDoc = null;
       _hasMore = true;
+      _isLoading = false;
     });
     _fetchNextPage();
   }

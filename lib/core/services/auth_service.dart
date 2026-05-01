@@ -17,6 +17,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/firestore_paths.dart';
+import 'package:firebase_auth/firebase_auth.dart' show Persistence;
 
 class AuthService {
   AuthService._();
@@ -47,6 +48,11 @@ class AuthService {
     try {
       // Note: setPersistence is REMOVED because it causes errors on some platforms
       // We'll handle "Remember Me" using SharedPreferences only
+      if (rememberMe) {
+        await _auth.setPersistence(Persistence.LOCAL);
+      } else {
+        await _auth.setPersistence(Persistence.SESSION);
+      }
       
       final cred = await _auth.signInWithEmailAndPassword(
         email: email.trim(),

@@ -60,15 +60,12 @@ export 'widgets/group_member_list_item.dart';
 export 'widgets/history_log_list_item.dart';
 export 'widgets/notification_list_item.dart';
 
-// ── Utility & Registry ───────────────────────────────────────────────────────
-// export 'widgets/bookmarks_registry.dart';
-
 // ── Modals & Dialogs ─────────────────────────────────────────────────────────
 // Announcement
 export 'widgets/announcement_modal.dart';
 
 // Generic yes/no confirmation (covers: Reset form, Create request/event,
-//   Disable notifications, Remove group member, Join event, Logout, Cancel)
+// Disable notifications, Remove group member, Join event, Logout, Cancel)
 export 'widgets/confirmation_modal.dart';
 export 'widgets/disable_notification_dialog.dart';
 
@@ -76,12 +73,12 @@ export 'widgets/disable_notification_dialog.dart';
 export 'widgets/delete_remove_modal.dart';
 
 // Donation flows
-export 'widgets/donate_modal.dart';                // Step-1: intent + T&C
-// export 'widgets/donate_funds_amount_dialog.dart'; // Step-2: enter amount
-export 'widgets/item_donation_modal.dart';        // Step-2: item name + qty
+export 'widgets/donate_modal.dart';
+export 'widgets/item_donation_modal.dart';
+export 'widgets/join_event_dialog.dart';
 
 // Reporting
-export 'widgets/report_modal.dart';               // unified report form
+export 'widgets/report_modal.dart';
 
 // Question / FAQ submission
 export 'widgets/question_modal.dart';
@@ -95,22 +92,14 @@ export 'widgets/remove_members_modal.dart';
 // Form utilities
 export 'widgets/date_picker_modal.dart';
 export 'widgets/file_picker_modal.dart';
-export 'widgets/reset_form_dialog.dart';          // also includes UnsavedChangesDialog
+export 'widgets/reset_form_dialog.dart';
 
 // Profile
-export 'widgets/profile_popup.dart';              // canonical profile pop-up
+export 'widgets/profile_popup.dart';
 export 'widgets/edit_profile_modal.dart';
-
-// Admin
-// export 'widgets/admin_panel_widget.dart';
 
 // ── Services ─────────────────────────────────────────────────────────────────
 export 'services/auth_service.dart';
 export 'services/firestore_service.dart'; 
 export 'services/storage_service.dart'; 
 export 'services/notification_service.dart';
-export 'services/message_service.dart';
-export 'services/charity_event_service.dart';
-export 'services/aid_request_service.dart';
-
-export 'widgets/join_event_dialog.dart';
