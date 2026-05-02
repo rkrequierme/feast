@@ -1,17 +1,4 @@
-// lib/features/guide/screens/app_guide_screen.dart
-//
-// App Guide screen with expandable sections.
-// Content is editable by admins via Firestore static_content collection.
-//
-// REACT.JS INTEGRATION NOTE:
-// =========================
-// Collection: static_content
-// Document: app_guide
-// Fields: guides (Array of {title, body})
-// React query:
-//   const docRef = doc(db, 'static_content', 'app_guide');
-//   const docSnap = await getDoc(docRef);
-//   const guides = docSnap.data()?.guides || defaultGuides;
+// Updated app_guide_screen.dart with icons
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -30,26 +17,31 @@ class _AppGuideScreenState extends State<AppGuideScreen> {
   static const _defaultGuides = [
     {
       'title': 'Home: Your Community Dashboard',
+      'icon': Icons.home_outlined,
       'body':
           "The Home screen is your central command center for all things related to F.E.A.S.T. Here, you'll find a live feed of featured community aid requests and events, a community contributions tracker, and all important announcements.",
     },
     {
       'title': 'Requests: Bridging the Gap',
+      'icon': Icons.volunteer_activism_outlined,
       'body':
           'Learn how to submit, browse, and respond to community aid requests. This section helps connect donors with those in need. Only Barangay residents may post aid requests.',
     },
     {
       'title': 'Events: Action & Engagement',
+      'icon': Icons.event_outlined,
       'body':
           'Discover upcoming community events, register as a volunteer, or post your own charity event. Both residents and non-residents can create charity events.',
     },
     {
       'title': 'Messages: Direct Communication',
+      'icon': Icons.message_outlined,
       'body':
           'Use the Messages tab to communicate directly with donors, beneficiaries, or event organisers within the platform. All messages are private and admin-inaccessible.',
     },
     {
       'title': 'Settings: Identity & Customisation',
+      'icon': Icons.settings_outlined,
       'body':
           'Manage your profile, notification preferences, and other account customisations from the Settings screen.',
     },
@@ -79,7 +71,7 @@ class _AppGuideScreenState extends State<AppGuideScreen> {
               .doc('app_guide')
               .snapshots(),
           builder: (context, snap) {
-            List<Map<String, String>> guides = List.from(_defaultGuides);
+            List<Map<String, dynamic>> guides = List.from(_defaultGuides);
 
             if (snap.hasData && snap.data!.exists) {
               final raw = snap.data!.data() as Map<String, dynamic>?;
@@ -88,6 +80,7 @@ class _AppGuideScreenState extends State<AppGuideScreen> {
                 guides = adminGuides
                     .map((g) => {
                           'title': g['title'] as String? ?? '',
+                          'icon': Icons.help_outline,
                           'body': g['body'] as String? ?? '',
                         })
                     .toList();
@@ -95,6 +88,7 @@ class _AppGuideScreenState extends State<AppGuideScreen> {
             }
 
             return CustomScrollView(
+              physics: const ClampingScrollPhysics(),
               slivers: [
                 SliverToBoxAdapter(
                   child: Padding(
@@ -105,23 +99,25 @@ class _AppGuideScreenState extends State<AppGuideScreen> {
                         FeastWhiteSection(
                           child: Column(
                             children: const [
+                              Icon(Icons.menu_book_outlined, size: 48, color: feastGreen),
+                              SizedBox(height: 12),
                               Text(
                                 'Welcome to the F.E.A.S.T. Guide',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontFamily: 'Outfit',
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 18,
+                                  fontSize: 20,
                                   color: feastBlack,
                                 ),
                               ),
-                              SizedBox(height: 4),
+                              SizedBox(height: 8),
                               Text(
                                 'Empowering the Almanza Dos Community',
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontFamily: 'Outfit',
-                                  fontSize: 13,
+                                  fontSize: 16,
                                   color: feastGray,
                                 ),
                               ),
@@ -131,7 +127,7 @@ class _AppGuideScreenState extends State<AppGuideScreen> {
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
                                   fontFamily: 'Outfit',
-                                  fontSize: 13,
+                                  fontSize: 16,
                                   color: feastGray,
                                   height: 1.5,
                                 ),
@@ -141,28 +137,27 @@ class _AppGuideScreenState extends State<AppGuideScreen> {
                         ),
                         const SizedBox(height: 20),
                         const FeastYellowSection(title: 'Guides & Tutorials'),
-                        const SizedBox(height: 12),
                       ],
                     ),
                   ),
                 ),
-                // Use SliverList for expandable items to avoid extra space
                 SliverList(
                   delegate: SliverChildBuilderDelegate(
                     (context, index) {
                       final guide = guides[index];
                       return Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
                         child: FeastExpandableItem(
                           title: guide['title'] ?? '',
+                          icon: guide['icon'] as IconData?,
                           initiallyExpanded: index == 0,
                           content: Text(
                             guide['body'] ?? '',
                             style: const TextStyle(
                               fontFamily: 'Outfit',
-                              fontSize: 13,
+                              fontSize: 16,
                               color: feastGray,
-                              height: 1.5,
+                              height: 1.6,
                             ),
                           ),
                         ),
@@ -171,8 +166,8 @@ class _AppGuideScreenState extends State<AppGuideScreen> {
                     childCount: guides.length,
                   ),
                 ),
-                SliverToBoxAdapter(
-                  child: const SizedBox(height: 80),
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: 100),
                 ),
               ],
             );

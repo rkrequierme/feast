@@ -10,7 +10,7 @@ class FeastYellowSection extends StatelessWidget {
   const FeastYellowSection({
     super.key,
     required this.title,
-    this.titleFontSize = 22,
+    this.titleFontSize = 24,
   });
 
   @override
@@ -34,7 +34,7 @@ class FeastYellowSection extends StatelessWidget {
         fontSize: titleFontSize,
         textColor: Colors.white,
         strokeColor: feastGreen,
-        strokeWidth: 10,
+        strokeWidth: 8,
       ),
     );
   }

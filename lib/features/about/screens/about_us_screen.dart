@@ -2,16 +2,6 @@
 //
 // About Us screen displaying F.E.A.S.T. mission, vision, and history.
 // Content is editable by admins via Firestore static_content collection.
-//
-// REACT.JS INTEGRATION NOTE:
-// =========================
-// Collection: static_content
-// Document: about_us
-// Fields: mission (String), vision (String), history (String)
-// React query:
-//   const docRef = doc(db, 'static_content', 'about_us');
-//   const docSnap = await getDoc(docRef);
-//   const { mission, vision, history } = docSnap.data();
 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
@@ -53,7 +43,6 @@ class _AboutUsScreenState extends State<AboutUsScreen> {
           builder: (context, snap) {
             final raw = snap.data?.data() as Map<String, dynamic>? ?? {};
             
-            // Default content if admin hasn't edited yet
             final mission = raw['mission'] as String? ?? 
                 'To improve the quality of life in Barangay Almanza Dos by providing a streamlined, efficient, and transparent platform for charity management. We aim to bridge the gap between those who can give and those in need, ensuring that every community member is recognized for their efforts.';
             
@@ -63,106 +52,182 @@ class _AboutUsScreenState extends State<AboutUsScreen> {
             final history = raw['history'] as String? ??
                 'Recognizing the need for a more organized approach to local charity, students of FEU Alabang developed the F.E.A.S.T. system to simplify the logistics of aid. F.E.A.S.T. stands for "Food, Emergency Aid, Support & Transparency" and is designed for the generous, hardworking, or in-need community members of Almanza Dos.';
 
-            return SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const FeastYellowSection(
-                    title: 'F.E.A.S.T. Charity\nManagement System',
-                    titleFontSize: 22,
-                  ),
-                  const SizedBox(height: 12),
-                  FeastWhiteSection(
-                    child: const Text(
-                      'F.E.A.S.T. stands for "Food, Emergency Aid, Support & Transparency" and is designed for the generous, hardworking, or in-need community members of Almanza Dos. It aims to simplify and monitor charity-related activities.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 13,
-                        color: feastGray,
-                        height: 1.5,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  const FeastYellowSection(title: 'Our Mission'),
-                  const SizedBox(height: 12),
-                  FeastWhiteSection(
-                    child: Text(
-                      mission,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 13,
-                        color: feastGray,
-                        height: 1.5,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  const FeastYellowSection(title: 'Our Vision'),
-                  const SizedBox(height: 12),
-                  FeastWhiteSection(
-                    child: Text(
-                      vision,
-                      textAlign: TextAlign.center,
-                      style: const TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 13,
-                        color: feastGray,
-                        height: 1.5,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  const FeastYellowSection(
-                    title: 'Our History &\nCore Values',
-                    titleFontSize: 20,
-                  ),
-                  const SizedBox(height: 12),
-                  FeastWhiteSection(
+            return CustomScrollView(
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
                     child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          history,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 13,
-                            color: feastGray,
-                            height: 1.5,
+                        const FeastYellowSection(
+                          title: 'F.E.A.S.T. Charity\nManagement System',
+                          titleFontSize: 24,
+                        ),
+                        const SizedBox(height: 20),
+                        FeastWhiteSection(
+                          child: const Text(
+                            'F.E.A.S.T. stands for "Food, Emergency Aid, Support & Transparency" and is designed for the generous, hardworking, or in-need community members of Almanza Dos. It aims to simplify and monitor charity-related activities.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 16,
+                              color: feastGray,
+                              height: 1.5,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 16),
-                        const Text(
-                          'Our Core Values:',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontFamily: 'TitanOne',
-                            fontSize: 15,
-                            color: feastGreen,
+                        const SizedBox(height: 20),
+                        const FeastYellowSection(title: 'Our Mission'),
+                        const SizedBox(height: 20),
+                        FeastWhiteSection(
+                          child: Text(
+                            mission,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 16,
+                              color: feastGray,
+                              height: 1.5,
+                            ),
                           ),
                         ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Support · Transparency · Recognition',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
+                        const SizedBox(height: 20),
+                        const FeastYellowSection(title: 'Our Vision'),
+                        const SizedBox(height: 20),
+                        FeastWhiteSection(
+                          child: Text(
+                            vision,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 16,
+                              color: feastGray,
+                              height: 1.5,
+                            ),
                           ),
                         ),
+                        const SizedBox(height: 20),
+                        const FeastYellowSection(
+                          title: 'Our History &\nCore Values',
+                          titleFontSize: 24,
+                        ),
+                        const SizedBox(height: 20),
+                        FeastWhiteSection(
+                          child: Column(
+                            children: [
+                              Text(
+                                history,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 16,
+                                  color: feastGray,
+                                  height: 1.5,
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+                              Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: feastLightGreen.withOpacity(0.15),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: feastLightGreen.withOpacity(0.3),
+                                  ),
+                                ),
+                                child: Column(
+                                  children: const [
+                                    Text(
+                                      'Our Core Values',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                        fontFamily: 'TitanOne',
+                                        fontSize: 20,
+                                        color: feastGreen,
+                                      ),
+                                    ),
+                                    SizedBox(height: 40),
+                                    Wrap(
+                                      alignment: WrapAlignment.center,
+                                      spacing: 16,
+                                      runSpacing: 8,
+                                      children: [
+                                        _CoreValueChip(
+                                          icon: Icons.support_agent,
+                                          label: 'Support',
+                                          color: feastGreen,
+                                        ),
+                                        _CoreValueChip(
+                                          icon: Icons.visibility,
+                                          label: 'Transparency',
+                                          color: feastBlue,
+                                        ),
+                                        _CoreValueChip(
+                                          icon: Icons.emoji_events,
+                                          label: 'Recognition',
+                                          color: feastOrange,
+                                        ),
+                                      ],
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
-                ],
-              ),
+                ),
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: 80),
+                ),
+              ],
             );
           },
         ),
+      ),
+    );
+  }
+}
+
+class _CoreValueChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _CoreValueChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              fontFamily: 'Outfit',
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: color,
+            ),
+          ),
+        ],
       ),
     );
   }
