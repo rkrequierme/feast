@@ -36,7 +36,6 @@ class FeastApp extends StatelessWidget {
 }
 
 /// Listens to Firebase Auth state and routes accordingly.
-/// For development: all authenticated users go directly to HomeScreen.
 class _AuthGate extends StatelessWidget {
   const _AuthGate();
 
@@ -57,7 +56,8 @@ class _AuthGate extends StatelessWidget {
           return const LoginScreen();
         }
 
-        // Logged in — go directly to HomeScreen (admin approval skipped for dev)
+        // Logged in - proceed to home
+        // Firebase Auth handles session persistence automatically on mobile
         return StreamBuilder<DocumentSnapshot>(
           stream: FirebaseFirestore.instance
               .collection(FirestorePaths.users)

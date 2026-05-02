@@ -218,7 +218,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                               ),
                               const SizedBox(height: 12),
                               _logoutItem(),
-                              // Spacer pushes content to top, leaving bottom space only if needed
                               const Spacer(),
                             ],
                           ),

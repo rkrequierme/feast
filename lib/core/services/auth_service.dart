@@ -17,7 +17,6 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../constants/firestore_paths.dart';
-import 'package:firebase_auth/firebase_auth.dart' show Persistence;
 
 class AuthService {
   AuthService._();
@@ -35,7 +34,7 @@ class AuthService {
   bool get isSignedIn => _auth.currentUser != null;
 
   // ──────────────────────────────────────────────────────────────────────────
-  // SIGN IN (WITHOUT setPersistence - using SharedPreferences instead)
+  // SIGN IN
   // ──────────────────────────────────────────────────────────────────────────
 
   /// Signs in with email + password.
@@ -46,17 +45,6 @@ class AuthService {
     required bool rememberMe,
   }) async {
     try {
-      // FIX: setPersistence is ONLY supported on Web platforms
-      // For mobile, Firebase Auth persists by default automatically.
-      // We only need SharedPreferences for "Remember Me" UI state.
-      
-      // Remove this entire setPersistence block - it's what's causing the crash!
-      // if (rememberMe) {
-      //   await _auth.setPersistence(Persistence.LOCAL);
-      // } else {
-      //   await _auth.setPersistence(Persistence.SESSION);
-      // }
-      
       final cred = await _auth.signInWithEmailAndPassword(
         email: email.trim(),
         password: password,
@@ -75,9 +63,10 @@ class AuthService {
         status: 'Success',
       );
 
-      // Persist "remember me" flag locally (this still works fine)
+      // Persist "remember me" flag for email pre-filling on login screen
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('remember_me', rememberMe);
+      
       if (rememberMe) {
         await prefs.setString('cached_email', email.trim());
       } else {
@@ -91,12 +80,6 @@ class AuthService {
     } catch (e, stackTrace) {
       debugPrint('❌ AuthService.signIn unexpected error: $e');
       debugPrint('Stack trace: $stackTrace');
-      
-      // Handle the setPersistence error gracefully
-      if (e.toString().contains('setPersistence() is only supported on web')) {
-        throw AuthException('Please restart the app and try again. (Persistence error)');
-      }
-      
       throw AuthException('Something went wrong. Please try again.');
     }
   }
@@ -240,11 +223,26 @@ class AuthService {
         status: 'Success',
       );
     }
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove('remember_me');
-    await prefs.remove('cached_email');
     await _auth.signOut();
     debugPrint('👋 User signed out');
+  }
+
+  // ──────────────────────────────────────────────────────────────────────────
+  // GET REMEMBER ME PREFERENCE
+  // ──────────────────────────────────────────────────────────────────────────
+
+  Future<bool> getRememberMePreference() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool('remember_me') ?? false;
+  }
+
+  Future<String?> getCachedEmail() async {
+    final prefs = await SharedPreferences.getInstance();
+    final rememberMe = prefs.getBool('remember_me') ?? false;
+    if (rememberMe) {
+      return prefs.getString('cached_email');
+    }
+    return null;
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -323,9 +321,6 @@ class AuthService {
   // ──────────────────────────────────────────────────────────────────────────
   // ERROR MAPPER
   // ──────────────────────────────────────────────────────────────────────────
-
-// lib/core/services/auth_service.dart
-// Update the _mapFirebaseError method
 
   String _mapFirebaseError(String code) {
     switch (code) {
