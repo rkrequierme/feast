@@ -137,20 +137,20 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         padding: const EdgeInsets.only(top: 60),
                         child: Column(
                           children: [
-                            FeastLogo(height: 100),
+                            FeastLogo(height: 120),
                             const SizedBox(height: 12),
                             const FeastTagline(
                               'F.E.A.S.T.',
                               fontSize: 28,
                               textColor: Colors.white,
-                              strokeColor: feastGreen,
+                              strokeColor: feastBlue,
                               strokeWidth: 8,
                               fontFamily: 'Ultra',
                             ),
                             const SizedBox(height: 4),
                             const FeastTagline(
                               'Charity Management System',
-                              fontSize: 14,
+                              fontSize: 20,
                               strokeWidth: 6,
                             ),
                           ],
@@ -160,7 +160,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                       // ── Form card ─────────────────────────────────────
                       BottomFormBackground(
                         child: Padding(
-                          padding: const EdgeInsets.fromLTRB(28, 32, 28, 60),
+                          padding: const EdgeInsets.fromLTRB(28, 32, 28, 80),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
@@ -217,7 +217,22 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                 onLinkTap: () {
                                   showDialog(
                                     context: context,
-                                    builder: (_) => const TermsConditionsDialog(),
+                                    builder: (_) => TermsConditionsDialog(
+                                      onAccept: () {
+                                        // I Understand - check the checkbox
+                                        setState(() {
+                                          _agreedToTerms = true;
+                                          _validateForm();
+                                        });
+                                      },
+                                      onDecline: () {
+                                        // Decline - uncheck the checkbox
+                                        setState(() {
+                                          _agreedToTerms = false;
+                                          _validateForm();
+                                        });
+                                      },
+                                    ),
                                   );
                                 },
                               ),
@@ -274,7 +289,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                                     onTap: () => Navigator.pushReplacementNamed(
                                         context, AppRoutes.login),
                                     child: const Text(
-                                      'Sign In',
+                                      'Sign In.',
                                       style: TextStyle(
                                         fontFamily: 'Outfit',
                                         fontSize: 13,

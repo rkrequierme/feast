@@ -208,6 +208,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               // ── Forgot password link ──────────────────
                               FeastLink(
                                 text: 'Forgot Password?',
+                                color: feastBlue,
                                 alignment: Alignment.center,
                                 onPressed: () => Navigator.pushNamed(
                                     context, AppRoutes.forgotPassword),

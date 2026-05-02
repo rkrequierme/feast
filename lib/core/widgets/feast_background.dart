@@ -3,8 +3,13 @@ import '../core.dart';
 
 class FeastBackground extends StatelessWidget {
   final Widget child;
+  final EdgeInsetsGeometry? padding;
 
-  const FeastBackground({super.key, required this.child});
+  const FeastBackground({
+    super.key, 
+    required this.child,
+    this.padding,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -32,8 +37,14 @@ class FeastBackground extends StatelessWidget {
             ),
           ),
         ),
-        // Foreground Content
-        child,
+        // Foreground Content with optional padding
+        if (padding != null)
+          Padding(
+            padding: padding!,
+            child: child,
+          )
+        else
+          child,
       ],
     );
   }

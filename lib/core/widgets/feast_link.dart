@@ -12,7 +12,7 @@ class FeastLink extends StatelessWidget {
     required this.text,
     required this.onPressed,
     this.alignment = Alignment.center, // Default is still center
-    this.color = feastLink,
+    this.color = feastBlue,
   });
 
   @override

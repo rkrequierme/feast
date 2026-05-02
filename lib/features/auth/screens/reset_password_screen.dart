@@ -143,20 +143,20 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
                         padding: const EdgeInsets.only(top: 60),
                         child: Column(
                           children: [
-                            FeastLogo(height: 100),
+                            FeastLogo(height: 120),
                             const SizedBox(height: 12),
                             const FeastTagline(
                               'F.E.A.S.T.',
                               fontSize: 28,
                               textColor: Colors.white,
-                              strokeColor: feastGreen,
+                              strokeColor: feastBlue,
                               strokeWidth: 8,
                               fontFamily: 'Ultra',
                             ),
                             const SizedBox(height: 4),
                             const FeastTagline(
                               'Charity Management System',
-                              fontSize: 14,
+                              fontSize: 20,
                               strokeWidth: 6,
                             ),
                           ],

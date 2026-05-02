@@ -150,6 +150,7 @@ class _RegisterIdScreenState extends State<RegisterIdScreen> {
     return Scaffold(
       backgroundColor: feastLighterYellow,
       body: FeastBackground(
+        padding: const EdgeInsets.only(bottom: 20),
         child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.all(24),
@@ -157,7 +158,7 @@ class _RegisterIdScreenState extends State<RegisterIdScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 const SizedBox(height: 20),
-                const FeastLogo(height: 80),
+                const FeastLogo(height: 120),
                 const SizedBox(height: 16),
                 
                 // ── Header with FeastTagline ─────────────────────────────────
