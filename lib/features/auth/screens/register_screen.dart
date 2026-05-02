@@ -28,55 +28,127 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // Live password-strength feedback
   List<String> _passwordErrors = [];
   
-  // Track if form is valid for button state
-  bool _isFormValid = false;
+  // Track if all fields are filled (for button state)
+  bool _allFieldsFilled = false;
 
   static const _genders = ['Male', 'Female', 'Other'];
 
   @override
   void initState() {
     super.initState();
-    // Add listeners to validate form on every change
-    _firstNameController.addListener(_validateForm);
-    _lastNameController.addListener(_validateForm);
-    _locationController.addListener(_validateForm);
-    _contactController.addListener(_validateForm);
-    _genderController.addListener(_validateForm);
-    _dobController.addListener(_validateForm);
-    _emailController.addListener(_validateForm);
-    _passwordController.addListener(_validateForm);
+    // Add listeners to check if all fields are filled
+    _firstNameController.addListener(_checkAllFieldsFilled);
+    _lastNameController.addListener(_checkAllFieldsFilled);
+    _locationController.addListener(_checkAllFieldsFilled);
+    _contactController.addListener(_checkAllFieldsFilled);
+    _genderController.addListener(_checkAllFieldsFilled);
+    _dobController.addListener(_checkAllFieldsFilled);
+    _emailController.addListener(_checkAllFieldsFilled);
+    _passwordController.addListener(_checkAllFieldsFilled);
+    _passwordController.addListener(_updatePasswordErrors);
+    
+    // Initial check
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkAllFieldsFilled();
+    });
   }
 
-  void _validateForm() {
-    final firstNameValid = _firstNameController.text.trim().isNotEmpty;
-    final lastNameValid = _lastNameController.text.trim().isNotEmpty;
-    final locationValid = _locationController.text.trim().isNotEmpty;
-    final contactValid = _contactController.text.trim().isNotEmpty;
-    final genderValid = _genderController.text.isNotEmpty;
-    final dobValid = _dobController.text.isNotEmpty;
-    final emailValid = _emailController.text.trim().isNotEmpty;
-    final passwordValid = _passwordController.text.isNotEmpty;
-    final passwordStrong = _passwordErrors.isEmpty;
+  void _checkAllFieldsFilled() {
+    final firstNameFilled = _firstNameController.text.trim().isNotEmpty;
+    final lastNameFilled = _lastNameController.text.trim().isNotEmpty;
+    final locationFilled = _locationController.text.trim().isNotEmpty;
+    final contactFilled = _contactController.text.trim().isNotEmpty;
+    final genderFilled = _genderController.text.isNotEmpty;
+    final dobFilled = _dobController.text.isNotEmpty;
+    final emailFilled = _emailController.text.trim().isNotEmpty;
+    final passwordFilled = _passwordController.text.isNotEmpty;
     
-    final isValid = firstNameValid && lastNameValid && locationValid && 
-                    contactValid && genderValid && dobValid && 
-                    emailValid && passwordValid && passwordStrong;
+    final allFilled = firstNameFilled && lastNameFilled && locationFilled && 
+                      contactFilled && genderFilled && dobFilled && 
+                      emailFilled && passwordFilled;
     
-    if (_isFormValid != isValid) {
-      setState(() => _isFormValid = isValid);
+    if (_allFieldsFilled != allFilled) {
+      setState(() => _allFieldsFilled = allFilled);
+    }
+  }
+
+  void _updatePasswordErrors() {
+    setState(() {
+      _passwordErrors = AuthService.checkPasswordStrength(_passwordController.text);
+    });
+  }
+
+  bool _isAgeValid(String dateOfBirth) {
+    if (dateOfBirth.isEmpty) return false;
+    
+    try {
+      DateTime birthDate;
+      
+      // Try parsing "MM/DD/YYYY" format first
+      if (dateOfBirth.contains('/')) {
+        final parts = dateOfBirth.split('/');
+        if (parts.length != 3) return false;
+        
+        final month = int.parse(parts[0]);
+        final day = int.parse(parts[1]);
+        final year = int.parse(parts[2]);
+        birthDate = DateTime(year, month, day);
+      } 
+      // Try parsing "Jan 31, 1997" format
+      else if (dateOfBirth.contains(',')) {
+        // Remove the comma and split
+        const months = {
+          'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+          'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
+        };
+        
+        final parts = dateOfBirth.replaceAll(',', '').split(' ');
+        if (parts.length != 3) return false;
+        
+        final monthStr = parts[0];
+        final day = int.parse(parts[1]);
+        final year = int.parse(parts[2]);
+        
+        if (!months.containsKey(monthStr)) return false;
+        
+        birthDate = DateTime(year, months[monthStr]!, day);
+      }
+      else {
+        return false;
+      }
+      
+      final today = DateTime.now();
+      
+      // Check if date is in the future
+      if (birthDate.isAfter(today)) {
+        return false;
+      }
+      
+      // Calculate age
+      int age = today.year - birthDate.year;
+      if (today.month < birthDate.month || 
+          (today.month == birthDate.month && today.day < birthDate.day)) {
+        age--;
+      }
+      
+      return age >= 18;
+    } catch (e) {
+      debugPrint('Age validation error: $e');
+      return false;
     }
   }
 
   @override
   void dispose() {
-    _firstNameController.removeListener(_validateForm);
-    _lastNameController.removeListener(_validateForm);
-    _locationController.removeListener(_validateForm);
-    _contactController.removeListener(_validateForm);
-    _genderController.removeListener(_validateForm);
-    _dobController.removeListener(_validateForm);
-    _emailController.removeListener(_validateForm);
-    _passwordController.removeListener(_validateForm);
+    _firstNameController.removeListener(_checkAllFieldsFilled);
+    _lastNameController.removeListener(_checkAllFieldsFilled);
+    _locationController.removeListener(_checkAllFieldsFilled);
+    _contactController.removeListener(_checkAllFieldsFilled);
+    _genderController.removeListener(_checkAllFieldsFilled);
+    _dobController.removeListener(_checkAllFieldsFilled);
+    _emailController.removeListener(_checkAllFieldsFilled);
+    _passwordController.removeListener(_checkAllFieldsFilled);
+    _passwordController.removeListener(_updatePasswordErrors);
     
     _firstNameController.dispose();
     _middleNameController.dispose();
@@ -95,18 +167,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // ──────────────────────────────────────────────────────────────────────────
 
   void _goToIdUpload() {
-    // Run all validators first
+    // Run all validators - this will show error messages if validation fails
     if (!_formKey.currentState!.validate()) {
       return;
     }
 
-    // Extra guards with specific error messages
+    // Extra guards with specific error messages (should already be caught by validators)
     if (_genderController.text.isEmpty) {
       FeastToast.showError(context, 'Please select your gender.');
       return;
     }
     if (_dobController.text.isEmpty) {
       FeastToast.showError(context, 'Please enter your date of birth.');
+      return;
+    }
+    if (!_isAgeValid(_dobController.text)) {
+      FeastToast.showError(context, 'You must be at least 18 years old to register.');
       return;
     }
     if (_passwordErrors.isNotEmpty) {
@@ -240,8 +316,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     controller: _genderController,
                     type: LabeledFieldType.dropdown,
                     items: _genders,
-                    onDropdownChanged: (v) =>
-                        setState(() => _genderController.text = v ?? ''),
+                    onDropdownChanged: (v) => setState(() {
+                      _genderController.text = v ?? '';
+                      _checkAllFieldsFilled();
+                    }),
                     validator: (v) =>
                         (v == null || v.isEmpty) ? 'Please select your gender' : null,
                   ),
@@ -254,8 +332,61 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     prefixIcon: Icons.calendar_today_outlined,
                     controller: _dobController,
                     type: LabeledFieldType.datePicker,
-                    validator: (v) =>
-                        (v == null || v.isEmpty) ? 'Date of birth is required' : null,
+                    validator: (v) {
+                      if (v == null || v.isEmpty) {
+                        return 'Date of birth is required';
+                      }
+                      
+                      // First check if date is in the future
+                      try {
+                        DateTime birthDate;
+                        
+                        // Try parsing "MM/DD/YYYY" format
+                        if (v.contains('/')) {
+                          final parts = v.split('/');
+                          if (parts.length == 3) {
+                            final month = int.parse(parts[0]);
+                            final day = int.parse(parts[1]);
+                            final year = int.parse(parts[2]);
+                            birthDate = DateTime(year, month, day);
+                            
+                            final today = DateTime.now();
+                            if (birthDate.isAfter(today)) {
+                              return 'Date cannot be in the future';
+                            }
+                          }
+                        }
+                        // Try parsing "Jan 31, 1997" format
+                        else if (v.contains(',')) {
+                          const months = {
+                            'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+                            'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
+                          };
+                          
+                          final parts = v.replaceAll(',', '').split(' ');
+                          if (parts.length == 3) {
+                            final monthStr = parts[0];
+                            final day = int.parse(parts[1]);
+                            final year = int.parse(parts[2]);
+                            
+                            if (months.containsKey(monthStr)) {
+                              birthDate = DateTime(year, months[monthStr]!, day);
+                              final today = DateTime.now();
+                              if (birthDate.isAfter(today)) {
+                                return 'Date cannot be in the future';
+                              }
+                            }
+                          }
+                        }
+                      } catch (e) {
+                        // Parse error will be caught by age validation
+                      }
+                      
+                      if (!_isAgeValid(v)) {
+                        return 'You must be at least 18 years old to register';
+                      }
+                      return null;
+                    },
                   ),
                   const SizedBox(height: 16),
 
@@ -285,13 +416,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     prefixIcon: Icons.lock_outline,
                     controller: _passwordController,
                     type: LabeledFieldType.password,
-                    onChanged: (v) => setState(
-                      () => _passwordErrors = AuthService.checkPasswordStrength(v),
-                    ),
+                    onChanged: (v) => setState(() {
+                      _passwordErrors = AuthService.checkPasswordStrength(v);
+                    }),
                     validator: (v) {
                       if (v == null || v.isEmpty) return 'Password is required';
-                      final errors = AuthService.checkPasswordStrength(v);
-                      if (errors.isNotEmpty) return errors.first;
+                      // Don't show individual requirement errors here since they're already listed below
+                      // Just return null to let the password strength list handle it
                       return null;
                     },
                   ),
@@ -318,13 +449,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
                   const SizedBox(height: 32),
 
-                  // Next button (disabled until form is valid)
+                  // Next button (enabled when all fields are filled, even if invalid)
+                  // Validation errors will prevent navigation when tapped
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
-                      onPressed: _isFormValid ? _goToIdUpload : null,
+                      onPressed: _allFieldsFilled ? _goToIdUpload : null,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: _isFormValid
+                        backgroundColor: _allFieldsFilled
                             ? feastGreen
                             : feastGreen.withOpacity(0.5),
                         padding: const EdgeInsets.symmetric(vertical: 16),
@@ -339,7 +471,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           fontSize: 16,
                           fontFamily: "Outfit",
                           fontWeight: FontWeight.bold,
-                          color: _isFormValid
+                          color: _allFieldsFilled
                               ? Colors.white
                               : Colors.white.withOpacity(0.7),
                         ),

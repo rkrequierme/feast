@@ -13,7 +13,7 @@ class FeastCheckbox extends StatelessWidget {
   final CheckboxType type;
   final String? linkText;
   final VoidCallback? onLinkTap;
-  final Color? linkColor; // Added linkColor parameter
+  final Color? linkColor;
 
   const FeastCheckbox({
     super.key,
@@ -23,7 +23,7 @@ class FeastCheckbox extends StatelessWidget {
     this.type = CheckboxType.rememberMe,
     this.linkText,
     this.onLinkTap,
-    this.linkColor, // Initialize linkColor
+    this.linkColor,
   });
 
   @override
@@ -71,10 +71,9 @@ class FeastCheckbox extends StatelessWidget {
 
   Widget _buildTextContent(TextStyle baseStyle) {
     if (linkText == null || !text.contains(linkText!)) {
-      return GestureDetector(
-        onTap: () => onChanged(!value),
-        child: Text(text, style: baseStyle),
-      );
+      // REMOVED: GestureDetector wrapper - now just plain Text
+      // Users must tap the checkbox directly, not the text
+      return Text(text, style: baseStyle);
     }
 
     final parts = text.split(linkText!);
@@ -85,12 +84,11 @@ class FeastCheckbox extends StatelessWidget {
         children: [
           TextSpan(
             text: parts[0],
-            recognizer: TapGestureRecognizer()..onTap = () => onChanged(!value),
+            // REMOVED: recognizer - now just plain text
           ),
           TextSpan(
             text: linkText,
             style: baseStyle.copyWith(
-              // Use provided linkColor, fallback to feastGreen
               color: linkColor ?? feastGreen, 
               decoration: TextDecoration.underline,
             ),
@@ -99,7 +97,7 @@ class FeastCheckbox extends StatelessWidget {
           if (parts.length > 1)
             TextSpan(
               text: parts[1],
-              recognizer: TapGestureRecognizer()..onTap = () => onChanged(!value),
+              // REMOVED: recognizer - now just plain text
             ),
         ],
       ),
