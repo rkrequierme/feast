@@ -1,16 +1,4 @@
 // lib/features/auth/screens/register_screen.dart
-//
-// Step 1 of 2 in the registration flow.
-// Collects personal details, then navigates to RegisterIdScreen.
-// All form-field construction is delegated to LabeledTextField.
-//
-// REACT.JS INTEGRATION NOTE:
-// =========================
-// Registration flow in React:
-//   1. await createUserWithEmailAndPassword(auth, email, password)
-//   2. await setDoc(doc(db, 'users', user.uid), { ...userData, role: 'user', status: 'active' })
-//   3. Redirect to login or home
-// Password validation: same regex rules as Flutter
 
 import 'package:flutter/material.dart';
 import 'package:feast/core/core.dart';
@@ -39,11 +27,57 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   // Live password-strength feedback
   List<String> _passwordErrors = [];
+  
+  // Track if form is valid for button state
+  bool _isFormValid = false;
 
   static const _genders = ['Male', 'Female', 'Other'];
 
   @override
+  void initState() {
+    super.initState();
+    // Add listeners to validate form on every change
+    _firstNameController.addListener(_validateForm);
+    _lastNameController.addListener(_validateForm);
+    _locationController.addListener(_validateForm);
+    _contactController.addListener(_validateForm);
+    _genderController.addListener(_validateForm);
+    _dobController.addListener(_validateForm);
+    _emailController.addListener(_validateForm);
+    _passwordController.addListener(_validateForm);
+  }
+
+  void _validateForm() {
+    final firstNameValid = _firstNameController.text.trim().isNotEmpty;
+    final lastNameValid = _lastNameController.text.trim().isNotEmpty;
+    final locationValid = _locationController.text.trim().isNotEmpty;
+    final contactValid = _contactController.text.trim().isNotEmpty;
+    final genderValid = _genderController.text.isNotEmpty;
+    final dobValid = _dobController.text.isNotEmpty;
+    final emailValid = _emailController.text.trim().isNotEmpty;
+    final passwordValid = _passwordController.text.isNotEmpty;
+    final passwordStrong = _passwordErrors.isEmpty;
+    
+    final isValid = firstNameValid && lastNameValid && locationValid && 
+                    contactValid && genderValid && dobValid && 
+                    emailValid && passwordValid && passwordStrong;
+    
+    if (_isFormValid != isValid) {
+      setState(() => _isFormValid = isValid);
+    }
+  }
+
+  @override
   void dispose() {
+    _firstNameController.removeListener(_validateForm);
+    _lastNameController.removeListener(_validateForm);
+    _locationController.removeListener(_validateForm);
+    _contactController.removeListener(_validateForm);
+    _genderController.removeListener(_validateForm);
+    _dobController.removeListener(_validateForm);
+    _emailController.removeListener(_validateForm);
+    _passwordController.removeListener(_validateForm);
+    
     _firstNameController.dispose();
     _middleNameController.dispose();
     _lastNameController.dispose();
@@ -63,7 +97,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void _goToIdUpload() {
     // Run all validators first
     if (!_formKey.currentState!.validate()) {
-      // Show specific validation error
       return;
     }
 
@@ -77,13 +110,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
     if (_passwordErrors.isNotEmpty) {
-      // Show the first password requirement that's missing
       FeastToast.showError(context, _passwordErrors.first);
       return;
     }
 
     // Validate email format again to be safe
-    final email = _emailController.text.trim();
+    final email = _emailController.text.trim().toLowerCase();
     if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(email)) {
       FeastToast.showError(context, 'Please enter a valid email address.');
       return;
@@ -142,7 +174,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     hintText: 'Juan',
                     prefixIcon: Icons.person_outline,
                     controller: _firstNameController,
-                    textCapitalization: TextCapitalization.words, 
+                    textCapitalization: TextCapitalization.words,
                     validator: (v) =>
                         (v == null || v.trim().isEmpty) ? 'First name is required' : null,
                   ),
@@ -154,7 +186,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     hintText: 'Santos',
                     prefixIcon: Icons.person_outline,
                     controller: _middleNameController,
-                    textCapitalization: TextCapitalization.words, 
+                    textCapitalization: TextCapitalization.words,
                   ),
                   const SizedBox(height: 16),
 
@@ -164,7 +196,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     hintText: 'De La Cruz',
                     prefixIcon: Icons.person_outline,
                     controller: _lastNameController,
-                    textCapitalization: TextCapitalization.words, 
+                    textCapitalization: TextCapitalization.words,
                     validator: (v) =>
                         (v == null || v.trim().isEmpty) ? 'Last name is required' : null,
                   ),
@@ -203,7 +235,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   // ── Gender Dropdown ─────────────────────────────────────────
                   LabeledTextField(
                     label: 'Gender',
-                    hintText: '-- Select --',
+                    hintText: 'Select',
                     prefixIcon: Icons.favorite_border,
                     controller: _genderController,
                     type: LabeledFieldType.dropdown,
@@ -227,7 +259,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // ── Email ───────────────────────────────────────────────────
+                  // ── Email (Lowercase only) ───────────────────────────────────
                   LabeledTextField(
                     label: 'Email',
                     hintText: 'name@email.com',
@@ -235,6 +267,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     controller: _emailController,
                     keyboardType: TextInputType.emailAddress,
                     textCapitalization: TextCapitalization.none,
+                    inputFormatters: [LowerCaseTextFormatter()],
                     validator: (v) {
                       if (v == null || v.trim().isEmpty) return 'Email is required';
                       if (!RegExp(r'^[^@]+@[^@]+\.[^@]+').hasMatch(v.trim())) {
@@ -283,14 +316,37 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
                   ],
 
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 32),
 
-                  // Next button
-                  FeastButton(
-                    text: 'Next: Verify Identity',
-                    onPressed: _goToIdUpload,
+                  // Next button (disabled until form is valid)
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: _isFormValid ? _goToIdUpload : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _isFormValid
+                            ? feastGreen
+                            : feastGreen.withOpacity(0.5),
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        elevation: 4,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(25),
+                        ),
+                      ),
+                      child: Text(
+                        'Next',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontFamily: "Outfit",
+                          fontWeight: FontWeight.bold,
+                          color: _isFormValid
+                              ? Colors.white
+                              : Colors.white.withOpacity(0.7),
+                        ),
+                      ),
+                    ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 40),
                 ],
               ),
             ),

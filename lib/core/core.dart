@@ -103,3 +103,7 @@ export 'services/auth_service.dart';
 export 'services/firestore_service.dart'; 
 export 'services/storage_service.dart'; 
 export 'services/notification_service.dart';
+
+// ── Utilities ───────────────────────────────────────────────────────────────
+export 'utils/date_parser.dart';
+export 'utils/text_formatters.dart';

@@ -30,8 +30,22 @@ class _RegisterIdScreenState extends State<RegisterIdScreen> {
   String? _selectedFileName;
   bool _agreedToTerms = false;
   bool _isLoading = false;
+  bool _isFormValid = false;
 
   static const _allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+
+  @override
+  void initState() {
+    super.initState();
+    _validateForm();
+  }
+
+  void _validateForm() {
+    final isValid = _selectedIdFile != null && _agreedToTerms;
+    if (_isFormValid != isValid) {
+      setState(() => _isFormValid = isValid);
+    }
+  }
 
   // ──────────────────────────────────────────────────────────────────────────
   // File Picker - Images Only
@@ -61,14 +75,12 @@ class _RegisterIdScreenState extends State<RegisterIdScreen> {
       _selectedIdFile = File(file.path!);
       _selectedFileName = file.name;
     });
+    _validateForm();
   }
 
   // ──────────────────────────────────────────────────────────────────────────
   // Register - Create Account + Upload Encrypted ID
   // ──────────────────────────────────────────────────────────────────────────
-
-// lib/features/auth/screens/register_id_screen.dart
-// Update the _register method to show specific errors
 
   Future<void> _register() async {
     if (_selectedIdFile == null) {
@@ -116,7 +128,6 @@ class _RegisterIdScreenState extends State<RegisterIdScreen> {
       Navigator.pushNamedAndRemoveUntil(context, AppRoutes.login, (_) => false);
     } on AuthException catch (e) {
       if (!mounted) return;
-      // AuthException already has a user-friendly message from AuthService
       FeastToast.showError(context, e.message);
     } on StorageException catch (e) {
       if (!mounted) return;
@@ -145,19 +156,21 @@ class _RegisterIdScreenState extends State<RegisterIdScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const SizedBox(height: 40),
-                const FeastLogo(height: 90),
                 const SizedBox(height: 20),
-                const Text(
+                const FeastLogo(height: 80),
+                const SizedBox(height: 16),
+                
+                // ── Header with FeastTagline ─────────────────────────────────
+                const FeastTagline(
                   'Verify Your Identity',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'TitanOne',
-                    fontSize: 24,
-                    color: feastGreen,
-                  ),
+                  fontSize: 28,
+                  textColor: Colors.white,
+                  strokeColor: feastGreen,
+                  strokeWidth: 8,
+                  fontFamily: 'TitanOne',
                 ),
                 const SizedBox(height: 12),
+                
                 const Text(
                   'App access requires you to upload your ID. '
                   'Regulatory standards help us keep the platform safe. '
@@ -167,31 +180,89 @@ class _RegisterIdScreenState extends State<RegisterIdScreen> {
                 ),
                 const SizedBox(height: 24),
 
-                // ID Upload Area
+                // ── ID Upload Area ───────────────────────────────────────────
                 GestureDetector(
                   onTap: _pickIdFile,
-                  child: Container(
-                    height: 140,
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 200),
+                    height: 160,
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(16),
                       border: Border.all(
                         color: _selectedIdFile != null ? feastGreen : feastLightGreen,
                         width: 2,
                       ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
                     child: _selectedIdFile != null
                         ? Stack(
+                            fit: StackFit.expand,
                             children: [
                               ClipRRect(
-                                borderRadius: BorderRadius.circular(10),
+                                borderRadius: BorderRadius.circular(14),
                                 child: Image.file(
                                   _selectedIdFile!,
                                   fit: BoxFit.cover,
-                                  width: double.infinity,
-                                  height: double.infinity,
                                 ),
                               ),
+                              // Dark overlay for better text visibility
+                              Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(14),
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      Colors.transparent,
+                                      Colors.black.withOpacity(0.5),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              // Change photo button
+                              Positioned(
+                                bottom: 12,
+                                left: 12,
+                                right: 12,
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white.withOpacity(0.9),
+                                    borderRadius: BorderRadius.circular(20),
+                                  ),
+                                  child: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        Icons.camera_alt,
+                                        size: 16,
+                                        color: feastGreen,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Change Photo',
+                                        style: TextStyle(
+                                          fontFamily: 'Outfit',
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: feastGreen,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              // Remove button
                               Positioned(
                                 top: 8,
                                 right: 8,
@@ -199,14 +270,19 @@ class _RegisterIdScreenState extends State<RegisterIdScreen> {
                                   onTap: () => setState(() {
                                     _selectedIdFile = null;
                                     _selectedFileName = null;
+                                    _validateForm();
                                   }),
                                   child: Container(
-                                    padding: const EdgeInsets.all(4),
+                                    padding: const EdgeInsets.all(6),
                                     decoration: const BoxDecoration(
-                                      color: feastWarning,
+                                      color: feastError,
                                       shape: BoxShape.circle,
                                     ),
-                                    child: const Icon(Icons.close, color: Colors.white, size: 16),
+                                    child: const Icon(
+                                      Icons.close,
+                                      color: Colors.white,
+                                      size: 18,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -215,15 +291,29 @@ class _RegisterIdScreenState extends State<RegisterIdScreen> {
                         : Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.upload_file_outlined, size: 40, color: feastGreen.withAlpha(153)),
-                              const SizedBox(height: 8),
-                              const Text(
-                                'Select File',
-                                style: TextStyle(fontFamily: 'Outfit', fontSize: 14, color: feastGray),
+                              Icon(
+                                Icons.cloud_upload_outlined,
+                                size: 48,
+                                color: feastGreen.withOpacity(0.7),
                               ),
-                              const Text(
+                              const SizedBox(height: 12),
+                              Text(
+                                'Tap to Upload Your ID',
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.w600,
+                                  color: feastGreen,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
                                 'JPG, JPEG, PNG, WEBP, GIF',
-                                style: TextStyle(fontFamily: 'Outfit', fontSize: 11, color: feastGray),
+                                style: TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 12,
+                                  color: feastGray,
+                                ),
                               ),
                             ],
                           ),
@@ -232,59 +322,147 @@ class _RegisterIdScreenState extends State<RegisterIdScreen> {
 
                 if (_selectedFileName != null)
                   Padding(
-                    padding: const EdgeInsets.only(top: 8, left: 4),
-                    child: Text(
-                      'Selected: $_selectedFileName',
-                      style: const TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 12,
-                        color: feastGray,
-                        fontStyle: FontStyle.italic,
-                      ),
+                    padding: const EdgeInsets.only(top: 12, left: 4),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.check_circle,
+                          size: 16,
+                          color: feastSuccess,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Selected: $_selectedFileName',
+                            style: const TextStyle(
+                              fontFamily: 'Outfit',
+                              fontSize: 12,
+                              color: feastGray,
+                            ),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 24),
 
-                // Recognized IDs list
-                const Text(
-                  'List of Recognised IDs:',
-                  style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold, fontSize: 13),
-                ),
-                const Text(
-                  '• National ID  • Philippine Passport  • Driver\'s License\n'
-                  '• UMID  • PRC ID  • Voter\'s ID  • Postal ID\n'
-                  '• Senior Citizen ID  • PhilHealth ID  • PWD ID  • Barangay ID',
-                  style: TextStyle(fontFamily: 'Outfit', fontSize: 12),
+                // ── Recognized IDs List ───────────────────────────────────────
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: feastLightYellow.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.verified_outlined,
+                            size: 18,
+                            color: feastGreen,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Accepted IDs',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: feastGreen,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        '• National ID  • Philippine Passport  • Driver\'s License\n'
+                        '• UMID  • PRC ID  • Voter\'s ID  • Postal ID\n'
+                        '• Senior Citizen ID  • PhilHealth ID  • PWD ID  • Barangay ID',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 12,
+                          height: 1.5,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
 
                 const SizedBox(height: 24),
 
-                // Terms & Conditions Checkbox
+                // ── Terms & Conditions Checkbox ───────────────────────────────
                 FeastCheckbox(
                   text: "I've read the terms and conditions.",
                   value: _agreedToTerms,
                   linkText: 'terms and conditions',
+                  linkColor: feastBlue,
                   onLinkTap: () {
                     showDialog(
                       context: context,
-                      builder: (_) => const TermsConditionsDialog(),
+                      builder: (_) => TermsConditionsDialog(
+                        onAccept: () {
+                          // Check the checkbox when "I Understand" is clicked
+                          setState(() {
+                            _agreedToTerms = true;
+                            _validateForm();
+                          });
+                        },
+                        onDecline: () {
+                          // Uncheck the checkbox when "Decline" or Close (X) is clicked
+                          setState(() {
+                            _agreedToTerms = false;
+                            _validateForm();
+                          });
+                        },
+                      ),
                     );
                   },
-                  onChanged: (val) => setState(() => _agreedToTerms = val ?? false),
+                  onChanged: (val) => setState(() {
+                    _agreedToTerms = val ?? false;
+                    _validateForm();
+                  }),
                 ),
 
                 const SizedBox(height: 24),
 
-                // Sign Up Button
+                // ── Sign Up Button ────────────────────────────────────────────
                 _isLoading
-                    ? const Center(child: CircularProgressIndicator(color: feastGreen))
-                    : FeastButton(
-                        text: 'Sign Up',
-                        onPressed: _agreedToTerms ? _register : null,
+                    ? const Center(
+                        child: CircularProgressIndicator(color: feastGreen),
+                      )
+                    : SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _isFormValid ? _register : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: _isFormValid
+                                ? feastGreen
+                                : feastGreen.withOpacity(0.5),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
+                            elevation: 4,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(25),
+                            ),
+                          ),
+                          child: Text(
+                            'Sign Up',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontFamily: "Outfit",
+                              fontWeight: FontWeight.bold,
+                              color: _isFormValid
+                                  ? Colors.white
+                                  : Colors.white.withOpacity(0.7),
+                            ),
+                          ),
+                        ),
                       ),
 
-                const SizedBox(height: 16),
+                const SizedBox(height: 40),
               ],
             ),
           ),

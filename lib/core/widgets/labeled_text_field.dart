@@ -19,60 +19,23 @@
 //    label: 'Email', hintText: 'name@email.com',
 //    prefixIcon: Icons.mail_outline,
 //    controller: _emailController,
-//    textCapitalization: TextCapitalization.none,  // <-- ADD THIS FOR EMAIL
+//    textCapitalization: TextCapitalization.none,
 //    validator: (v) => v!.trim().isEmpty ? 'Required' : null,
-//  )
-//
-//  // Plain text with sentence capitalization (default for names)
-//  LabeledTextField(
-//    label: 'First Name', hintText: 'Juan',
-//    prefixIcon: Icons.person_outline,
-//    controller: _firstNameController,
-//    textCapitalization: TextCapitalization.words,  // <-- Capitalizes first letter of each word
-//    validator: (v) => v!.trim().isEmpty ? 'Required' : null,
-//  )
-//
-//  // Password with live strength feedback
-//  LabeledTextField(
-//    label: 'Password', hintText: '••••••••',
-//    prefixIcon: Icons.lock_outline,
-//    controller: _passwordController,
-//    type: LabeledFieldType.password,
-//    onChanged: (v) => setState(() => _passwordErrors = AuthService.checkPasswordStrength(v)),
-//    validator: (v) { ... },
 //  )
 //
 //  // Dropdown
 //  LabeledTextField(
-//    label: 'Gender', hintText: '-- Select --',
+//    label: 'Gender', hintText: 'Select',
 //    prefixIcon: Icons.favorite_border,
 //    controller: _genderController,
 //    type: LabeledFieldType.dropdown,
 //    items: const ['Male', 'Female', 'Other'],
 //    onDropdownChanged: (v) => setState(() => _selectedGender = v),
 //  )
-//
-//  // Date picker
-//  LabeledTextField(
-//    label: 'Date of Birth', hintText: 'MM/DD/YYYY',
-//    prefixIcon: Icons.calendar_today_outlined,
-//    controller: _dobController,
-//    type: LabeledFieldType.datePicker,
-//    validator: (v) => v!.isEmpty ? 'Required' : null,
-//  )
-//
-//  // File / image picker
-//  LabeledTextField(
-//    label: 'Legal ID', hintText: 'Select image…',
-//    prefixIcon: Icons.image_outlined,
-//    controller: _idController,
-//    type: LabeledFieldType.filePicker,
-//    filePickerMode: FilePickerMode.imagesOnly,
-//    onFilesPicked: (files) => _handleFiles(files),
-//  )
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../core.dart'; // gives us FieldLabel, feastGreen, DatePickerModal, FilePickerModal, FilePickerMode
 
 // ── Field type enum ───────────────────────────────────────────────────────────
@@ -91,7 +54,10 @@ class LabeledTextField extends StatefulWidget {
   // ── Field behaviour ────────────────────────────────────────────────────
   final LabeledFieldType type;
   final TextInputType keyboardType;
-  final TextCapitalization textCapitalization;  // <-- NEW PROPERTY
+  final TextCapitalization textCapitalization;
+  
+  // ── Input formatters (for lowercase email, etc.) ───────────────────────
+  final List<TextInputFormatter>? inputFormatters;
 
   // ── Validation & change callbacks ─────────────────────────────────────
   final String? Function(String?)? validator;
@@ -122,7 +88,8 @@ class LabeledTextField extends StatefulWidget {
     required this.controller,
     this.type = LabeledFieldType.text,
     this.keyboardType = TextInputType.text,
-    this.textCapitalization = TextCapitalization.sentences,  // <-- DEFAULT (capitalizes first letter of sentences)
+    this.textCapitalization = TextCapitalization.sentences,
+    this.inputFormatters,
     this.validator,
     this.onChanged,
     this.items,
@@ -158,21 +125,18 @@ class _LabeledTextFieldState extends State<LabeledTextField> {
   void _handleReadOnlyTap() {
     switch (widget.type) {
       case LabeledFieldType.datePicker:
-        // Opens the shared DatePickerModal and writes the result into controller.
         DatePickerModal.show(
           context: context,
           controller: widget.controller,
         );
 
       case LabeledFieldType.filePicker:
-        // Opens the FilePickerModal in the requested mode.
         showDialog(
           context: context,
           builder: (_) => FilePickerModal(
             mode: widget.filePickerMode,
             onConfirm: (files) {
               if (files.isNotEmpty) {
-                // Show the first filename in the text field as a preview.
                 widget.controller.text = files.first.path.split('/').last;
               }
               widget.onFilesPicked?.call(files);
@@ -305,18 +269,32 @@ class _LabeledTextFieldState extends State<LabeledTextField> {
             isFocused: isFocused,
             child: DropdownButtonFormField<String>(
               focusNode: _focusNode,
-              // Reflect the controller value as the current selection.
               value: widget.controller.text.isEmpty
                   ? null
                   : widget.controller.text,
               isExpanded: true,
               decoration: _decoration(isFocused),
+              hint: Text(
+                widget.hintText,
+                style: const TextStyle(
+                  color: Colors.grey,
+                  fontSize: 14,
+                  fontFamily: 'Outfit',
+                ),
+              ),
               items: widget.items
-                  ?.map((i) => DropdownMenuItem(value: i, child: Text(i,
-                        style: const TextStyle(fontFamily: 'Outfit', fontSize: 14))))
+                  ?.map((i) => DropdownMenuItem(
+                        value: i,
+                        child: Text(
+                          i,
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 14,
+                          ),
+                        ),
+                      ))
                   .toList(),
               onChanged: (v) {
-                // Keep controller in sync so the parent can read it.
                 widget.controller.text = v ?? '';
                 widget.onDropdownChanged?.call(v);
               },
@@ -332,11 +310,10 @@ class _LabeledTextFieldState extends State<LabeledTextField> {
               focusNode: _focusNode,
               controller: widget.controller,
               keyboardType: widget.keyboardType,
-              textCapitalization: widget.textCapitalization,  // <-- APPLY TEXT CAPITALIZATION
-              // Password fields are obscured until the eye icon is tapped.
+              textCapitalization: widget.textCapitalization,
+              inputFormatters: widget.inputFormatters,
               obscureText:
                   widget.type == LabeledFieldType.password && _obscureText,
-              // Date/file fields are read-only; tapping opens their modals.
               readOnly: widget.type == LabeledFieldType.datePicker ||
                   widget.type == LabeledFieldType.filePicker,
               onTap: (widget.type == LabeledFieldType.datePicker ||

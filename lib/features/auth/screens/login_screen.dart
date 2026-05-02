@@ -1,20 +1,8 @@
 // lib/features/auth/screens/login_screen.dart
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:feast/core/core.dart';
-
-// Custom input formatter that forces lowercase text
-class LowerCaseTextFormatter extends TextInputFormatter {
-  @override
-  TextEditingValue formatEditUpdate(
-    TextEditingValue oldValue,
-    TextEditingValue newValue,
-  ) {
-    return newValue.copyWith(text: newValue.text.toLowerCase());
-  }
-}
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -124,6 +112,7 @@ class _LoginScreenState extends State<LoginScreen> {
                         ),
                       ),
                       BottomFormBackground(
+                        padding: const EdgeInsets.only(bottom: 20),
                         child: SingleChildScrollView(
                           padding: const EdgeInsets.fromLTRB(40, 40, 40, 60),
                           child: Column(
@@ -131,72 +120,30 @@ class _LoginScreenState extends State<LoginScreen> {
                             children: [
                               const ToggleLoginRegister(isLogin: true),
                               const SizedBox(height: 32),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  const FieldLabel(text: 'Email'),
-                                  const SizedBox(height: 4),
-                                  Container(
-                                    decoration: BoxDecoration(
-                                      color: Colors.white,
-                                      borderRadius: BorderRadius.circular(4),
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: Colors.black.withOpacity(0.15),
-                                          blurRadius: 12,
-                                          spreadRadius: 1,
-                                          offset: const Offset(0, 6),
-                                        ),
-                                      ],
-                                    ),
-                                    child: TextFormField(
-                                      controller: _emailController,
-                                      keyboardType: TextInputType.emailAddress,
-                                      textCapitalization: TextCapitalization.none,
-                                      inputFormatters: [
-                                        LowerCaseTextFormatter(),
-                                      ],
-                                      style: const TextStyle(
-                                        fontSize: 14,
-                                        fontFamily: 'Outfit',
-                                      ),
-                                      decoration: InputDecoration(
-                                        hintText: 'name@email.com',
-                                        hintStyle: const TextStyle(
-                                          color: Colors.grey,
-                                          fontSize: 14,
-                                          fontFamily: 'Outfit',
-                                        ),
-                                        prefixIcon: Icon(
-                                          Icons.mail_outline,
-                                          color: Colors.black54,
-                                        ),
-                                        suffixIcon: IconButton(
-                                          icon: Icon(Icons.close,
-                                              color: Colors.black54, size: 20),
-                                          onPressed: () =>
-                                              _emailController.clear(),
-                                        ),
-                                        border: InputBorder.none,
-                                        contentPadding:
-                                            const EdgeInsets.symmetric(
-                                                vertical: 16, horizontal: 12),
-                                      ),
-                                      validator: (v) {
-                                        if (v == null || v.trim().isEmpty) {
-                                          return 'Email is required';
-                                        }
-                                        if (!RegExp(r'^[^@]+@[^@]+\.[^@]+')
-                                            .hasMatch(v.trim())) {
-                                          return 'Enter a valid email';
-                                        }
-                                        return null;
-                                      },
-                                    ),
-                                  ),
-                                ],
+
+                              // ── Email (Lowercase only) ─────────────────
+                              LabeledTextField(
+                                label: 'Email',
+                                hintText: 'name@email.com',
+                                prefixIcon: Icons.mail_outline,
+                                controller: _emailController,
+                                keyboardType: TextInputType.emailAddress,
+                                textCapitalization: TextCapitalization.none,
+                                inputFormatters: [LowerCaseTextFormatter()],
+                                validator: (v) {
+                                  if (v == null || v.trim().isEmpty) {
+                                    return 'Email is required';
+                                  }
+                                  if (!RegExp(r'^[^@]+@[^@]+\.[^@]+')
+                                      .hasMatch(v.trim())) {
+                                    return 'Enter a valid email';
+                                  }
+                                  return null;
+                                },
                               ),
                               const SizedBox(height: 24),
+
+                              // ── Password ──────────────────────────────
                               LabeledTextField(
                                 label: 'Password',
                                 hintText: '••••••••',
@@ -211,6 +158,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                 },
                               ),
                               const SizedBox(height: 24),
+
+                              // ── Remember Me ───────────────────────────
                               FeastCheckbox(
                                 text: 'Remember Me.',
                                 value: _rememberMe,
@@ -218,6 +167,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                     setState(() => _rememberMe = val ?? false),
                               ),
                               const SizedBox(height: 24),
+
+                              // ── Sign In button ────────────────────────
                               _isLoading
                                   ? const Center(
                                       child: CircularProgressIndicator(
@@ -253,6 +204,8 @@ class _LoginScreenState extends State<LoginScreen> {
                                       ),
                                     ),
                               const SizedBox(height: 24),
+
+                              // ── Forgot password link ──────────────────
                               FeastLink(
                                 text: 'Forgot Password?',
                                 alignment: Alignment.center,
