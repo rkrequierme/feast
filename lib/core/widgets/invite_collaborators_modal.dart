@@ -2,18 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants/app_colors.dart';
 import '../constants/firestore_paths.dart';
+import '../core.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // invite_collaborators_modal.dart
 //
-// FIX (Image 6): SelectedGroupScreen called:
-//   InviteCollaboratorsModal(chatId: widget.chatId)
-// But widget had no `chatId` parameter → undefined_named_parameter.
-//
-// SOLUTION: Added `chatId` parameter. When provided, the modal searches
-// Firestore users by name and adds selected users to the chat's
-// participantIds array directly. `onConfirm(names)` is still supported
-// for callers that manage Firebase outside the modal.
+// Improved version that works like the Create Chat modal.
+// Shows a searchable list of all active users that can be selected and added.
 // ─────────────────────────────────────────────────────────────────────────────
 
 class InviteCollaboratorsModal extends StatefulWidget {
@@ -24,6 +19,9 @@ class InviteCollaboratorsModal extends StatefulWidget {
   final String title;
   final String subtitle;
 
+  /// List of existing member UIDs to exclude from the selection list
+  final List<String> existingMemberIds;
+
   /// Legacy callback — called with the list of entered names.
   /// If [chatId] is provided, users are added to Firestore and this is
   /// also called afterward.
@@ -33,9 +31,9 @@ class InviteCollaboratorsModal extends StatefulWidget {
   const InviteCollaboratorsModal({
     super.key,
     this.chatId,
-    this.title = 'Invite Collaborators',
-    this.subtitle =
-        'We encourage you to invite new collaborators to help you out with all charity-related activities.',
+    this.title = 'Invite Members',
+    this.subtitle = 'Search and add new members to your group chat.',
+    this.existingMemberIds = const [],
     this.onConfirm,
     this.onCancel,
   });
@@ -46,312 +44,548 @@ class InviteCollaboratorsModal extends StatefulWidget {
 }
 
 class _InviteCollaboratorsModalState extends State<InviteCollaboratorsModal> {
-  // Each row: a TextField controller + optional matched user document
-  final List<_InviteRow> _rows = [_InviteRow(), _InviteRow()];
-
+  final _searchController = TextEditingController();
+  final List<Map<String, dynamic>> _selectedUsers = [];
+  List<Map<String, dynamic>> _allUsers = [];
+  List<Map<String, dynamic>> _filteredUsers = [];
+  bool _isLoading = true;
   bool _isSaving = false;
+  final _scrollController = ScrollController();
+  String _searchQuery = '';
 
   final _db = FirebaseFirestore.instance;
 
   @override
+  void initState() {
+    super.initState();
+    _loadAllUsers();
+    _searchController.addListener(_onSearchChanged);
+  }
+
+  @override
   void dispose() {
-    for (final r in _rows) r.dispose();
+    _searchController.removeListener(_onSearchChanged);
+    _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
-  void _addRow() => setState(() => _rows.add(_InviteRow()));
+  void _onSearchChanged() {
+    setState(() {
+      _searchQuery = _searchController.text.toLowerCase().trim();
+      _filterUsers();
+    });
+  }
 
-  // ── Search Firestore for a user by fullName ───────────────────────────────
-
-  Future<void> _searchUser(int index, String query) async {
-    final q = query.trim();
-    if (q.isEmpty) {
-      setState(() => _rows[index].suggestions = []);
-      return;
+  void _filterUsers() {
+    if (_searchQuery.isEmpty) {
+      _filteredUsers = List.from(_allUsers);
+    } else {
+      _filteredUsers = _allUsers.where((user) {
+        final firstName = (user['firstName'] as String? ?? '').toLowerCase();
+        final lastName = (user['lastName'] as String? ?? '').toLowerCase();
+        final fullName = '$firstName $lastName'.trim();
+        final email = (user['email'] as String? ?? '').toLowerCase();
+        final displayName = (user['displayName'] as String? ?? '').toLowerCase();
+        
+        return firstName.contains(_searchQuery) ||
+               lastName.contains(_searchQuery) ||
+               fullName.contains(_searchQuery) ||
+               email.contains(_searchQuery) ||
+               displayName.contains(_searchQuery);
+      }).toList();
     }
+  }
+
+  Future<void> _loadAllUsers() async {
+    setState(() => _isLoading = true);
     try {
       final snap = await _db
           .collection(FirestorePaths.users)
           .where('status', isEqualTo: 'active')
-          .orderBy('fullName')
-          .startAt([q]).endAt(['$q\uf8ff'])
-          .limit(5)
           .get();
 
       if (!mounted) return;
-      setState(() {
-        _rows[index].suggestions =
-            snap.docs.map((d) => {'uid': d.id, ...d.data()}).toList();
-      });
-    } catch (_) {}
+      
+      _allUsers = snap.docs
+          .where((d) => !widget.existingMemberIds.contains(d.id))
+          .map((d) => {'uid': d.id, ...d.data()})
+          .toList();
+      
+      _filteredUsers = List.from(_allUsers);
+      setState(() => _isLoading = false);
+    } catch (e) {
+      debugPrint('Error loading users: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
-  void _selectSuggestion(int rowIdx, Map<String, dynamic> user) {
+  String _getDisplayName(Map<String, dynamic> user) {
+    final displayName = user['displayName'] as String?;
+    if (displayName != null && displayName.isNotEmpty) return displayName;
+    final firstName = user['firstName'] as String? ?? '';
+    final lastName = user['lastName'] as String? ?? '';
+    if (firstName.isNotEmpty || lastName.isNotEmpty) {
+      return '$firstName $lastName'.trim();
+    }
+    final email = user['email'] as String? ?? '';
+    return email.isNotEmpty ? email.split('@').first : 'Unknown User';
+  }
+
+  String _getAvatarUrl(Map<String, dynamic> user) {
+    return user['profilePictureUrl'] as String? ?? '';
+  }
+
+  bool _isSelected(String uid) {
+    return _selectedUsers.any((u) => u['uid'] == uid);
+  }
+
+  void _toggleSelect(Map<String, dynamic> user) {
+    final uid = user['uid'] as String;
     setState(() {
-      _rows[rowIdx].selectedUser = user;
-      _rows[rowIdx].ctrl.text = user['fullName'] as String? ??
-          '${user['firstName'] ?? ''} ${user['lastName'] ?? ''}'.trim();
-      _rows[rowIdx].suggestions = [];
+      if (_isSelected(uid)) {
+        _selectedUsers.removeWhere((u) => u['uid'] == uid);
+      } else {
+        _selectedUsers.add(user);
+      }
     });
   }
 
-  // ── Confirm ───────────────────────────────────────────────────────────────
-
   Future<void> _confirm() async {
-    final names = _rows
-        .map((r) => r.ctrl.text.trim())
-        .where((n) => n.isNotEmpty)
-        .toList();
-    final selectedUsers =
-        _rows.where((r) => r.selectedUser != null).map((r) => r.selectedUser!).toList();
-
-    if (names.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Please enter at least one name.'),
-          backgroundColor: feastError,
-        ),
-      );
+    if (_selectedUsers.isEmpty) {
+      FeastToast.showError(context, 'Please select at least one member to add.');
       return;
     }
 
     setState(() => _isSaving = true);
 
     try {
-      // If chatId provided, add matched users to chat participantIds
-      if (widget.chatId != null && selectedUsers.isNotEmpty) {
-        final uids = selectedUsers.map((u) => u['uid'] as String).toList();
+      if (widget.chatId != null && _selectedUsers.isNotEmpty) {
+        final uids = _selectedUsers.map((u) => u['uid'] as String).toList();
+        
+        // Add users to chat participantIds
         await _db.collection(FirestorePaths.chats).doc(widget.chatId).update({
           'participantIds': FieldValue.arrayUnion(uids),
           'updatedAt': FieldValue.serverTimestamp(),
         });
+        
+        // Add chat reference to each new participant's userChats sub-collection
+        for (final uid in uids) {
+          await _db
+              .collection(FirestorePaths.users)
+              .doc(uid)
+              .collection('chats')
+              .doc(widget.chatId)
+              .set({
+                'chatId': widget.chatId,
+                'unreadCount': 0,
+                'lastActivity': FieldValue.serverTimestamp(),
+              });
+        }
       }
 
       if (!mounted) return;
       Navigator.of(context).pop();
-      widget.onConfirm?.call(names);
+      widget.onConfirm?.call(_selectedUsers.map((u) => u['uid'] as String).toList());
+      
+      FeastToast.showSuccess(
+        context, 
+        '${_selectedUsers.length} member${_selectedUsers.length == 1 ? '' : 's'} added successfully!'
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Failed to add collaborators. Please try again.'),
-          backgroundColor: feastError,
-        ),
-      );
+      FeastToast.showError(context, 'Failed to add members. Please try again.');
     }
   }
 
-  // ── Build ─────────────────────────────────────────────────────────────────
-
   @override
   Widget build(BuildContext context) {
+    final canConfirm = _selectedUsers.isNotEmpty && !_isSaving;
+
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      backgroundColor: Colors.white,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+      backgroundColor: Colors.transparent,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+      child: Container(
+        width: MediaQuery.of(context).size.width * 0.9,
+        constraints: const BoxConstraints(maxWidth: 500, maxHeight: 650),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: const [
+            BoxShadow(color: Colors.black26, blurRadius: 12, offset: Offset(0, 4)),
+          ],
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // ── Header ──────────────────────────────────────────────────
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade300),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child:
-                      const Icon(Icons.person_add_alt_1, size: 22, color: feastGreen),
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 20, 16, 16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [feastGreen, feastDarkGreen],
                 ),
-                const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 20),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed:
-                      widget.onCancel ?? () => Navigator.of(context).pop(),
-                ),
-              ],
-            ),
-            const SizedBox(height: 10),
-
-            Text(
-              widget.title,
-              style: const TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: feastBlack,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(24)),
               ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              widget.subtitle,
-              style: const TextStyle(
-                  fontFamily: 'Outfit', fontSize: 13, color: Colors.black87),
-            ),
-            const SizedBox(height: 14),
-
-            const Text(
-              'Collaborator Names',
-              style: TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: feastBlack,
-              ),
-            ),
-            const SizedBox(height: 8),
-
-            // ── Search rows ──────────────────────────────────────────────
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 240),
-              child: SingleChildScrollView(
-                child: Column(
-                  children: List.generate(_rows.length, (i) {
-                    final row = _rows[i];
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 10),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          TextField(
-                            controller: row.ctrl,
-                            style: const TextStyle(
-                                fontFamily: 'Outfit', fontSize: 13),
-                            decoration: InputDecoration(
-                              prefixIcon: const Icon(Icons.search,
-                                  size: 20, color: Colors.grey),
-                              hintText: 'Collaborator Name',
-                              hintStyle: const TextStyle(
-                                  fontFamily: 'Outfit', color: Colors.grey),
-                              border: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide:
-                                    BorderSide(color: Colors.grey.shade300),
-                              ),
-                              focusedBorder: OutlineInputBorder(
-                                borderRadius: BorderRadius.circular(8),
-                                borderSide: const BorderSide(
-                                    color: feastGreen, width: 2),
-                              ),
-                              contentPadding:
-                                  const EdgeInsets.symmetric(vertical: 12),
-                            ),
-                            onChanged: (v) => _searchUser(i, v),
-                          ),
-                          // Suggestions dropdown
-                          if (row.suggestions.isNotEmpty)
-                            Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                border: Border.all(
-                                    color: Colors.grey.shade200),
-                                borderRadius: BorderRadius.circular(8),
-                                boxShadow: const [
-                                  BoxShadow(
-                                      color: Colors.black12, blurRadius: 4),
-                                ],
-                              ),
-                              child: Column(
-                                children: row.suggestions.map((u) {
-                                  final name = u['fullName'] as String? ??
-                                      '${u['firstName'] ?? ''} ${u['lastName'] ?? ''}'
-                                          .trim();
-                                  return ListTile(
-                                    dense: true,
-                                    leading: const Icon(Icons.person,
-                                        size: 20, color: feastGreen),
-                                    title: Text(name,
-                                        style: const TextStyle(
-                                            fontFamily: 'Outfit',
-                                            fontSize: 13)),
-                                    onTap: () => _selectSuggestion(i, u),
-                                  );
-                                }).toList(),
-                              ),
-                            ),
-                        ],
-                      ),
-                    );
-                  }),
-                ),
-              ),
-            ),
-
-            // ── Add Another ──────────────────────────────────────────────
-            GestureDetector(
-              onTap: _addRow,
-              child: const Row(
+              child: Row(
                 children: [
-                  Icon(Icons.add, size: 18, color: feastGreen),
-                  SizedBox(width: 4),
-                  Text(
-                    'Add Another',
-                    style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 14,
-                        color: feastGreen,
-                        fontWeight: FontWeight.w600),
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(Icons.person_add_alt_1, size: 22, color: Colors.white),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          widget.title,
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          widget.subtitle,
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 11,
+                            color: Colors.white70,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  GestureDetector(
+                    onTap: widget.onCancel ?? () => Navigator.of(context).pop(),
+                    child: Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.close, size: 18, color: Colors.white),
+                    ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 20),
 
-            // ── Confirm ──────────────────────────────────────────────────
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isSaving ? null : _confirm,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: feastBlue,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                ),
-                child: _isSaving
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Text('Confirm',
-                        style: TextStyle(
+            // ── Content ──────────────────────────────────────────────────
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Selected members summary
+                    if (_selectedUsers.isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: feastLightGreen.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.person_add, size: 18, color: feastGreen),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '${_selectedUsers.length} member${_selectedUsers.length == 1 ? '' : 's'} selected',
+                                style: const TextStyle(
+                                  fontFamily: 'Outfit',
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: feastGreen,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Selected members chips
+                    if (_selectedUsers.isNotEmpty) ...[
+                      SizedBox(
+                        height: 40,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _selectedUsers.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 8),
+                          itemBuilder: (_, i) {
+                            final user = _selectedUsers[i];
+                            final name = _getDisplayName(user);
+                            return Chip(
+                              label: Text(
+                                name,
+                                style: const TextStyle(fontFamily: 'Outfit', fontSize: 12),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              onDeleted: () => _toggleSelect(user),
+                              deleteIcon: const Icon(Icons.close, size: 14),
+                              backgroundColor: feastLightGreen.withAlpha(80),
+                              side: BorderSide.none,
+                              visualDensity: VisualDensity.compact,
+                              labelPadding: const EdgeInsets.symmetric(horizontal: 8),
+                            );
+                          },
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+
+                    // Search label
+                    Row(
+                      children: [
+                        const Icon(Icons.search, size: 18, color: feastGray),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Search Users',
+                          style: TextStyle(
                             fontFamily: 'Outfit',
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15)),
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            color: feastBlack,
+                          ),
+                        ),
+                        const Spacer(),
+                        Text(
+                          '${_filteredUsers.length} users available',
+                          style: const TextStyle(
+                            fontFamily: 'Outfit',
+                            fontSize: 12,
+                            color: feastGray,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+
+                    // Search field
+                    TextField(
+                      controller: _searchController,
+                      style: const TextStyle(fontFamily: 'Outfit', fontSize: 14),
+                      decoration: InputDecoration(
+                        hintText: 'Search by name or email...',
+                        hintStyle: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 13,
+                          color: feastGray,
+                        ),
+                        prefixIcon: const Icon(Icons.search, size: 20, color: feastGray),
+                        suffixIcon: _searchQuery.isNotEmpty
+                            ? IconButton(
+                                icon: const Icon(Icons.clear, size: 18, color: feastGray),
+                                onPressed: () {
+                                  _searchController.clear();
+                                },
+                              )
+                            : null,
+                        filled: true,
+                        fillColor: Colors.grey.shade50,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(12),
+                          borderSide: BorderSide.none,
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // User list
+                    Expanded(
+                      child: _isLoading
+                          ? const Center(
+                              child: CircularProgressIndicator(color: feastGreen),
+                            )
+                          : _filteredUsers.isEmpty
+                              ? Center(
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(Icons.people_outline, size: 48, color: feastGray.withAlpha(100)),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        _searchQuery.isNotEmpty
+                                            ? 'No users found matching "$_searchQuery"'
+                                            : 'No users available to add',
+                                        style: TextStyle(
+                                          fontFamily: 'Outfit',
+                                          fontSize: 14,
+                                          color: feastGray,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                )
+                              : ListView.builder(
+                                  controller: _scrollController,
+                                  itemCount: _filteredUsers.length,
+                                  itemBuilder: (_, i) {
+                                    final user = _filteredUsers[i];
+                                    final uid = user['uid'] as String;
+                                    final name = _getDisplayName(user);
+                                    final email = user['email'] as String? ?? '';
+                                    final avatarUrl = _getAvatarUrl(user);
+                                    final isSelected = _isSelected(uid);
+
+                                    return Container(
+                                      margin: const EdgeInsets.only(bottom: 4),
+                                      decoration: BoxDecoration(
+                                        color: isSelected ? feastLightGreen.withAlpha(40) : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: ListTile(
+                                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                        leading: CircleAvatar(
+                                          radius: 22,
+                                          backgroundColor: feastLightGreen,
+                                          backgroundImage: avatarUrl.isNotEmpty
+                                              ? NetworkImage(avatarUrl)
+                                              : null,
+                                          child: avatarUrl.isEmpty && name.isNotEmpty
+                                              ? Text(
+                                                  name[0].toUpperCase(),
+                                                  style: const TextStyle(
+                                                    color: feastGreen,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 18,
+                                                  ),
+                                                )
+                                              : null,
+                                        ),
+                                        title: Text(
+                                          name,
+                                          style: const TextStyle(
+                                            fontFamily: 'Outfit',
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w600,
+                                            color: feastBlack,
+                                          ),
+                                        ),
+                                        subtitle: email.isNotEmpty
+                                            ? Text(
+                                                email,
+                                                style: const TextStyle(
+                                                  fontFamily: 'Outfit',
+                                                  fontSize: 11,
+                                                  color: feastGray,
+                                                ),
+                                              )
+                                            : null,
+                                        trailing: isSelected
+                                            ? Container(
+                                                padding: const EdgeInsets.all(4),
+                                                decoration: BoxDecoration(
+                                                  color: feastGreen,
+                                                  shape: BoxShape.circle,
+                                                ),
+                                                child: const Icon(
+                                                  Icons.check,
+                                                  color: Colors.white,
+                                                  size: 16,
+                                                ),
+                                              )
+                                            : Icon(
+                                                Icons.add_circle_outline,
+                                                color: feastGray.withAlpha(150),
+                                                size: 26,
+                                              ),
+                                        onTap: () => _toggleSelect(user),
+                                      ),
+                                    );
+                                  },
+                                ),
+                    ),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(height: 10),
 
-            // ── Cancel ───────────────────────────────────────────────────
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed:
-                    widget.onCancel ?? () => Navigator.of(context).pop(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                ),
-                child: const Text('Cancel',
-                    style: TextStyle(
-                        fontFamily: 'Outfit',
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15)),
+            // ── Footer Buttons ──────────────────────────────────────────────
+            Container(
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: const BorderRadius.vertical(bottom: Radius.circular(24)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, -2),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: widget.onCancel ?? () => Navigator.of(context).pop(),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: feastError,
+                        side: const BorderSide(color: feastError),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text(
+                        'Cancel',
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontWeight: FontWeight.bold,
+                          fontSize: 15,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      onPressed: canConfirm ? _confirm : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: canConfirm ? feastGreen : feastGreen.withOpacity(0.5),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                      child: _isSaving
+                          ? const SizedBox(
+                              height: 20,
+                              width: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Text(
+                              'Add Members',
+                              style: TextStyle(
+                                fontFamily: 'Outfit',
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15,
+                              ),
+                            ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -359,14 +593,4 @@ class _InviteCollaboratorsModalState extends State<InviteCollaboratorsModal> {
       ),
     );
   }
-}
-
-// ── Internal row model ────────────────────────────────────────────────────────
-
-class _InviteRow {
-  final ctrl = TextEditingController();
-  List<Map<String, dynamic>> suggestions = [];
-  Map<String, dynamic>? selectedUser;
-
-  void dispose() => ctrl.dispose();
 }

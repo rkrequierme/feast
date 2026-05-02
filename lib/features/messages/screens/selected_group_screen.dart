@@ -105,21 +105,23 @@ class _SelectedGroupScreenState extends State<SelectedGroupScreen> {
         currentName: groupName,
         currentDescription: description,
         initialPhotoUrl: imageUrl,
-        onSaved: _loadChatData,
+        onSaved: _loadChatData, // This refreshes the data when modal closes
       ),
     );
   }
 
   Future<void> _inviteMembers() async {
+    final existingIds = _memberDetails.keys.toList();
+    
     await showDialog(
       context: context,
       builder: (_) => InviteCollaboratorsModal(
         chatId: widget.chatId,
         title: 'Invite Members',
         subtitle: 'Search and add new members to this group chat.',
+        existingMemberIds: existingIds,
         onConfirm: (names) {
-          // Members are added by the modal via Firestore
-          _loadChatData();
+          _loadChatData(); // Refresh data when members are added
         },
       ),
     );
@@ -295,204 +297,197 @@ class _SelectedGroupScreenState extends State<SelectedGroupScreen> {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // ──────────────────────────────────────────────────────────────
-            // GROUP HEADER SECTION
-            // ──────────────────────────────────────────────────────────────
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: feastNavBarBackground,
-                borderRadius: const BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
+      body: RefreshIndicator(
+        onRefresh: _loadChatData,
+        color: feastGreen,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // ──────────────────────────────────────────────────────────────
+              // GROUP HEADER SECTION
+              // ──────────────────────────────────────────────────────────────
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(
+                  color: feastNavBarBackground,
+                  borderRadius: const BorderRadius.only(
+                    bottomLeft: Radius.circular(24),
+                    bottomRight: Radius.circular(24),
+                  ),
                 ),
-              ),
-              child: Column(
-                children: [
-                  Stack(
-                    children: [
-                      CircleAvatar(
-                        radius: 50,
-                        backgroundColor: feastLightGreen,
-                        backgroundImage: groupImageUrl.isNotEmpty
-                            ? NetworkImage(groupImageUrl)
-                            : null,
-                        child: groupImageUrl.isEmpty
-                            ? const Icon(Icons.group, size: 50, color: feastGreen)
-                            : null,
-                      ),
-                      if (_isAdmin)
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: GestureDetector(
-                            onTap: _editGroupDetails,
-                            child: Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: const BoxDecoration(
-                                color: feastGreen,
-                                shape: BoxShape.circle,
-                              ),
-                              child: const Icon(
-                                Icons.camera_alt,
-                                size: 18,
-                                color: Colors.white,
+                child: Column(
+                  children: [
+                    Stack(
+                      children: [
+                        CircleAvatar(
+                          radius: 50,
+                          backgroundColor: feastLightGreen,
+                          backgroundImage: groupImageUrl.isNotEmpty
+                              ? NetworkImage(groupImageUrl)
+                              : null,
+                          child: groupImageUrl.isEmpty
+                              ? const Icon(Icons.group, size: 50, color: feastGreen)
+                              : null,
+                        ),
+                        if (_isAdmin)
+                          Positioned(
+                            bottom: 0,
+                            right: 0,
+                            child: GestureDetector(
+                              onTap: _editGroupDetails,
+                              child: Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: const BoxDecoration(
+                                  color: feastGreen,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.camera_alt,
+                                  size: 18,
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    groupName,
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.bold,
-                      fontSize: 22,
+                      ],
                     ),
-                  ),
-                  if (description.isNotEmpty) ...[
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
                     Text(
-                      description,
-                      textAlign: TextAlign.center,
+                      groupName,
                       style: const TextStyle(
                         fontFamily: 'Outfit',
-                        fontSize: 14,
-                        color: feastGray,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 22,
+                      ),
+                    ),
+                    if (description.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        description,
+                        textAlign: TextAlign.center,
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 14,
+                          color: feastGray,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: feastLightGreen.withAlpha(80),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(
+                        '$memberCount ${memberCount == 1 ? 'Member' : 'Members'}',
+                        style: const TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: feastGreen,
+                        ),
                       ),
                     ),
                   ],
-                  const SizedBox(height: 12),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: feastLightGreen.withAlpha(80),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: Text(
-                      '$memberCount ${memberCount == 1 ? 'Member' : 'Members'}',
-                      style: const TextStyle(
-                        fontFamily: 'Outfit',
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: feastGreen,
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
 
-            // ──────────────────────────────────────────────────────────────
-            // ADMIN ACTIONS SECTION (Only visible to admins)
-            // ──────────────────────────────────────────────────────────────
-            if (_isAdmin) ...[
-              const SizedBox(height: 20),
+              // ──────────────────────────────────────────────────────────────
+              // ADMIN ACTIONS SECTION (Only visible to admins)
+              // ──────────────────────────────────────────────────────────────
+              if (_isAdmin) ...[
+                const SizedBox(height: 20),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: _actionCard(
+                          icon: Icons.person_add,
+                          label: 'Invite',
+                          color: feastGreen,
+                          onTap: _inviteMembers,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _actionCard(
+                          icon: Icons.edit_note,
+                          label: 'Edit Info',
+                          color: feastBlue,
+                          onTap: _editGroupDetails,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+
+              // ──────────────────────────────────────────────────────────────
+              // MEMBER LIST SECTION
+              // ──────────────────────────────────────────────────────────────
+              const SizedBox(height: 24),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Row(
                   children: [
-                    Expanded(
-                      child: _actionCard(
-                        icon: Icons.person_add,
-                        label: 'Invite',
-                        color: feastGreen,
-                        onTap: _inviteMembers,
+                    const Icon(Icons.people_outline, size: 20, color: feastGray),
+                    const SizedBox(width: 8),
+                    Text(
+                      'All Members',
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _actionCard(
-                        icon: Icons.edit_note,
-                        label: 'Edit Info',
-                        color: feastBlue,
-                        onTap: _editGroupDetails,
+                    const Spacer(),
+                    if (_isAdmin && _memberDetails.length > 1)
+                      TextButton.icon(
+                        onPressed: () => _showRemoveMembersSheet(),
+                        icon: const Icon(Icons.person_remove, size: 18),
+                        label: const Text('Remove'),
+                        style: TextButton.styleFrom(foregroundColor: feastError),
                       ),
-                    ),
                   ],
                 ),
               ),
-            ],
-
-            // ──────────────────────────────────────────────────────────────
-            // MEMBER LIST SECTION
-            // ──────────────────────────────────────────────────────────────
-            const SizedBox(height: 24),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Row(
-                children: [
-                  const Icon(Icons.people_outline, size: 20, color: feastGray),
-                  const SizedBox(width: 8),
-                  Text(
-                    'All Members',
-                    style: const TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const Spacer(),
-                  if (_isAdmin && _memberDetails.length > 1)
-                    TextButton.icon(
-                      onPressed: () => _showRemoveMembersSheet(),
-                      icon: const Icon(Icons.person_remove, size: 18),
-                      label: const Text('Remove'),
-                      style: TextButton.styleFrom(foregroundColor: feastError),
-                    ),
-                ],
+              const SizedBox(height: 8),
+              
+              // Member List
+              ListView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: _memberDetails.length,
+                itemBuilder: (context, i) {
+                  final entry = _memberDetails.entries.elementAt(i);
+                  final uid = entry.key;
+                  final userData = entry.value;
+                  final name = _getDisplayName(userData);
+                  final avatarUrl = _getAvatarUrl(userData);
+                  final isMe = uid == _uid;
+                  final isLeader = _isLeader(uid);
+                  final isCoLeader = _isCoLeader(uid);
+                  final canRemove = _isAdmin && !isLeader && !isMe;
+                  
+                  return _memberTile(
+                    name: name,
+                    avatarUrl: avatarUrl,
+                    role: isLeader ? 'Leader' : (isCoLeader ? 'Co-Leader' : null),
+                    isMe: isMe,
+                    onRemove: canRemove ? () => _removeMember(uid, name) : null,
+                  );
+                },
               ),
-            ),
-            const SizedBox(height: 8),
-            
-            // Member List
-            ListView.builder(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              itemCount: _memberDetails.length,
-              itemBuilder: (context, i) {
-                final entry = _memberDetails.entries.elementAt(i);
-                final uid = entry.key;
-                final userData = entry.value;
-                final name = _getDisplayName(userData);
-                final avatarUrl = _getAvatarUrl(userData);
-                final isMe = uid == _uid;
-                final isLeader = _isLeader(uid);
-                final isCoLeader = _isCoLeader(uid);
-                final canRemove = _isAdmin && !isLeader && !isMe;
-                
-                return _memberTile(
-                  name: name,
-                  avatarUrl: avatarUrl,
-                  role: isLeader ? 'Leader' : (isCoLeader ? 'Co-Leader' : null),
-                  isMe: isMe,
-                  onRemove: canRemove ? () => _removeMember(uid, name) : null,
-                );
-              },
-            ),
-            
-            const SizedBox(height: 100),
-          ],
+              
+              const SizedBox(height: 100),
+            ],
+          ),
         ),
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () {
-          Navigator.pushReplacementNamed(
-            context,
-            AppRoutes.groupChat,
-            arguments: widget.chatId,
-          );
-        },
-        backgroundColor: feastGreen,
-        icon: const Icon(Icons.chat, color: Colors.white),
-        label: const Text('Go to Chat'),
       ),
     );
   }

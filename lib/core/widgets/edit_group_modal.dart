@@ -5,6 +5,8 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import '../constants/app_colors.dart';
 import '../constants/firestore_paths.dart';
+import '../core.dart'; // Add this for TermsConditionsDialog
+import '../../features/legal/widgets/terms_conditions_dialog.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // edit_group_modal.dart
@@ -65,6 +67,7 @@ class _EditGroupModalState extends State<EditGroupModal> {
   bool _termsAccepted = false;
   bool _isSaving = false;
   File? _newPhoto;
+  String? _imageError;
 
   @override
   void initState() {
@@ -88,9 +91,44 @@ class _EditGroupModalState extends State<EditGroupModal> {
   // ── Pick group photo ──────────────────────────────────────────────────────
 
   Future<void> _pickPhoto() async {
-    final result = await FilePicker.platform.pickFiles(type: FileType.image);
-    if (result != null && result.files.isNotEmpty) {
-      setState(() => _newPhoto = File(result.files.first.path!));
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+      );
+      
+      if (result != null && result.files.isNotEmpty) {
+        final file = result.files.first;
+        final fileSize = file.size;
+        
+        // Check file size (max 5MB)
+        if (fileSize > 5 * 1024 * 1024) {
+          setState(() {
+            _imageError = 'Image size must be less than 5MB';
+          });
+          return;
+        }
+        
+        // Check file extension
+        final extension = file.extension?.toLowerCase() ?? '';
+        const allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+        
+        if (!allowedExtensions.contains(extension)) {
+          setState(() {
+            _imageError = 'Only JPG, PNG, WEBP, and GIF images are allowed';
+          });
+          return;
+        }
+        
+        setState(() {
+          _newPhoto = File(file.path!);
+          _imageError = null;
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _imageError = 'Failed to pick image. Please try again.';
+      });
     }
   }
 
@@ -98,7 +136,6 @@ class _EditGroupModalState extends State<EditGroupModal> {
 
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();
-    final desc = _descCtrl.text.trim();
 
     if (name.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -112,7 +149,7 @@ class _EditGroupModalState extends State<EditGroupModal> {
 
     // If legacy onConfirm is provided and no chatId, use the old pathway
     if (widget.chatId == null && widget.onConfirm != null) {
-      widget.onConfirm!(name, desc);
+      widget.onConfirm!(name, _descCtrl.text.trim());
       Navigator.of(context).pop();
       return;
     }
@@ -127,16 +164,22 @@ class _EditGroupModalState extends State<EditGroupModal> {
     try {
       final updates = <String, dynamic>{
         'groupName': name,
-        'description': desc,
         'updatedAt': FieldValue.serverTimestamp(),
       };
+      
+      // ALWAYS update description - set to empty string if empty
+      // This ensures empty descriptions are saved correctly
+      final description = _descCtrl.text.trim();
+      updates['description'] = description; // Always set, even if empty
 
       // Upload new photo if picked
       if (_newPhoto != null) {
         final ref = FirebaseStorage.instance
             .ref('group_images/${widget.chatId}/avatar.jpg');
-        await ref.putFile(_newPhoto!);
-        updates['groupImageUrl'] = await ref.getDownloadURL();
+        
+        final task = await ref.putFile(_newPhoto!);
+        final downloadUrl = await task.ref.getDownloadURL();
+        updates['groupImageUrl'] = downloadUrl;
       }
 
       await FirebaseFirestore.instance
@@ -147,6 +190,13 @@ class _EditGroupModalState extends State<EditGroupModal> {
       if (!mounted) return;
       Navigator.of(context).pop();
       widget.onSaved?.call();
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Group details updated successfully!'),
+          backgroundColor: feastSuccess,
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _isSaving = false);
@@ -164,17 +214,27 @@ class _EditGroupModalState extends State<EditGroupModal> {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
       backgroundColor: Colors.white,
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             // ── Title ────────────────────────────────────────────────────
             Row(
               children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: feastLightGreen.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(Icons.group, color: feastGreen, size: 24),
+                ),
+                const SizedBox(width: 12),
                 const Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -200,55 +260,92 @@ class _EditGroupModalState extends State<EditGroupModal> {
                     ],
                   ),
                 ),
-                IconButton(
-                  icon: const Icon(Icons.close, size: 20),
-                  padding: EdgeInsets.zero,
-                  constraints: const BoxConstraints(),
-                  onPressed: widget.onCancel ?? () => Navigator.of(context).pop(),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-
-            // ── Photo row ────────────────────────────────────────────────
-            Row(
-              children: [
                 GestureDetector(
-                  onTap: _pickPhoto,
-                  child: CircleAvatar(
-                    radius: 30,
-                    backgroundColor: feastLightGreen.withAlpha(120),
-                    backgroundImage: _newPhoto != null
-                        ? FileImage(_newPhoto!)
-                        : widget.initialPhotoUrl != null
-                            ? NetworkImage(widget.initialPhotoUrl!)
-                                as ImageProvider
-                            : null,
-                    child: _newPhoto == null && widget.initialPhotoUrl == null
-                        ? const Icon(Icons.group, size: 28, color: feastGreen)
-                        : null,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                OutlinedButton.icon(
-                  onPressed: _pickPhoto,
-                  icon: const Icon(Icons.upload, size: 18),
-                  label: const Text('Upload Photo',
-                      style: TextStyle(fontFamily: 'Outfit')),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: feastGreen,
-                    side: BorderSide(color: Colors.grey.shade400),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8)),
+                  onTap: widget.onCancel ?? () => Navigator.of(context).pop(),
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: const BoxDecoration(
+                      color: feastLightGreen,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(Icons.close, size: 18, color: feastGray),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
+
+            // ── Photo row with better UI ─────────────────────────────────
+            Center(
+              child: Column(
+                children: [
+                  Stack(
+                    children: [
+                      CircleAvatar(
+                        radius: 50,
+                        backgroundColor: feastLightGreen.withAlpha(120),
+                        backgroundImage: _newPhoto != null
+                            ? FileImage(_newPhoto!)
+                            : widget.initialPhotoUrl != null && widget.initialPhotoUrl!.isNotEmpty
+                                ? NetworkImage(widget.initialPhotoUrl!)
+                                : null,
+                        child: _newPhoto == null && (widget.initialPhotoUrl == null || widget.initialPhotoUrl!.isEmpty)
+                            ? const Icon(Icons.group, size: 50, color: feastGreen)
+                            : null,
+                      ),
+                      Positioned(
+                        bottom: 0,
+                        right: 0,
+                        child: GestureDetector(
+                          onTap: _pickPhoto,
+                          child: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: feastGreen,
+                              shape: BoxShape.circle,
+                              border: Border.all(color: Colors.white, width: 2),
+                            ),
+                            child: const Icon(
+                              Icons.camera_alt,
+                              color: Colors.white,
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_imageError != null) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      _imageError!,
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 11,
+                        color: feastError,
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  TextButton.icon(
+                    onPressed: _pickPhoto,
+                    icon: const Icon(Icons.upload, size: 16),
+                    label: const Text(
+                      'Change Group Photo',
+                      style: TextStyle(fontFamily: 'Outfit'),
+                    ),
+                    style: TextButton.styleFrom(
+                      foregroundColor: feastGreen,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
 
             // ── Group Name ───────────────────────────────────────────────
             const Text(
-              'Group Name*',
+              'Group Name *',
               style: TextStyle(
                 fontFamily: 'Outfit',
                 fontSize: 13,
@@ -261,23 +358,24 @@ class _EditGroupModalState extends State<EditGroupModal> {
               controller: _nameCtrl,
               style: const TextStyle(fontFamily: 'Outfit', fontSize: 14),
               decoration: InputDecoration(
+                hintText: 'Enter group name',
+                hintStyle: const TextStyle(color: feastGray, fontFamily: 'Outfit'),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                   borderSide: BorderSide(color: Colors.grey.shade300),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                   borderSide: const BorderSide(color: feastGreen, width: 2),
                 ),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
               ),
             ),
-            const SizedBox(height: 14),
+            const SizedBox(height: 16),
 
-            // ── Description ──────────────────────────────────────────────
+            // ── Description (Optional) ──────────────────────────────────────
             const Text(
-              'Group Description*',
+              'Group Description (Optional)',
               style: TextStyle(
                 fontFamily: 'Outfit',
                 fontSize: 13,
@@ -288,118 +386,148 @@ class _EditGroupModalState extends State<EditGroupModal> {
             const SizedBox(height: 6),
             TextField(
               controller: _descCtrl,
-              maxLines: 4,
+              maxLines: 3,
               style: const TextStyle(fontFamily: 'Outfit', fontSize: 14),
               decoration: InputDecoration(
-                hintText: 'Write a brief description...',
-                hintStyle:
-                    const TextStyle(fontFamily: 'Outfit', color: Colors.grey),
+                hintText: 'Write a brief description (optional)...',
+                hintStyle: const TextStyle(color: feastGray, fontFamily: 'Outfit'),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                   borderSide: BorderSide(color: Colors.grey.shade300),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(10),
                   borderSide: const BorderSide(color: feastGreen, width: 2),
                 ),
-                contentPadding: const EdgeInsets.all(12),
+                contentPadding: const EdgeInsets.all(14),
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 20),
 
-            // ── T&C checkbox ─────────────────────────────────────────────
+            // ── T&C checkbox with link to dialog ─────────────────────────────
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Checkbox(
-                  value: _termsAccepted,
-                  activeColor: feastGreen,
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(3)),
-                  onChanged: (v) =>
-                      setState(() => _termsAccepted = v ?? false),
+                SizedBox(
+                  width: 24,
+                  height: 24,
+                  child: Checkbox(
+                    value: _termsAccepted,
+                    activeColor: feastGreen,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    onChanged: (v) => setState(() => _termsAccepted = v ?? false),
+                  ),
                 ),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: GestureDetector(
-                    onTap: () =>
-                        setState(() => _termsAccepted = !_termsAccepted),
-                    child: RichText(
-                      text: const TextSpan(
-                        style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 13,
-                            color: Colors.black87),
-                        children: [
-                          TextSpan(text: 'I agree with the '),
-                          TextSpan(
-                            text: 'terms and conditions',
-                            style: TextStyle(
-                              color: feastBlue,
-                              decoration: TextDecoration.underline,
+                  child: RichText(
+                    text: TextSpan(
+                      style: const TextStyle(
+                        fontFamily: 'Outfit',
+                        fontSize: 13,
+                        color: Colors.black87,
+                      ),
+                      children: [
+                        const TextSpan(text: 'I agree with the '),
+                        WidgetSpan(
+                          child: GestureDetector(
+                            onTap: () {
+                              showDialog(
+                                context: context,
+                                builder: (_) => TermsConditionsDialog(
+                                  onAccept: () {
+                                    // I Understand - check the checkbox
+                                    if (mounted) {
+                                      setState(() => _termsAccepted = true);
+                                    }
+                                  },
+                                  onDecline: () {
+                                    // Decline - uncheck the checkbox
+                                    if (mounted) {
+                                      setState(() => _termsAccepted = false);
+                                    }
+                                  },
+                                ),
+                              );
+                            },
+                            child: const Text(
+                              'terms and conditions',
+                              style: TextStyle(
+                                color: feastBlue,
+                                decoration: TextDecoration.underline,
+                                fontFamily: 'Outfit',
+                                fontSize: 13,
+                              ),
                             ),
                           ),
-                          TextSpan(text: '.'),
-                        ],
-                      ),
+                        ),
+                        const TextSpan(text: '.'),
+                      ],
                     ),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
 
-            // ── Confirm ──────────────────────────────────────────────────
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: (_termsAccepted && !_isSaving) ? _save : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor:
-                      _termsAccepted ? feastBlue : Colors.grey.shade400,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
-                ),
-                child: _isSaving
-                    ? const SizedBox(
-                        height: 18,
-                        width: 18,
-                        child: CircularProgressIndicator(
-                            strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Text(
-                        'Confirm',
-                        style: TextStyle(
-                            fontFamily: 'Outfit',
-                            fontWeight: FontWeight.bold,
-                            fontSize: 15),
+            // ── Buttons (Cancel on left, Confirm on right) ─────────────────
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: widget.onCancel ?? () => Navigator.of(context).pop(),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: feastError,
+                      side: const BorderSide(color: feastError),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
                       ),
-              ),
-            ),
-            const SizedBox(height: 10),
-
-            // ── Cancel ───────────────────────────────────────────────────
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed:
-                    widget.onCancel ?? () => Navigator.of(context).pop(),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8)),
+                    ),
+                    child: const Text(
+                      'Cancel',
+                      style: TextStyle(
+                        fontFamily: 'Outfit',
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ),
                 ),
-                child: const Text(
-                  'Cancel',
-                  style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontWeight: FontWeight.bold,
-                      fontSize: 15),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: ElevatedButton(
+                    onPressed: (_termsAccepted && !_isSaving) ? _save : null,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _termsAccepted ? feastGreen : Colors.grey.shade400,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
+                    child: _isSaving
+                        ? const SizedBox(
+                            height: 20,
+                            width: 20,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: Colors.white,
+                            ),
+                          )
+                        : const Text(
+                            'Confirm',
+                            style: TextStyle(
+                              fontFamily: 'Outfit',
+                              fontWeight: FontWeight.bold,
+                              fontSize: 15,
+                            ),
+                          ),
+                  ),
                 ),
-              ),
+              ],
             ),
           ],
         ),

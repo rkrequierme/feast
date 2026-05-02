@@ -25,16 +25,16 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   final _messageController = TextEditingController();
   final _scrollController = ScrollController();
   final _uid = FirebaseAuth.instance.currentUser?.uid ?? '';
-  Map<String, dynamic>? _chatData;
-  Map<String, String> _memberNames = {};
-  Map<String, String> _memberAvatars = {};
   bool _isSending = false;
   bool _isDownloading = false;
+  
+  // Cache for sender names to avoid repeated Firestore calls
+  final Map<String, String> _senderNameCache = {};
+  final Map<String, String> _senderAvatarCache = {};
 
   @override
   void initState() {
     super.initState();
-    _loadChatData();
     _requestStoragePermission();
   }
 
@@ -42,41 +42,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     if (Platform.isAndroid) {
       await Permission.storage.request();
     }
-  }
-
-  Future<void> _loadChatData() async {
-    final snap = await FirebaseFirestore.instance
-        .collection(FirestorePaths.chats)
-        .doc(widget.chatId)
-        .get();
-    
-    if (!mounted) return;
-    
-    setState(() => _chatData = snap.data());
-    await _loadMemberNames();
-  }
-
-  Future<void> _loadMemberNames() async {
-    if (_chatData == null) return;
-    final participants = List<String>.from(_chatData?['participantIds'] as List? ?? []);
-    
-    for (final uid in participants) {
-      final userDoc = await FirebaseFirestore.instance
-          .collection(FirestorePaths.users)
-          .doc(uid)
-          .get();
-      
-      if (userDoc.exists) {
-        final data = userDoc.data()!;
-        final displayName = data['displayName'] as String?;
-        final firstName = data['firstName'] as String? ?? '';
-        final lastName = data['lastName'] as String? ?? '';
-        final name = displayName ?? '$firstName $lastName'.trim();
-        _memberNames[uid] = name.isEmpty ? 'User' : name;
-        _memberAvatars[uid] = data['profilePictureUrl'] as String? ?? '';
-      }
-    }
-    if (mounted) setState(() {});
   }
 
   void _scrollToBottom() {
@@ -131,7 +96,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     setState(() => _isDownloading = true);
 
     try {
-      // Show progress dialog
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -148,7 +112,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
         ),
       );
 
-      // Get downloads directory
       Directory? downloadDir;
       if (Platform.isAndroid) {
         downloadDir = await getExternalStorageDirectory();
@@ -158,19 +121,12 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
       
       final savePath = '${downloadDir!.path}/$fileName';
       
-      // Download file
       final dio = Dio();
-      await dio.download(url, savePath, onReceiveProgress: (received, total) {
-        if (total != -1) {
-          final progress = (received / total * 100).toStringAsFixed(0);
-          // Update progress if needed
-        }
-      });
+      await dio.download(url, savePath);
       
-      // Close progress dialog
+      if (!mounted) return;
       Navigator.pop(context);
       
-      // Show success dialog
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -199,20 +155,65 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
           ],
         ),
       );
-      
-      if (confirmed == true) {
-        // Already opened
-      }
     } catch (e) {
-      Navigator.pop(context); // Close progress dialog
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Download failed: $e'),
-          backgroundColor: feastError,
-        ),
-      );
+      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Download failed: $e'),
+            backgroundColor: feastError,
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isDownloading = false);
+    }
+  }
+
+  Future<Map<String, dynamic>> _getUserInfo(String uid) async {
+    if (uid == _uid) {
+      return {
+        'name': 'You',
+        'avatarUrl': '',
+      };
+    }
+    
+    // Check cache first
+    if (_senderNameCache.containsKey(uid)) {
+      return {
+        'name': _senderNameCache[uid],
+        'avatarUrl': _senderAvatarCache[uid] ?? '',
+      };
+    }
+    
+    try {
+      final userDoc = await FirebaseFirestore.instance
+          .collection(FirestorePaths.users)
+          .doc(uid)
+          .get();
+      if (userDoc.exists) {
+        final data = userDoc.data()!;
+        final displayName = data['displayName'] as String?;
+        String name;
+        if (displayName != null && displayName.isNotEmpty) {
+          name = displayName;
+        } else {
+          final firstName = data['firstName'] as String? ?? '';
+          final lastName = data['lastName'] as String? ?? '';
+          name = '$firstName $lastName'.trim();
+          if (name.isEmpty) name = 'User';
+        }
+        final avatarUrl = data['profilePictureUrl'] as String? ?? '';
+        
+        // Cache the results
+        _senderNameCache[uid] = name;
+        _senderAvatarCache[uid] = avatarUrl;
+        
+        return {'name': name, 'avatarUrl': avatarUrl};
+      }
+      return {'name': 'User', 'avatarUrl': ''};
+    } catch (e) {
+      return {'name': 'User', 'avatarUrl': ''};
     }
   }
 
@@ -294,9 +295,6 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
       final fileName = result.files.first.name;
       final fileSize = result.files.first.size;
       
-      // Only show confirmation for:
-      // 1. Non-image files
-      // 2. Images larger than 5MB
       final shouldConfirm = !_isImageFile(fileName) || fileSize > 5 * 1024 * 1024;
       
       if (shouldConfirm) {
@@ -349,19 +347,15 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
             actions: [
               TextButton(
                 onPressed: () => Navigator.pop(context, false),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                ),
-                child: const Text('Cancel', style: TextStyle(fontSize: 14)),
+                child: const Text('Cancel'),
               ),
               ElevatedButton(
                 onPressed: () => Navigator.pop(context, true),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: feastGreen,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                 ),
-                child: const Text('Send', style: TextStyle(fontSize: 14)),
+                child: const Text('Send'),
               ),
             ],
           ),
@@ -374,120 +368,10 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
   }
 
   void _showGroupInfo() {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (context) => DraggableScrollableSheet(
-        initialChildSize: 0.5,
-        minChildSize: 0.3,
-        maxChildSize: 0.7,
-        expand: false,
-        builder: (context, scrollController) => Container(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 30,
-                    backgroundColor: feastLightGreen,
-                    child: const Icon(Icons.group, size: 30, color: feastGreen),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _chatData?['groupName'] as String? ?? 'Group Chat',
-                          style: const TextStyle(
-                            fontFamily: 'Outfit',
-                            fontWeight: FontWeight.bold,
-                            fontSize: 18,
-                          ),
-                        ),
-                        Text(
-                          '${_memberNames.length} members',
-                          style: const TextStyle(
-                            fontFamily: 'Outfit',
-                            fontSize: 12,
-                            color: feastGray,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () {
-                      Navigator.pop(context);
-                      Navigator.pushNamed(
-                        context,
-                        AppRoutes.groupDetail,
-                        arguments: widget.chatId,
-                      );
-                    },
-                    child: const Text('View All'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 16),
-              const Divider(),
-              const SizedBox(height: 8),
-              const Text(
-                'Members',
-                style: TextStyle(
-                  fontFamily: 'Outfit',
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Expanded(
-                child: ListView(
-                  controller: scrollController,
-                  children: _memberNames.entries.map((entry) {
-                    final isMe = entry.key == _uid;
-                    return ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: CircleAvatar(
-                        radius: 16,
-                        backgroundColor: feastLightGreen,
-                        backgroundImage: _memberAvatars[entry.key]?.isNotEmpty == true
-                            ? NetworkImage(_memberAvatars[entry.key]!)
-                            : null,
-                        child: _memberAvatars[entry.key]?.isEmpty != false
-                            ? Text(
-                                entry.value.isNotEmpty ? entry.value[0].toUpperCase() : '?',
-                                style: const TextStyle(fontSize: 12, color: feastGreen),
-                              )
-                            : null,
-                      ),
-                      title: Text(
-                        entry.value,
-                        style: TextStyle(
-                          fontFamily: 'Outfit',
-                          fontWeight: isMe ? FontWeight.bold : FontWeight.normal,
-                        ),
-                      ),
-                      trailing: isMe
-                          ? const Chip(
-                              label: Text('You', style: TextStyle(fontSize: 10)),
-                              backgroundColor: feastLightGreen,
-                            )
-                          : null,
-                    );
-                  }).toList(),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
+    Navigator.pushNamed(
+      context,
+      AppRoutes.groupDetail,
+      arguments: widget.chatId,
     );
   }
 
@@ -504,25 +388,59 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
       appBar: AppBar(
         backgroundColor: feastGreen,
         foregroundColor: Colors.white,
-        title: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              _chatData?['groupName'] as String? ?? 'Group Chat',
-              style: const TextStyle(
+        title: StreamBuilder<DocumentSnapshot>(
+          stream: FirebaseFirestore.instance
+              .collection(FirestorePaths.chats)
+              .doc(widget.chatId)
+              .snapshots(),
+          builder: (context, chatSnapshot) {
+            if (chatSnapshot.connectionState == ConnectionState.waiting) {
+              return const Text(
+                'Group Chat',
+                style: TextStyle(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              );
+            }
+            
+            if (chatSnapshot.hasData && chatSnapshot.data!.exists) {
+              final chatData = chatSnapshot.data!.data() as Map<String, dynamic>;
+              final groupName = chatData['groupName'] as String? ?? 'Group Chat';
+              final participantIds = chatData['participantIds'] as List? ?? [];
+              final memberCount = participantIds.length;
+              
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    groupName,
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                    ),
+                  ),
+                  Text(
+                    '$memberCount member${memberCount == 1 ? '' : 's'}',
+                    style: const TextStyle(
+                      fontFamily: 'Outfit',
+                      fontSize: 11,
+                    ),
+                  ),
+                ],
+              );
+            }
+            return const Text(
+              'Group Chat',
+              style: TextStyle(
                 fontFamily: 'Outfit',
                 fontWeight: FontWeight.bold,
                 fontSize: 16,
               ),
-            ),
-            Text(
-              '${_memberNames.length} members',
-              style: const TextStyle(
-                fontFamily: 'Outfit',
-                fontSize: 11,
-              ),
-            ),
-          ],
+            );
+          },
         ),
         actions: [
           IconButton(
@@ -557,11 +475,13 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                     ),
                   );
                 }
+                
                 WidgetsBinding.instance.addPostFrameCallback((_) {
                   if (_scrollController.hasClients) {
                     _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
                   }
                 });
+                
                 return ListView.builder(
                   controller: _scrollController,
                   padding: const EdgeInsets.all(16),
@@ -569,9 +489,23 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                   itemBuilder: (context, index) {
                     final msg = messages[index].data() as Map<String, dynamic>;
                     final isMine = msg['senderId'] == _uid;
-                    final senderName = _memberNames[msg['senderId']] ?? 'Someone';
-                    final senderAvatar = _memberAvatars[msg['senderId']];
-                    return _buildMessageBubble(msg, isMine, senderName, senderAvatar);
+                    final senderId = msg['senderId'] as String;
+                    
+                    return FutureBuilder<Map<String, dynamic>>(
+                      future: _getUserInfo(senderId),
+                      builder: (context, userInfoSnapshot) {
+                        if (!userInfoSnapshot.hasData) {
+                          return _buildMessageBubble(msg, isMine, 'Loading...', '');
+                        }
+                        final userInfo = userInfoSnapshot.data!;
+                        return _buildMessageBubble(
+                          msg, 
+                          isMine, 
+                          userInfo['name'] as String, 
+                          userInfo['avatarUrl'] as String,
+                        );
+                      },
+                    );
                   },
                 );
               },
@@ -583,7 +517,7 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     );
   }
 
-  Widget _buildMessageBubble(Map<String, dynamic> msg, bool isMine, String senderName, String? senderAvatar) {
+  Widget _buildMessageBubble(Map<String, dynamic> msg, bool isMine, String senderName, String avatarUrl) {
     final text = msg['text'] as String? ?? '';
     final attachmentUrl = msg['attachmentUrl'] as String? ?? '';
     final attachmentName = msg['attachmentName'] as String? ?? '';
@@ -596,43 +530,52 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
     return Align(
       alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
+        margin: const EdgeInsets.only(bottom: 12),
         constraints: BoxConstraints(
           maxWidth: MediaQuery.of(context).size.width * 0.75,
         ),
         child: Column(
           crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
           children: [
+            // Sender name row (always shown for non-self messages, optionally for self)
             if (!isMine)
               Padding(
-                padding: const EdgeInsets.only(left: 8, bottom: 2),
+                padding: const EdgeInsets.only(left: 8, bottom: 4),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     CircleAvatar(
                       radius: 10,
                       backgroundColor: feastLightGreen,
-                      backgroundImage: senderAvatar != null && senderAvatar.isNotEmpty
-                          ? NetworkImage(senderAvatar)
+                      backgroundImage: avatarUrl.isNotEmpty
+                          ? NetworkImage(avatarUrl)
                           : null,
-                      child: (senderAvatar == null || senderAvatar.isEmpty) && senderName.isNotEmpty
-                          ? Text(senderName[0].toUpperCase(),
-                              style: const TextStyle(fontSize: 8, color: feastGreen))
+                      child: avatarUrl.isEmpty && senderName.isNotEmpty
+                          ? Text(
+                              senderName[0].toUpperCase(),
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: feastGreen,
+                              ),
+                            )
                           : null,
                     ),
-                    const SizedBox(width: 4),
+                    const SizedBox(width: 6),
                     Text(
                       senderName,
                       style: const TextStyle(
                         fontFamily: 'Outfit',
                         fontSize: 11,
-                        color: feastGray,
-                        fontWeight: FontWeight.w500,
+                        fontWeight: FontWeight.w600,
+                        color: feastGreen,
                       ),
                     ),
                   ],
                 ),
               ),
+            
+            // Message bubble
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
@@ -672,91 +615,12 @@ class _GroupChatScreenState extends State<GroupChatScreen> {
                                       child: CircularProgressIndicator(color: Colors.white),
                                     );
                                   },
-                                  errorBuilder: (context, error, stack) {
-                                    return const Center(
-                                      child: Column(
-                                        mainAxisAlignment: MainAxisAlignment.center,
-                                        children: [
-                                          Icon(Icons.broken_image, size: 50, color: Colors.white54),
-                                          SizedBox(height: 8),
-                                          Text('Failed to load image', style: TextStyle(color: Colors.white54)),
-                                        ],
-                                      ),
-                                    );
-                                  },
                                 ),
                               ),
                             ),
                           );
                         } else {
-                          // Beautiful download confirmation dialog
-                          showDialog(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                              title: Row(
-                                children: [
-                                  Text(_getFileIcon(fileName), style: const TextStyle(fontSize: 32)),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      'Download File',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              content: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: feastLightGreen.withAlpha(30),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          fileName,
-                                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          'Tap Download to save this file to your device.',
-                                          style: TextStyle(fontSize: 12, color: feastGray),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  style: TextButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                  ),
-                                  child: const Text('Cancel', style: TextStyle(fontSize: 14)),
-                                ),
-                                ElevatedButton.icon(
-                                  onPressed: () {
-                                    Navigator.pop(context);
-                                    _downloadFile(attachmentUrl, fileName);
-                                  },
-                                  icon: const Icon(Icons.download, size: 18),
-                                  label: const Text('Download'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: feastGreen,
-                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
+                          _downloadFile(attachmentUrl, fileName);
                         }
                       },
                       child: isImage
