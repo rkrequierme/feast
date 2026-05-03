@@ -216,7 +216,7 @@ class _SelectedCharityEventScreenState
     final started = startTime != null && DateTime.now().isAfter(startTime);
 
     return Scaffold(
-      appBar: FeastAppBar(title: title, username: _username),
+      appBar: FeastAppBar(title: title,),
       drawer: const FeastDrawer(username: ''),
       body: FeastBackground(
         child: SafeArea(

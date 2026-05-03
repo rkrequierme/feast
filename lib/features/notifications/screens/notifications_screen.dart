@@ -47,7 +47,7 @@ class _NotificationsScreenState extends State<NotificationsScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: FeastAppBar(title: 'Notifications', username: _username),
+      appBar: FeastAppBar(title: 'Notifications',),
       drawer: FeastDrawer(username: _username),
       body: FeastBackground(
         child: Column(

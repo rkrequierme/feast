@@ -51,7 +51,7 @@ class _MessagesScreenState extends State<MessagesScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: FeastAppBar(title: 'Messages', username: _username),
+      appBar: FeastAppBar(title: 'Messages',),
       drawer: FeastDrawer(username: _username),
       body: Column(
         children: [

@@ -156,7 +156,7 @@ class _CharityEventsScreenState extends State<CharityEventsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: FeastAppBar(title: 'Charity Events', username: _username),
+      appBar: FeastAppBar(title: 'Charity Events',),
       drawer: FeastDrawer(username: _username),
       body: FeastBackground(
         child: SafeArea(

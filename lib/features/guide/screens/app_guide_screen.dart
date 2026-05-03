@@ -61,7 +61,7 @@ class _AppGuideScreenState extends State<AppGuideScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: FeastAppBar(title: 'App Guide', username: _username),
+      appBar: FeastAppBar(title: 'App Guide',),
       drawer: FeastDrawer(username: _username),
       bottomNavigationBar: const FeastBottomNav(currentIndex: -1),
       body: FeastBackground(

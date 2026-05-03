@@ -327,7 +327,7 @@ class _CreateCharityEventScreenState extends State<CreateCharityEventScreen> {
         }
       },
       child: Scaffold(
-        appBar: FeastAppBar(title: 'Organise Charity Event', username: _username),
+        appBar: FeastAppBar(title: 'Organise Charity Event',),
         body: FeastBackground(
           child: SafeArea(
             child: Form(

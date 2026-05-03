@@ -132,7 +132,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: FeastAppBar(title: 'Settings', username: _displayName),
+      appBar: FeastAppBar(title: 'Settings',),
       drawer: FeastDrawer(username: _displayName),
       body: FeastBackground(
         child: _isLoadingUser

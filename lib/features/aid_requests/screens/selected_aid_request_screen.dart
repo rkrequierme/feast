@@ -215,7 +215,7 @@ class _SelectedAidRequestScreenState
         aidType.contains('In-Kind') || aidType.contains('Supply');
 
     return Scaffold(
-      appBar: FeastAppBar(title: title, username: _username),
+      appBar: FeastAppBar(title: title,),
       drawer: const FeastDrawer(username: ''),
       body: FeastBackground(
         child: SafeArea(

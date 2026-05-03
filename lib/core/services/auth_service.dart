@@ -193,6 +193,112 @@ class AuthService {
     }
   }
 
+  // Add this method to AuthService class (around line 200)
+
+// ──────────────────────────────────────────────────────────────────────────
+// AGE VALIDATOR (for registration and profile updates)
+// ──────────────────────────────────────────────────────────────────────────
+
+  static bool isAgeValid(String dateOfBirth) {
+    if (dateOfBirth.isEmpty) return false;
+    
+    try {
+      DateTime birthDate;
+      
+      // Try parsing "MM/DD/YYYY" format
+      if (dateOfBirth.contains('/')) {
+        final parts = dateOfBirth.split('/');
+        if (parts.length != 3) return false;
+        
+        final month = int.parse(parts[0]);
+        final day = int.parse(parts[1]);
+        final year = int.parse(parts[2]);
+        birthDate = DateTime(year, month, day);
+      } 
+      // Try parsing "Jan 31, 1997" format
+      else if (dateOfBirth.contains(',')) {
+        const months = {
+          'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+          'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
+        };
+        
+        final parts = dateOfBirth.replaceAll(',', '').split(' ');
+        if (parts.length != 3) return false;
+        
+        final monthStr = parts[0];
+        final day = int.parse(parts[1]);
+        final year = int.parse(parts[2]);
+        
+        if (!months.containsKey(monthStr)) return false;
+        
+        birthDate = DateTime(year, months[monthStr]!, day);
+      }
+      else {
+        return false;
+      }
+      
+      final today = DateTime.now();
+      
+      // Check if date is in the future
+      if (birthDate.isAfter(today)) {
+        return false;
+      }
+      
+      // Calculate age
+      int age = today.year - birthDate.year;
+      if (today.month < birthDate.month || 
+          (today.month == birthDate.month && today.day < birthDate.day)) {
+        age--;
+      }
+      
+      return age >= 18;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  static bool isFutureDate(String dateOfBirth) {
+    if (dateOfBirth.isEmpty) return false;
+    
+    try {
+      DateTime birthDate;
+      
+      if (dateOfBirth.contains('/')) {
+        final parts = dateOfBirth.split('/');
+        if (parts.length != 3) return false;
+        
+        final month = int.parse(parts[0]);
+        final day = int.parse(parts[1]);
+        final year = int.parse(parts[2]);
+        birthDate = DateTime(year, month, day);
+      } 
+      else if (dateOfBirth.contains(',')) {
+        const months = {
+          'Jan': 1, 'Feb': 2, 'Mar': 3, 'Apr': 4, 'May': 5, 'Jun': 6,
+          'Jul': 7, 'Aug': 8, 'Sep': 9, 'Oct': 10, 'Nov': 11, 'Dec': 12
+        };
+        
+        final parts = dateOfBirth.replaceAll(',', '').split(' ');
+        if (parts.length != 3) return false;
+        
+        final monthStr = parts[0];
+        final day = int.parse(parts[1]);
+        final year = int.parse(parts[2]);
+        
+        if (!months.containsKey(monthStr)) return false;
+        
+        birthDate = DateTime(year, months[monthStr]!, day);
+      }
+      else {
+        return false;
+      }
+      
+      return birthDate.isAfter(DateTime.now());
+    } catch (e) {
+      return false;
+    }
+  }
+
   // ──────────────────────────────────────────────────────────────────────────
   // FORGOT PASSWORD
   // ──────────────────────────────────────────────────────────────────────────

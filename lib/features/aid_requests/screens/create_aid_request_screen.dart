@@ -287,7 +287,7 @@ class _CreateAidRequestScreenState extends State<CreateAidRequestScreen> {
         }
       },
       child: Scaffold(
-        appBar: FeastAppBar(title: 'Create Aid Request', username: _username),
+        appBar: FeastAppBar(title: 'Create Aid Request',),
         body: FeastBackground(
           child: SafeArea(
             child: Form(

@@ -1,22 +1,63 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../core.dart';
 
-class FeastAppBar extends StatelessWidget implements PreferredSizeWidget {
+class FeastAppBar extends StatefulWidget implements PreferredSizeWidget {
   final String title;
-  final String? username;
-  final bool showWelcomeMessage;  // <-- NEW: controls whether to show welcome message
+  final bool showWelcomeMessage;
   final VoidCallback? onProfileTap;
 
   const FeastAppBar({
     super.key,
     required this.title,
-    this.username,
-    this.showWelcomeMessage = false,  // <-- DEFAULT: false (no welcome message)
+    this.showWelcomeMessage = false,
     this.onProfileTap,
   });
 
   @override
   Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+
+  @override
+  State<FeastAppBar> createState() => _FeastAppBarState();
+}
+
+class _FeastAppBarState extends State<FeastAppBar> {
+  String? _username;
+  String? _profilePictureUrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserData();
+  }
+
+  Future<void> _loadUserData() async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null) return;
+
+    FirebaseFirestore.instance
+        .collection(FirestorePaths.users)
+        .doc(uid)
+        .snapshots()
+        .listen((snapshot) {
+      if (snapshot.exists && mounted) {
+        final data = snapshot.data()!;
+        final displayName = data['displayName'] as String?;
+        final firstName = data['firstName'] as String? ?? '';
+        final lastName = data['lastName'] as String? ?? '';
+        final profilePic = data['profilePictureUrl'] as String?;
+        
+        setState(() {
+          _username = displayName ?? 
+              (firstName.isNotEmpty || lastName.isNotEmpty 
+                  ? '$firstName $lastName'.trim() 
+                  : 'User');
+          _profilePictureUrl = profilePic;
+        });
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +75,7 @@ class FeastAppBar extends StatelessWidget implements PreferredSizeWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            title,
+            widget.title,
             style: const TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
@@ -42,10 +83,9 @@ class FeastAppBar extends StatelessWidget implements PreferredSizeWidget {
               color: feastBlack,
             ),
           ),
-          // Only show welcome message if showWelcomeMessage is true AND username exists
-          if (showWelcomeMessage && username != null && username!.isNotEmpty)
+          if (widget.showWelcomeMessage && _username != null && _username!.isNotEmpty)
             Text(
-              'Welcome To F.E.A.S.T., $username!',
+              'Welcome To F.E.A.S.T., $_username!',
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w500,
@@ -57,11 +97,28 @@ class FeastAppBar extends StatelessWidget implements PreferredSizeWidget {
       ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.account_circle, color: feastBlack, size: 32),
-          onPressed: onProfileTap ?? () {
+          icon: CircleAvatar(
+            radius: 16,
+            backgroundColor: feastLightGreen,
+            backgroundImage: _profilePictureUrl != null && _profilePictureUrl!.isNotEmpty
+                ? NetworkImage(_profilePictureUrl!)
+                : null,
+            child: (_profilePictureUrl == null || _profilePictureUrl!.isEmpty)
+                ? const Icon(Icons.person, color: feastGreen, size: 20)
+                : null,
+          ),
+          onPressed: widget.onProfileTap ?? () {
             showDialog(
               context: context,
-              builder: (context) => ProfilePopup(username: username ?? 'User'),
+              builder: (context) => ProfilePopup(
+                username: _username ?? 'User',
+                profilePictureUrl: _profilePictureUrl,
+                onProfileUpdated: () {
+                  // Refresh user data
+                  _loadUserData();
+                  widget.onProfileTap?.call();
+                },
+              ),
             );
           },
         ),

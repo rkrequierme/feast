@@ -43,7 +43,7 @@ class _BookmarksScreenState extends State<BookmarksScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: FeastAppBar(title: 'Bookmarks', username: _username),
+      appBar: FeastAppBar(title: 'Bookmarks',),
       drawer: FeastDrawer(username: _username),
       body: FeastBackground(
         child: Column(

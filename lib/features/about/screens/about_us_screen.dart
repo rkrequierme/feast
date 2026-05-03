@@ -31,7 +31,7 @@ class _AboutUsScreenState extends State<AboutUsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: FeastAppBar(title: 'About Us', username: _username),
+      appBar: FeastAppBar(title: 'About Us'),
       drawer: FeastDrawer(username: _username),
       bottomNavigationBar: const FeastBottomNav(currentIndex: -1),
       body: FeastBackground(

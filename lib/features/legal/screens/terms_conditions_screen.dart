@@ -64,7 +64,7 @@ class _TermsConditionsScreenState extends State<TermsConditionsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: FeastAppBar(title: 'Terms & Conditions', username: _username),
+      appBar: FeastAppBar(title: 'Terms & Conditions',),
       drawer: FeastDrawer(username: _username),
       bottomNavigationBar: const FeastBottomNav(currentIndex: -1),
       body: FeastBackground(

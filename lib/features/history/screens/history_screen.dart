@@ -89,7 +89,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: FeastAppBar(title: 'Your History', username: _username),
+      appBar: FeastAppBar(title: 'Your History',),
       drawer: FeastDrawer(username: _username),
       body: FeastBackground(
         child: SafeArea(

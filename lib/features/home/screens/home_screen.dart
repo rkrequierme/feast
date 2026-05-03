@@ -72,7 +72,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: FeastAppBar(
         title: 'Home',
-        username: _username,
         showWelcomeMessage: true, // <-- ONLY Home Screen shows welcome message
       ),
       drawer: FeastDrawer(username: _username),

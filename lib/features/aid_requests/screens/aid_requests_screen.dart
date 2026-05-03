@@ -151,7 +151,7 @@ class _AidRequestsScreenState extends State<AidRequestsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: FeastAppBar(title: 'Aid Requests', username: _username),
+      appBar: FeastAppBar(title: 'Aid Requests'),
       drawer: FeastDrawer(username: _username),
       body: FeastBackground(
         child: SafeArea(

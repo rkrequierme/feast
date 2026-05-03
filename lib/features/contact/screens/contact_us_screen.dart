@@ -46,7 +46,7 @@ class _ContactUsScreenState extends State<ContactUsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: FeastAppBar(title: 'Contact Us', username: _username),
+      appBar: FeastAppBar(title: 'Contact Us',),
       drawer: FeastDrawer(username: _username),
       bottomNavigationBar: const FeastBottomNav(currentIndex: -1),
       body: FeastBackground(

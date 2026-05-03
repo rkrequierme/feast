@@ -3,21 +3,19 @@
 // Modal for editing user profile information.
 // Updates location, contact number, date of birth, and gender.
 // Automatically updates residency status based on location.
-//
-// REACT.JS INTEGRATION NOTE:
-// =========================
-// In React, implement as a form modal:
-//   const [formData, setFormData] = useState({...});
-//   await updateDoc(doc(db, 'users', uid), { ...formData, updatedAt: serverTimestamp() });
 
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../constants/app_colors.dart';
 import '../constants/firestore_paths.dart';
+import '../services/auth_service.dart';
 import '../services/storage_service.dart';
+import '../utils/text_formatters.dart';
+import 'labeled_text_field.dart';
 import 'feast_toast.dart';
 
 class EditProfileModal extends StatefulWidget {
@@ -30,19 +28,43 @@ class EditProfileModal extends StatefulWidget {
 }
 
 class _EditProfileModalState extends State<EditProfileModal> {
-  final _locationCtrl = TextEditingController();
-  final _contactCtrl = TextEditingController();
-  final _dobCtrl = TextEditingController();
-  String? _selectedGender;
+  final _formKey = GlobalKey<FormState>();
+  final _locationController = TextEditingController();
+  final _contactController = TextEditingController();
+  final _dobController = TextEditingController();
+  final _genderController = TextEditingController();
+  
   String? _currentProfileUrl;
   File? _newProfileImage;
   bool _isLoading = true;
   bool _isSaving = false;
+  bool _allFieldsFilled = false;
+
+  static const _genders = ['Male', 'Female', 'Other'];
 
   @override
   void initState() {
     super.initState();
     _loadCurrentData();
+    _addListeners();
+  }
+
+  void _addListeners() {
+    _locationController.addListener(_checkAllFieldsFilled);
+    _contactController.addListener(_checkAllFieldsFilled);
+    _dobController.addListener(_checkAllFieldsFilled);
+    _genderController.addListener(_checkAllFieldsFilled);
+  }
+
+  void _checkAllFieldsFilled() {
+    final allFilled = _locationController.text.trim().isNotEmpty &&
+        _contactController.text.trim().isNotEmpty &&
+        _dobController.text.trim().isNotEmpty &&
+        _genderController.text.isNotEmpty;
+    
+    if (_allFieldsFilled != allFilled) {
+      setState(() => _allFieldsFilled = allFilled);
+    }
   }
 
   Future<void> _loadCurrentData() async {
@@ -54,17 +76,20 @@ class _EditProfileModalState extends State<EditProfileModal> {
         .get();
     if (!mounted) return;
     final data = doc.data() ?? {};
-    _locationCtrl.text = data['location'] as String? ?? '';
-    _contactCtrl.text = data['contactNumber'] as String? ?? '';
-    _dobCtrl.text = data['dateOfBirth'] as String? ?? '';
-    _selectedGender = data['gender'] as String?;
+    _locationController.text = data['location'] as String? ?? '';
+    _contactController.text = data['contactNumber'] as String? ?? '';
+    _dobController.text = data['dateOfBirth'] as String? ?? '';
+    _genderController.text = data['gender'] as String? ?? '';
     _currentProfileUrl = data['profilePictureUrl'] as String?;
     setState(() => _isLoading = false);
   }
 
   Future<void> _pickImage() async {
     final picker = ImagePicker();
-    final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+    final pickedFile = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 70,
+    );
     if (pickedFile != null && mounted) {
       setState(() {
         _newProfileImage = File(pickedFile.path);
@@ -75,26 +100,32 @@ class _EditProfileModalState extends State<EditProfileModal> {
   Future<void> _save() async {
     final uid = FirebaseAuth.instance.currentUser?.uid;
     if (uid == null) return;
+    
+    if (!_formKey.currentState!.validate()) return;
+    
     setState(() => _isSaving = true);
     try {
       final updates = <String, dynamic>{
         'updatedAt': FieldValue.serverTimestamp(),
       };
-      if (_locationCtrl.text.trim().isNotEmpty) {
-        updates['location'] = _locationCtrl.text.trim();
-        // Automatically check residency based on keywords
-        updates['isResident'] = _locationCtrl.text
+      
+      if (_locationController.text.trim().isNotEmpty) {
+        updates['location'] = _locationController.text.trim();
+        updates['isResident'] = _locationController.text
             .toLowerCase()
             .contains('almanza dos');
       }
-      if (_contactCtrl.text.trim().isNotEmpty) {
-        updates['contactNumber'] = _contactCtrl.text.trim();
+      
+      if (_contactController.text.trim().isNotEmpty) {
+        updates['contactNumber'] = _contactController.text.trim();
       }
-      if (_dobCtrl.text.trim().isNotEmpty) {
-        updates['dateOfBirth'] = _dobCtrl.text.trim();
+      
+      if (_dobController.text.trim().isNotEmpty) {
+        updates['dateOfBirth'] = _dobController.text.trim();
       }
-      if (_selectedGender != null) {
-        updates['gender'] = _selectedGender;
+      
+      if (_genderController.text.isNotEmpty) {
+        updates['gender'] = _genderController.text;
       }
 
       if (_newProfileImage != null) {
@@ -122,266 +153,266 @@ class _EditProfileModalState extends State<EditProfileModal> {
     }
   }
 
-  Future<void> _pickDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: DateTime(2000),
-      firstDate: DateTime(1900),
-      lastDate: DateTime.now(),
-      builder: (ctx, child) => Theme(
-        data: Theme.of(ctx).copyWith(
-          colorScheme: const ColorScheme.light(
-            primary: feastGreen,
-            onPrimary: Colors.white,
-          ),
-        ),
-        child: child!,
-      ),
-    );
-    if (picked != null && mounted) {
-      setState(() {
-        _dobCtrl.text = '${picked.month.toString().padLeft(2, '0')}/${picked.day.toString().padLeft(2, '0')}/${picked.year}';
-      });
-    }
-  }
-
   @override
   void dispose() {
-    _locationCtrl.dispose();
-    _contactCtrl.dispose();
-    _dobCtrl.dispose();
+    _locationController.dispose();
+    _contactController.dispose();
+    _dobController.dispose();
+    _genderController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-      backgroundColor: Colors.white,
-      child: _isLoading
-          ? const SizedBox(
-              height: 160,
-              child: Center(child: CircularProgressIndicator(color: feastGreen)),
-            )
-          : SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+      backgroundColor: Colors.transparent,
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: const [
+            BoxShadow(color: Colors.black26, blurRadius: 12, offset: Offset(0, 4)),
+          ],
+        ),
+        child: _isLoading
+            ? const SizedBox(
+                height: 200,
+                child: Center(child: CircularProgressIndicator(color: feastGreen)),
+              )
+            : SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'Update Profile Settings',
-                              style: TextStyle(
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                                fontFamily: 'Outfit',
-                                color: feastBlack,
-                              ),
+                      // Header
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: feastLightGreen.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(12),
                             ),
-                            SizedBox(height: 2),
-                            Text(
-                              'Correct any mistakes or changes to your profile.',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontFamily: 'Outfit',
-                                color: feastGray,
+                            child: const Icon(Icons.person_outline, color: feastGreen, size: 24),
+                          ),
+                          const SizedBox(width: 12),
+                          const Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Edit Profile',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    fontFamily: 'Outfit',
+                                    color: feastBlack,
+                                  ),
+                                ),
+                                SizedBox(height: 2),
+                                Text(
+                                  'Update your personal information',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    fontFamily: 'Outfit',
+                                    color: feastGray,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                          GestureDetector(
+                            onTap: () => Navigator.of(context).pop(),
+                            child: Container(
+                              padding: const EdgeInsets.all(6),
+                              decoration: const BoxDecoration(
+                                color: feastLightGreen,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.close, size: 16, color: feastGray),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                      
+                      // Profile Picture
+                      Center(
+                        child: Stack(
+                          children: [
+                            CircleAvatar(
+                              radius: 50,
+                              backgroundColor: feastLightGreen.withAlpha(128),
+                              backgroundImage: _newProfileImage != null
+                                  ? FileImage(_newProfileImage!) as ImageProvider
+                                  : (_currentProfileUrl != null && _currentProfileUrl!.isNotEmpty
+                                      ? NetworkImage(_currentProfileUrl!)
+                                      : null),
+                              child: (_newProfileImage == null && (_currentProfileUrl == null || _currentProfileUrl!.isEmpty))
+                                  ? const Icon(Icons.person, size: 48, color: feastGreen)
+                                  : null,
+                            ),
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: GestureDetector(
+                                onTap: _pickImage,
+                                child: Container(
+                                  padding: const EdgeInsets.all(8),
+                                  decoration: const BoxDecoration(
+                                    color: feastGreen,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(Icons.camera_alt, color: Colors.white, size: 16),
+                                ),
                               ),
                             ),
                           ],
                         ),
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.close, color: Colors.black54),
-                        onPressed: () => Navigator.of(context).pop(),
+                      const SizedBox(height: 24),
+
+                      // Location Field
+                      LabeledTextField(
+                        label: 'Location',
+                        hintText: 'e.g. Almanza Dos, Las Piñas City',
+                        prefixIcon: Icons.location_on_outlined,
+                        controller: _locationController,
+                        validator: (v) => (v == null || v.trim().isEmpty) 
+                            ? 'Location is required' 
+                            : null,
                       ),
-                    ],
-                  ),
-                  const SizedBox(height: 24),
-                  
-                  // Profile Picture
-                  Center(
-                    child: GestureDetector(
-                      onTap: _pickImage,
-                      child: Stack(
+                      const SizedBox(height: 16),
+
+                      // Contact Number Field
+                      LabeledTextField(
+                        label: 'Contact Number',
+                        hintText: '+63 XXX XXX XXXX',
+                        prefixIcon: Icons.phone_outlined,
+                        controller: _contactController,
+                        keyboardType: TextInputType.phone,
+                        textCapitalization: TextCapitalization.none,
+                        validator: (v) {
+                          if (v == null || v.trim().isEmpty) {
+                            return 'Contact number is required';
+                          }
+                          if (!AuthService.isValidPhilippinePhone(v)) {
+                            return 'Format: +63 XXX XXX XXXX';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Date of Birth Field (using LabeledTextField with datePicker type)
+                      LabeledTextField(
+                        label: 'Date of Birth',
+                        hintText: 'MM/DD/YYYY',
+                        prefixIcon: Icons.calendar_today_outlined,
+                        controller: _dobController,
+                        type: LabeledFieldType.datePicker,
+                        validator: (v) {
+                          if (v == null || v.isEmpty) {
+                            return 'Date of birth is required';
+                          }
+                          if (AuthService.isFutureDate(v)) {
+                            return 'Date cannot be in the future';
+                          }
+                          if (!AuthService.isAgeValid(v)) {
+                            return 'You must be at least 18 years old';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Gender Dropdown
+                      LabeledTextField(
+                        label: 'Gender',
+                        hintText: 'Select',
+                        prefixIcon: Icons.favorite_border,
+                        controller: _genderController,
+                        type: LabeledFieldType.dropdown,
+                        items: _genders,
+                        onDropdownChanged: (v) => setState(() {
+                          _genderController.text = v ?? '';
+                          _checkAllFieldsFilled();
+                        }),
+                        validator: (v) => (v == null || v.isEmpty) 
+                            ? 'Please select your gender' 
+                            : null,
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Buttons (Cancel left, Confirm right)
+                      Row(
                         children: [
-                          CircleAvatar(
-                            radius: 40,
-                            backgroundColor: feastLightGreen.withAlpha(128),
-                            backgroundImage: _newProfileImage != null
-                                ? FileImage(_newProfileImage!) as ImageProvider
-                                : (_currentProfileUrl != null && _currentProfileUrl!.isNotEmpty
-                                    ? NetworkImage(_currentProfileUrl!)
-                                    : null),
-                            child: (_newProfileImage == null && (_currentProfileUrl == null || _currentProfileUrl!.isEmpty))
-                                ? const Icon(Icons.person, size: 40, color: feastGreen)
-                                : null,
-                          ),
-                          Positioned(
-                            bottom: 0,
-                            right: 0,
-                            child: Container(
-                              padding: const EdgeInsets.all(4),
-                              decoration: BoxDecoration(
-                                color: feastGreen,
-                                shape: BoxShape.circle,
-                                border: Border.all(color: Colors.white, width: 2),
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: () => Navigator.of(context).pop(),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: feastError,
+                                side: const BorderSide(color: feastError),
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
                               ),
-                              child: const Icon(Icons.camera_alt, color: Colors.white, size: 14),
+                              child: const Text(
+                                'Cancel',
+                                style: TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  fontFamily: 'Outfit',
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: (_allFieldsFilled && !_isSaving) ? _save : null,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: (_allFieldsFilled && !_isSaving) 
+                                    ? feastGreen 
+                                    : feastGreen.withOpacity(0.5),
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 14),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                              child: _isSaving
+                                  ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'Save Changes',
+                                      style: TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        fontFamily: 'Outfit',
+                                      ),
+                                    ),
                             ),
                           ),
                         ],
                       ),
-                    ),
+                    ],
                   ),
-                  const SizedBox(height: 24),
-
-                  _label('Location'),
-                  const SizedBox(height: 6),
-                  _field(_locationCtrl, 'Insert Location Here...', Icons.location_on_outlined),
-                  const SizedBox(height: 14),
-                  _label('Contact Number'),
-                  const SizedBox(height: 6),
-                  _field(_contactCtrl, '+63 XXX XXX XXXX', Icons.phone_outlined, type: TextInputType.phone),
-                  const SizedBox(height: 14),
-                  _label('Date of Birth'),
-                  const SizedBox(height: 6),
-                  GestureDetector(
-                    onTap: _pickDate,
-                    child: AbsorbPointer(
-                      child: _field(_dobCtrl, 'MM/DD/YYYY', Icons.calendar_today_outlined, suffix: Icons.calendar_month_outlined),
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  _label('Gender'),
-                  const SizedBox(height: 6),
-                  Container(
-                    decoration: _boxDeco(),
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<String>(
-                        value: _selectedGender,
-                        isExpanded: true,
-                        hint: const Text('-- Select --', style: TextStyle(color: Colors.grey, fontFamily: 'Outfit')),
-                        items: ['Male', 'Female', 'Other'].map((g) {
-                          return DropdownMenuItem(
-                            value: g,
-                            child: Text(g, style: const TextStyle(fontFamily: 'Outfit')),
-                          );
-                        }).toList(),
-                        onChanged: (v) => setState(() => _selectedGender = v),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: _isSaving ? null : _save,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: feastBlue,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(25),
-                        ),
-                      ),
-                      child: _isSaving
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Text(
-                              'Confirm',
-                              style: TextStyle(
-                                fontSize: 15,
-                                fontWeight: FontWeight.bold,
-                                fontFamily: 'Outfit',
-                              ),
-                            ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    child: OutlinedButton(
-                      onPressed: () => Navigator.of(context).pop(),
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: feastWarning,
-                        side: const BorderSide(color: feastWarning),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(25),
-                        ),
-                      ),
-                      child: const Text(
-                        'Cancel',
-                        style: TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                          fontFamily: 'Outfit',
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-    );
-  }
-
-  Widget _label(String text) => Text(
-    text,
-    style: const TextStyle(
-      fontSize: 12,
-      fontFamily: 'Outfit',
-      fontWeight: FontWeight.bold,
-      color: feastGray,
-    ),
-  );
-
-  Widget _field(
-    TextEditingController ctrl,
-    String hint,
-    IconData prefix, {
-    TextInputType type = TextInputType.text,
-    IconData? suffix,
-  }) {
-    return Container(
-      decoration: _boxDeco(),
-      child: TextField(
-        controller: ctrl,
-        keyboardType: type,
-        style: const TextStyle(fontFamily: 'Outfit', fontSize: 14),
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: const TextStyle(color: Colors.grey, fontFamily: 'Outfit'),
-          prefixIcon: Icon(prefix, color: Colors.black54, size: 20),
-          suffixIcon: suffix != null ? Icon(suffix, color: Colors.black54, size: 20) : null,
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(vertical: 14),
-        ),
       ),
     );
   }
-
-  BoxDecoration _boxDeco() => BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: Colors.grey.withAlpha(77)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withAlpha(10),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      );
 }
