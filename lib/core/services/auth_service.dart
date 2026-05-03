@@ -355,10 +355,41 @@ class AuthService {
   // UPDATE PASSWORD
   // ──────────────────────────────────────────────────────────────────────────
 
-  Future<void> updatePassword(String newPassword) async {
+  // Add this method to handle re-authentication
+  Future<void> reauthenticateUser(String password) async {
+    final user = _auth.currentUser;
+    if (user == null) throw AuthException('No user logged in');
+    
+    final credential = EmailAuthProvider.credential(
+      email: user.email!,
+      password: password,
+    );
+    
     try {
-      await _auth.currentUser!.updatePassword(newPassword);
-      final uid = _auth.currentUser!.uid;
+      await user.reauthenticateWithCredential(credential);
+    } on FirebaseAuthException catch (e) {
+      throw AuthException(_mapFirebaseError(e.code));
+    }
+  }
+
+  // Update the updatePassword method
+  Future<void> updatePassword(String newPassword, {String? currentPassword}) async {
+    final user = _auth.currentUser;
+    if (user == null) throw AuthException('No user logged in');
+    
+    try {
+      // If current password is provided, re-authenticate first
+      if (currentPassword != null && currentPassword.isNotEmpty) {
+        final credential = EmailAuthProvider.credential(
+          email: user.email!,
+          password: currentPassword,
+        );
+        await user.reauthenticateWithCredential(credential);
+      }
+      
+      await user.updatePassword(newPassword);
+      
+      final uid = user.uid;
       await _logActivity(
         uid: uid,
         type: 'Credential Changes',
