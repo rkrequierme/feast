@@ -127,7 +127,6 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
     setState(() => _isDownloading = true);
 
     try {
-      // Show progress dialog
       showDialog(
         context: context,
         barrierDismissible: false,
@@ -144,7 +143,6 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
         ),
       );
 
-      // Get downloads directory
       Directory? downloadDir;
       if (Platform.isAndroid) {
         downloadDir = await getExternalStorageDirectory();
@@ -154,19 +152,12 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
       
       final savePath = '${downloadDir!.path}/$fileName';
       
-      // Download file
       final dio = Dio();
-      await dio.download(url, savePath, onReceiveProgress: (received, total) {
-        if (total != -1) {
-          final progress = (received / total * 100).toStringAsFixed(0);
-          // Update progress if needed
-        }
-      });
+      await dio.download(url, savePath);
       
-      // Close progress dialog
+      if (!mounted) return;
       Navigator.pop(context);
       
-      // Show success dialog
       final confirmed = await showDialog<bool>(
         context: context,
         builder: (context) => AlertDialog(
@@ -195,18 +186,16 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
           ],
         ),
       );
-      
-      if (confirmed == true) {
-        // Already opened
-      }
     } catch (e) {
-      Navigator.pop(context); // Close progress dialog
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Download failed: $e'),
-          backgroundColor: feastError,
-        ),
-      );
+      if (mounted) Navigator.pop(context);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Download failed: $e'),
+            backgroundColor: feastError,
+          ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _isDownloading = false);
     }
@@ -280,6 +269,80 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
     }
   }
 
+  Future<void> _deleteMessage(String messageId) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Delete Message',
+          style: TextStyle(fontFamily: 'Outfit', fontWeight: FontWeight.bold),
+        ),
+        content: const Text(
+          'Are you sure you want to delete this message? This action cannot be undone.',
+          style: TextStyle(fontFamily: 'Outfit'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(fontFamily: 'Outfit')),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: feastError),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    
+    if (confirmed != true) return;
+    
+    try {
+      await FirebaseFirestore.instance
+          .collection(FirestorePaths.chats)
+          .doc(widget.chatId)
+          .collection('messages')
+          .doc(messageId)
+          .delete();
+      
+      final messagesSnapshot = await FirebaseFirestore.instance
+          .collection(FirestorePaths.chats)
+          .doc(widget.chatId)
+          .collection('messages')
+          .orderBy('sentAt', descending: true)
+          .limit(1)
+          .get();
+      
+      if (messagesSnapshot.docs.isNotEmpty) {
+        final lastMessage = messagesSnapshot.docs.first.data();
+        await FirebaseFirestore.instance
+            .collection(FirestorePaths.chats)
+            .doc(widget.chatId)
+            .update({
+          'lastMessage': lastMessage['text'] as String? ?? '[Attachment]',
+          'lastMessageAt': lastMessage['sentAt'],
+        });
+      } else {
+        await FirebaseFirestore.instance
+            .collection(FirestorePaths.chats)
+            .doc(widget.chatId)
+            .update({
+          'lastMessage': 'No messages yet',
+          'lastMessageAt': FieldValue.serverTimestamp(),
+        });
+      }
+      
+      if (mounted) {
+        FeastToast.showSuccess(context, 'Message deleted');
+      }
+    } catch (e) {
+      if (mounted) {
+        FeastToast.showError(context, 'Failed to delete message');
+      }
+    }
+  }
+
   Future<void> _pickAndSendFile() async {
     final result = await FilePicker.platform.pickFiles(
       type: FileType.any,
@@ -290,81 +353,71 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
       final fileName = result.files.first.name;
       final fileSize = result.files.first.size;
       
-      // Only show confirmation for:
-      // 1. Non-image files
-      // 2. Images larger than 5MB
-      // 3. Any file that might take time to send
-      final shouldConfirm = !_isImageFile(fileName) || fileSize > 5 * 1024 * 1024;
-      
-      if (shouldConfirm) {
-        final confirmed = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-            title: Row(
-              children: [
-                Text(_getFileIcon(fileName), style: const TextStyle(fontSize: 28)),
-                const SizedBox(width: 12),
-                const Text(
-                  'Send File?',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                ),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: feastLightGreen.withAlpha(30),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        fileName,
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        _formatFileSize(fileSize),
-                        style: const TextStyle(color: feastGray, fontSize: 12),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'This file will be shared with everyone in this conversation.',
-                  style: TextStyle(fontSize: 12, color: feastGray),
-                ),
-              ],
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                style: TextButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                ),
-                child: const Text('Cancel', style: TextStyle(fontSize: 14)),
-              ),
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context, true),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: feastGreen,
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                child: const Text('Send', style: TextStyle(fontSize: 14)),
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Text(_getFileIcon(fileName), style: const TextStyle(fontSize: 28)),
+              const SizedBox(width: 12),
+              const Text(
+                'Send File?',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
               ),
             ],
           ),
-        );
-        if (confirmed != true) return;
-      }
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: feastLightGreen.withAlpha(30),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      fileName,
+                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      _formatFileSize(fileSize),
+                      style: const TextStyle(color: feastGray, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'This file will be shared with everyone in this conversation.',
+                style: TextStyle(fontSize: 12, color: feastGray),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: feastGreen,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: const Text('Send'),
+            ),
+          ],
+        ),
+      );
+      
+      if (confirmed != true) return;
       
       await _sendMessage(attachmentFile: file);
     }
@@ -442,9 +495,11 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
                   padding: const EdgeInsets.all(16),
                   itemCount: messages.length,
                   itemBuilder: (context, index) {
-                    final msg = messages[index].data() as Map<String, dynamic>;
+                    final doc = messages[index];
+                    final msg = doc.data() as Map<String, dynamic>;
                     final isMine = msg['senderId'] == _uid;
-                    return _buildMessageBubble(msg, isMine);
+                    final messageId = doc.id;
+                    return _buildMessageBubble(msg, isMine, messageId);
                   },
                 );
               },
@@ -456,7 +511,7 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
     );
   }
 
-  Widget _buildMessageBubble(Map<String, dynamic> msg, bool isMine) {
+  Widget _buildMessageBubble(Map<String, dynamic> msg, bool isMine, String messageId) {
     final text = msg['text'] as String? ?? '';
     final attachmentUrl = msg['attachmentUrl'] as String? ?? '';
     final attachmentName = msg['attachmentName'] as String? ?? '';
@@ -466,241 +521,169 @@ class _SelectedChatScreenState extends State<SelectedChatScreen> {
     final isImage = _isImageFile(attachmentName);
     final fileName = attachmentName.isNotEmpty ? attachmentName : _getFileName(attachmentUrl);
 
-    return Align(
-      alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.75,
-        ),
-        child: Column(
-          crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: isMine ? feastGreen : Colors.white,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(12),
-                  topRight: const Radius.circular(12),
-                  bottomLeft: Radius.circular(isMine ? 12 : 4),
-                  bottomRight: Radius.circular(isMine ? 4 : 12),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withAlpha(10),
-                    blurRadius: 2,
-                    offset: const Offset(0, 1),
+    return GestureDetector(
+      onLongPress: () {
+        if (isMine) {
+          _deleteMessage(messageId);
+        }
+      },
+      child: Align(
+        alignment: isMine ? Alignment.centerRight : Alignment.centerLeft,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          constraints: BoxConstraints(
+            maxWidth: MediaQuery.of(context).size.width * 0.75,
+          ),
+          child: Column(
+            crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isMine ? feastGreen : Colors.white,
+                  borderRadius: BorderRadius.only(
+                    topLeft: const Radius.circular(12),
+                    topRight: const Radius.circular(12),
+                    bottomLeft: Radius.circular(isMine ? 12 : 4),
+                    bottomRight: Radius.circular(isMine ? 4 : 12),
                   ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
-                children: [
-                  if (hasAttachment)
-                    GestureDetector(
-                      onTap: () {
-                        if (isImage) {
-                          showDialog(
-                            context: context,
-                            builder: (_) => Dialog(
-                              backgroundColor: Colors.black87,
-                              child: InteractiveViewer(
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withAlpha(10),
+                      blurRadius: 2,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+                  children: [
+                    if (hasAttachment)
+                      GestureDetector(
+                        onTap: () {
+                          if (isImage) {
+                            showDialog(
+                              context: context,
+                              builder: (_) => Dialog(
+                                backgroundColor: Colors.black87,
+                                child: InteractiveViewer(
+                                  child: Image.network(
+                                    attachmentUrl,
+                                    fit: BoxFit.contain,
+                                    loadingBuilder: (context, child, progress) {
+                                      if (progress == null) return child;
+                                      return const Center(
+                                        child: CircularProgressIndicator(color: Colors.white),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ),
+                            );
+                          } else {
+                            _downloadFile(attachmentUrl, fileName);
+                          }
+                        },
+                        child: isImage
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
                                 child: Image.network(
                                   attachmentUrl,
-                                  fit: BoxFit.contain,
-                                  loadingBuilder: (context, child, progress) {
-                                    if (progress == null) return child;
-                                    return const Center(
-                                      child: CircularProgressIndicator(color: Colors.white),
+                                  height: 150,
+                                  width: 150,
+                                  fit: BoxFit.cover,
+                                  loadingBuilder: (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return Container(
+                                      height: 150,
+                                      width: 150,
+                                      color: feastLightGreen.withAlpha(50),
+                                      child: const Center(
+                                        child: CircularProgressIndicator(strokeWidth: 2),
+                                      ),
                                     );
                                   },
                                   errorBuilder: (context, error, stack) {
-                                    return const Center(
-                                      child: Column(
+                                    return Container(
+                                      height: 150,
+                                      width: 150,
+                                      color: feastLightGreen.withAlpha(50),
+                                      child: const Column(
                                         mainAxisAlignment: MainAxisAlignment.center,
                                         children: [
-                                          Icon(Icons.broken_image, size: 50, color: Colors.white54),
-                                          SizedBox(height: 8),
-                                          Text('Failed to load image', style: TextStyle(color: Colors.white54)),
+                                          Icon(Icons.broken_image, size: 40, color: feastGray),
+                                          SizedBox(height: 4),
+                                          Text('Failed to load', style: TextStyle(fontSize: 10)),
                                         ],
                                       ),
                                     );
                                   },
                                 ),
-                              ),
-                            ),
-                          );
-                        } else {
-                          // Beautiful download confirmation dialog
-                          showDialog(
-                            context: context,
-                            builder: (context) => AlertDialog(
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-                              title: Row(
-                                children: [
-                                  Text(_getFileIcon(fileName), style: const TextStyle(fontSize: 32)),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Text(
-                                      'Download File',
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                              )
+                            : Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                                decoration: BoxDecoration(
+                                  color: feastLightGreen.withAlpha(80),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      _getFileIcon(fileName),
+                                      style: const TextStyle(fontSize: 24),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              content: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(12),
-                                    decoration: BoxDecoration(
-                                      color: feastLightGreen.withAlpha(30),
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: Column(
+                                    const SizedBox(width: 8),
+                                    Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          fileName,
-                                          style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                                          fileName.length > 30 ? '${fileName.substring(0, 30)}...' : fileName,
+                                          style: const TextStyle(
+                                            fontFamily: 'Outfit',
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w500,
+                                          ),
                                         ),
-                                        const SizedBox(height: 4),
                                         Text(
-                                          'Tap Download to save this file to your device.',
-                                          style: TextStyle(fontSize: 12, color: feastGray),
+                                          'Tap to download',
+                                          style: TextStyle(
+                                            fontFamily: 'Outfit',
+                                            fontSize: 10,
+                                            color: feastGray,
+                                          ),
                                         ),
                                       ],
                                     ),
-                                  ),
-                                ],
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  style: TextButton.styleFrom(
-                                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                  ),
-                                  child: const Text('Cancel', style: TextStyle(fontSize: 14)),
+                                  ],
                                 ),
-                                ElevatedButton.icon(
-                                  onPressed: () {
-                                    Navigator.pop(context);
-                                    _downloadFile(attachmentUrl, fileName);
-                                  },
-                                  icon: const Icon(Icons.download, size: 18),
-                                  label: const Text('Download'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: feastGreen,
-                                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }
-                      },
-                      child: isImage
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.network(
-                                attachmentUrl,
-                                height: 150,
-                                width: 150,
-                                fit: BoxFit.cover,
-                                loadingBuilder: (context, child, loadingProgress) {
-                                  if (loadingProgress == null) return child;
-                                  return Container(
-                                    height: 150,
-                                    width: 150,
-                                    color: feastLightGreen.withAlpha(50),
-                                    child: const Center(
-                                      child: CircularProgressIndicator(strokeWidth: 2),
-                                    ),
-                                  );
-                                },
-                                errorBuilder: (context, error, stack) {
-                                  return Container(
-                                    height: 150,
-                                    width: 150,
-                                    color: feastLightGreen.withAlpha(50),
-                                    child: const Column(
-                                      mainAxisAlignment: MainAxisAlignment.center,
-                                      children: [
-                                        Icon(Icons.broken_image, size: 40, color: feastGray),
-                                        SizedBox(height: 4),
-                                        Text('Failed to load', style: TextStyle(fontSize: 10)),
-                                      ],
-                                    ),
-                                  );
-                                },
                               ),
-                            )
-                          : Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: feastLightGreen.withAlpha(80),
-                                borderRadius: BorderRadius.circular(8),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Text(
-                                    _getFileIcon(fileName),
-                                    style: const TextStyle(fontSize: 24),
-                                  ),
-                                  const SizedBox(width: 8),
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        fileName.length > 30 ? '${fileName.substring(0, 30)}...' : fileName,
-                                        style: const TextStyle(
-                                          fontFamily: 'Outfit',
-                                          fontSize: 12,
-                                          fontWeight: FontWeight.w500,
-                                        ),
-                                      ),
-                                      Text(
-                                        'Tap to download',
-                                        style: TextStyle(
-                                          fontFamily: 'Outfit',
-                                          fontSize: 10,
-                                          color: feastGray,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                    ),
-                  if (text.isNotEmpty) ...[
-                    if (hasAttachment) const SizedBox(height: 8),
+                      ),
+                    if (text.isNotEmpty) ...[
+                      if (hasAttachment) const SizedBox(height: 8),
+                      Text(
+                        text,
+                        style: TextStyle(
+                          fontFamily: 'Outfit',
+                          fontSize: 14,
+                          color: isMine ? Colors.white : feastBlack,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 4),
                     Text(
-                      text,
+                      timeStr,
                       style: TextStyle(
                         fontFamily: 'Outfit',
-                        fontSize: 14,
-                        color: isMine ? Colors.white : feastBlack,
+                        fontSize: 10,
+                        color: isMine ? Colors.white70 : feastGray,
                       ),
                     ),
                   ],
-                  const SizedBox(height: 4),
-                  Text(
-                    timeStr,
-                    style: TextStyle(
-                      fontFamily: 'Outfit',
-                      fontSize: 10,
-                      color: isMine ? Colors.white70 : feastGray,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
